@@ -1,8 +1,8 @@
 site_name: Astrolabed Documentation
 site_description: Documentation for the Astrolabed project (usage, technical details, configuration, and diagrams).
-site_url: https://guidcruncher.github.io/netdns
-repo_name: guidcruncher/netdns
-repo_url: https://github.com/guidcruncher/netdns
+site_url: https://guidcruncher.github.io/astrolabed
+repo_name: guidcruncher/astrolabed
+repo_url: https://github.com/guidcruncher/astrolabed
 
 docs_dir: docs
 site_dir: site
