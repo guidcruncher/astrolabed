@@ -1,6 +1,6 @@
 # Astrolabed
 
-![Astrolabed logo](assets/logo.svg)
+<img src="assets/logo.svg" width="200" alt="Astrolabed logo" />
 
 Astrolabed is a lightweight, high-performance DNS forwarder implemented in .NET. This documentation site contains usage guides, technical details, configuration examples, and architecture diagrams.
 
