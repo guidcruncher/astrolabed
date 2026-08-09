@@ -1,0 +1,52 @@
+using System.Net;
+
+using Astrolabed.Dhcp;
+
+using Microsoft.Extensions.Logging.Abstractions;
+
+using Xunit;
+
+namespace Astrolabed.Dhcp.Tests;
+
+public class ServerEngineTests
+{
+    [Fact]
+    public async Task Discover_ShouldProduceOffer()
+    {
+        var store = new InMemoryDhcpLeaseStore();
+        var opts = new DhcpOptions
+        {
+            Enabled = true,
+            ListenAddress = "127.0.0.1",
+            ListenPort = 6767,
+            PoolCidr = "192.168.10.0/29",
+            ServerIdentifier = "192.168.10.1",
+            Router = "192.168.10.1",
+            DnsServer = "1.1.1.1"
+        };
+
+        var logger = NullLogger<DhcpServerEngine>.Instance;
+        var fakeUdp = new FakeUdpClient();
+        var metrics = new FakeDhcpMetrics();
+        var engine = new DhcpServerEngine(logger, opts, store, fakeUdp, metrics, testMode: true);
+
+        var discoverBytes = PacketFactory.DiscoverBytes();
+        await fakeUdp.InjectReceive(discoverBytes);
+
+        fakeUdp.CancelAfter(50);
+
+        try
+        {
+            await engine.RunAsync(fakeUdp.CancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // expected
+        }
+
+        Assert.NotEmpty(fakeUdp.SentPackets);
+
+        var parsed = DhcpPacketCodec.Parse(fakeUdp.SentPackets.First());
+        Assert.Equal(DhcpMessageType.Offer, parsed.GetMessageType());
+    }
+}
