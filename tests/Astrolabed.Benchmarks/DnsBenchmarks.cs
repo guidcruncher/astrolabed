@@ -1,10 +1,10 @@
 using System.Net;
 
-using BenchmarkDotNet.Attributes;
-using BenchmarkDotNet.Running;
-
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.RuleEngine;
+
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Running;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
