@@ -47,6 +47,8 @@ public static class HostBuilderFactory
                     builder.AddConsole();
                 }).CreateLogger("HostBuilderFactory");
 
+            services.AddSingleton<IApplicationRestartManager, ApplicationRestartManager>();
+
                 logger.LogInformation("Registering services for environment: {Env}",
                     ctx.HostingEnvironment.EnvironmentName);
 

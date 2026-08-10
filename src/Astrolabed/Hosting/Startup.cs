@@ -30,7 +30,7 @@ https://guidcruncher.github.io/astrolabed/
               })
               .Build();
 
-        var host = HostBuilderFactory.Build(args, cmd);
+	var host = HostBuilderFactory.Build(args, cmd);
         return host;
     }
 }
