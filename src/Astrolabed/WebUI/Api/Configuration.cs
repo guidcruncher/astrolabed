@@ -1,3 +1,4 @@
+using Astrolabed.Configuration;
 using Astrolabed.WebUI.Api;
 
 using Microsoft.AspNetCore.Builder;
@@ -17,10 +18,16 @@ public static class ConfigurationApi
         var serverOptions = mainHost.Services.GetRequiredService<ServerOptions>();
 
         // GET /api/configuration
-        app.MapGet("api/configuration", () =>
+        app.MapGet("/api/configuration", () =>
         {
             return serverOptions;
         });
 
+        app.MapPut("/api/configuration", (ServerOptions options) =>
+            {
+                var configWriter = new ConfigurationWriter();
+                configWriter.Write(options);
+                return true;
+            });
     }
 }
