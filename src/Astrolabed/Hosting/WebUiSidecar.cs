@@ -60,9 +60,9 @@ public static class WebUiSidecar
                     app.UseEndpoints(endpoints =>
                     {
                         WebUiRouting.RegisterRoutes(mainHost, endpoints);
-                    });
 
-                    app.MapFallbackToFile("index.html");
+		        endpoints.MapFallbackToFile("index.html");
+                    });
 
                     logger.LogInformation("WebUI endpoints registered");
                 });
