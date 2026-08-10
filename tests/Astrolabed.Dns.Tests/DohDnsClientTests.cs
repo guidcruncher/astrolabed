@@ -40,7 +40,10 @@ namespace Astrolabed.Tests
             {
                 // Assert request method and headers
                 Assert.Equal(HttpMethod.Post, req.Method);
+                Assert.NotNull(req);
                 Assert.NotNull(req.Content);
+                Assert.NotNull(req.Content.Headers.ContentType);
+                Assert.NotNull(req.Content.Headers.ContentType.MediaType);
                 Assert.Equal("application/dns-message", req.Content.Headers.ContentType.MediaType);
 
                 var body = await req.Content.ReadAsByteArrayAsync();

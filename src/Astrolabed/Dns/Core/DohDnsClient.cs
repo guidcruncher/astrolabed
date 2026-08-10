@@ -25,8 +25,11 @@ namespace Astrolabed.Dns.Core
             _preferPost = preferPost;
 
             // Ensure Accept header for DoH
-            if (!_http.DefaultRequestHeaders.Accept.Contains(new MediaTypeWithQualityHeaderValue(MediaType)))
-                _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue(MediaType));
+            var mediaHeader = new MediaTypeWithQualityHeaderValue(MediaType);
+            if (!_http.DefaultRequestHeaders.Accept.Contains(mediaHeader))
+            {
+                _http.DefaultRequestHeaders.Accept.Add(mediaHeader);
+            }
         }
 
         public async Task<byte[]> QueryAsync(byte[] request, CancellationToken ct)
@@ -56,17 +59,20 @@ namespace Astrolabed.Dns.Core
 
             resp.EnsureSuccessStatusCode();
 
-            // Validate content-type (best-effort)
-            if (resp.Content.Headers.ContentType == null ||
-                !resp.Content.Headers.ContentType.MediaType.Equals(MediaType, StringComparison.OrdinalIgnoreCase))
+            // Validate content-type (best-effort) safely with pattern matching
+            var contentType = resp.Content.Headers.ContentType;
+            if (contentType?.MediaType == null ||
+                !contentType.MediaType.Equals(MediaType, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidOperationException($"Upstream returned unexpected content-type: {resp.Content.Headers.ContentType}");
+                throw new InvalidOperationException($"Upstream returned unexpected content-type: {contentType?.ToString() ?? "none"}");
             }
 
             var body = await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
 
             if (body == null || body.Length < 12)
+            {
                 throw new InvalidOperationException("Upstream DoH response too short");
+            }
 
             return body;
         }
