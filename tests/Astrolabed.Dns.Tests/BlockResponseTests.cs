@@ -15,7 +15,7 @@ public class BlockResponseTests
 {
     private Astrolabed.Dns.RuleEngine.RuleEngine CreateEngine(string mode, string ip = "0.0.0.0")
     {
-        var opts = new AstrolabedOptions
+        var opts = new DnsForwarderOptions
         {
             BlockResponse = new BlockResponseOptions
             {

@@ -9,9 +9,9 @@ tracking.example.com
 ```
 2. Configure FileBlocklistSource paths in startup configuration:
 ```json
-"BlocklistSources": {
-  "Files": [ "/etc/dnsforwarder/blocklist.txt" ]
-}
+"Blocklists": [
+  "file:///etc/dnsforwarder/blocklist.txt"
+]
 ```
 
 

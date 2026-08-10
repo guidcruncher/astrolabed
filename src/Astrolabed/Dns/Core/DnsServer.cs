@@ -12,7 +12,7 @@ namespace Astrolabed.Dns.Core;
 public sealed class DnsServer : BackgroundService
 {
     private readonly ILogger<DnsServer> _logger;
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
     private readonly AstrolabedService _forwarder;
     private readonly IDnsMetrics _metrics;
 
@@ -21,7 +21,7 @@ public sealed class DnsServer : BackgroundService
 
     public DnsServer(
         ILogger<DnsServer> logger,
-        AstrolabedOptions options,
+        DnsForwarderOptions options,
         AstrolabedService forwarder,
         IDnsMetrics metrics)
     {

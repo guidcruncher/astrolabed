@@ -13,7 +13,7 @@ namespace Astrolabed.Dns.RuleEngine;
 public sealed class RuleEngine
 {
     private readonly ILogger<RuleEngine> _logger;
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
 
     private readonly RuleCompiler _compiler;
     private readonly RuleMatcher _matcher;
@@ -25,11 +25,11 @@ public sealed class RuleEngine
 
     public DnsCache Cache { get; } = new();
 
-    public RuleEngine(AstrolabedOptions options, ILogger<RuleEngine> logger) : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
+    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger) : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
     {
     }
 
-    public RuleEngine(AstrolabedOptions options, ILogger<RuleEngine> logger, IDnsClientFactory clientFactory)
+    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger, IDnsClientFactory clientFactory)
     {
         _options = options;
         _logger = logger;

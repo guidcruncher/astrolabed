@@ -11,7 +11,7 @@ public sealed class RuleEngineTests
     [Fact]
     public void Match_Uses_Default_When_No_Rules()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

@@ -41,6 +41,10 @@ Comprehensive example for local/dev running.
         "Block": true
       }
     ],
+    "Blocklists": [
+    ],
+    "Allowlists": [
+    ],
     "HostsFiles": [
       "file:///etc/astrolabed/hosts/custom.list"
     ],
@@ -139,7 +143,12 @@ Example tuned for running inside Docker (paths reference `/app/blocklists` for m
         "Block": true
       }
     ],
-    "HostsFiles": [],
+    "Blocklists": [
+    ],
+    "Allowlists": [
+    ],
+    "HostsFiles": [
+    ],
     "Caching": {
       "Enabled": true,
       "TtlSeconds": 300,

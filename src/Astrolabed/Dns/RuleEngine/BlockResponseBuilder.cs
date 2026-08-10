@@ -11,9 +11,9 @@ namespace Astrolabed.Dns.RuleEngine;
 
 internal sealed class BlockResponseBuilder
 {
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
 
-    public BlockResponseBuilder(AstrolabedOptions options)
+    public BlockResponseBuilder(DnsForwarderOptions options)
     {
         _options = options;
     }

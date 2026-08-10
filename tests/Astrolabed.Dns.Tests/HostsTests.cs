@@ -17,7 +17,7 @@ public class HostsTests
 {
     private RuleEngine.RuleEngine CreateEngine()
     {
-        var opts = new AstrolabedOptions
+        var opts = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

@@ -10,14 +10,14 @@ namespace Astrolabed.Dns.Core;
 public sealed class AstrolabedService
 {
     private readonly ILogger<AstrolabedService> _logger;
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
     private readonly IDnsClient _defaultClient;
     private readonly RuleEngine.RuleEngine _ruleEngine;
     private readonly IDnsMetrics _metrics;
 
     public AstrolabedService(
         ILogger<AstrolabedService> logger,
-        AstrolabedOptions options,
+        DnsForwarderOptions options,
         IDnsClient defaultClient,
         RuleEngine.RuleEngine ruleEngine,
         IDnsMetrics metrics)

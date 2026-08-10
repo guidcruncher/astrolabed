@@ -11,7 +11,7 @@ public sealed class HostsTimeoutTests
     [Fact]
     public void UpstreamTimeout_Should_Throw_TaskCanceledException()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

@@ -32,7 +32,7 @@ public class DnsBenchmarks
             0x00, 0x01
         };
 
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             Resolvers =
             {

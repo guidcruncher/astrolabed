@@ -49,7 +49,12 @@
         "Block": false
       }
     ],
-    "HostsFiles": [],
+    "Blocklists": [
+    ],
+    "Allowlists": [
+    ],
+    "HostsFiles": [
+    ],
     "BlockResponse": {
       "Mode": "NXDOMAIN",
       "StaticIp": "0.0.0.0",
