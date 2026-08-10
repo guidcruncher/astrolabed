@@ -19,7 +19,7 @@ public class Program
             })
             .Build();
 
-        var host = HostBuilderFactory.Build(args, cmd);
+        var host = Startup.BuildHost(args);
 
         // Increase threadpool minimums for high-QPS scenarios
         try

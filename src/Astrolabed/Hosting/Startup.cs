@@ -4,17 +4,33 @@ namespace Astrolabed.Hosting;
 
 public static class Startup
 {
-    public static async Task LoadAsync(IHost host)
+    public static IHost BuildHost(string[] args)
     {
         Console.WriteLine("""
-   _____            __                .__        ___.                  
-  /  _  \   _______/  |________  ____ |  | _____ \_ |__   ____   ______
- /  /_\  \ /  ___/\   __\_  __ \/  _ \|  | \__  \ | __ \_/ __ \ /  ___/
-/    |    \\___ \  |  |  |  | \(  <_> )  |__/ __ \| \_\ \  ___/ \___ \ 
-\____|__  /____  > |__|  |__|   \____/|____(____  /___  /\___  >____  >
+
+   _____            __                .__        ___.              .___
+  /  _  \   _______/  |________  ____ |  | _____ \_ |__   ____   __| _/
+ /  /_\  \ /  ___/\   __\_  __ \/  _ \|  | \__  \ | __ \_/ __ \ / __ | 
+/    |    \\___ \  |  |  |  | \(  <_> )  |__/ __ \| \_\ \  ___// /_/ | 
+\____|__  /____  > |__|  |__|   \____/|____(____  /___  /\___  >____ | 
         \/     \/                               \/    \/     \/     \/ 
+Your navigator for the Internet.
+https://guidcruncher.github.io/astrolabed/
+
 """);
 
-        await Task.CompletedTask;
+      var cmd = new ConfigurationBuilder()
+            .AddCommandLine(args, new Dictionary<string, string>
+            {
+                ["--config"] = "ConfigPath",
+                ["--env"] = "DOTNET_ENVIRONMENT",
+                ["--listen"] = "ListenOverride",
+                ["--resolver"] = "ResolverOverride",
+                ["--log-level"] = "Logging:Level"
+            })
+            .Build();
+
+        var host = HostBuilderFactory.Build(args, cmd);
+return host;
     }
 }
