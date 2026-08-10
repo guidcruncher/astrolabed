@@ -51,12 +51,18 @@ public static class WebUiSidecar
 
                 web.Configure(app =>
                 {
+
+                    app.UseDefaultFiles();
+                    app.UseStaticFiles();
+
                     app.UseRouting();
 
                     app.UseEndpoints(endpoints =>
                     {
                         WebUiRouting.RegisterRoutes(mainHost, endpoints);
                     });
+
+                    app.MapFallbackToFile("index.html");
 
                     logger.LogInformation("WebUI endpoints registered");
                 });
