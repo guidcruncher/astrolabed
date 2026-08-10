@@ -7,16 +7,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Core;
 
-public sealed class AstrolabedService
+public sealed class DnsForwarderService
 {
-    private readonly ILogger<AstrolabedService> _logger;
+    private readonly ILogger<DnsForwarderService> _logger;
     private readonly DnsForwarderOptions _options;
     private readonly IDnsClient _defaultClient;
     private readonly RuleEngine.RuleEngine _ruleEngine;
     private readonly IDnsMetrics _metrics;
 
-    public AstrolabedService(
-        ILogger<AstrolabedService> logger,
+    public DnsForwarderService(
+        ILogger<DnsForwarderService> logger,
         DnsForwarderOptions options,
         IDnsClient defaultClient,
         RuleEngine.RuleEngine ruleEngine,

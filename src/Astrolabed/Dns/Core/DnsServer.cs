@@ -13,7 +13,7 @@ public sealed class DnsServer : BackgroundService
 {
     private readonly ILogger<DnsServer> _logger;
     private readonly DnsForwarderOptions _options;
-    private readonly AstrolabedService _forwarder;
+    private readonly DnsForwarderService _forwarder;
     private readonly IDnsMetrics _metrics;
 
     private UdpClient? _udp;
@@ -22,7 +22,7 @@ public sealed class DnsServer : BackgroundService
     public DnsServer(
         ILogger<DnsServer> logger,
         DnsForwarderOptions options,
-        AstrolabedService forwarder,
+        DnsForwarderService forwarder,
         IDnsMetrics metrics)
     {
         _logger = logger;

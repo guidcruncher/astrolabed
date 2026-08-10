@@ -92,7 +92,7 @@ public static class DnsServiceCollectionExtensions
         //
         // Forwarder + server
         //
-        services.AddSingleton<AstrolabedService>();
+        services.AddSingleton<DnsForwarderService>();
         services.AddHostedService<DnsServer>();
 
         return services;
