@@ -15,4 +15,6 @@ public sealed class ServerOptions
 
     public MetricOptions Metrics { get; set; } = new();
 
+    public WebUiOptions WebUI { get; set; } = new();
+
 }

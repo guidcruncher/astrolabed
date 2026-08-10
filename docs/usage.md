@@ -107,6 +107,11 @@
     "ListenAddress": "127.0.0.1",
     "ListenPort": 1080
   },
+  "WebUI": {
+    "Enabled": true,
+    "ListenAddress": "127.0.0.1",
+    "ListenPort": 1081
+  },
   "Logging": {
     "Level": "Debug"
   }

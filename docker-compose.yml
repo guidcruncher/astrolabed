@@ -15,6 +15,7 @@ services:
       - "68:68"
       - "123:123/udp"
       - "1080:1080"
+      - "1081:1081"
 
     # Mount config so you can edit without rebuilding
     volumes:
