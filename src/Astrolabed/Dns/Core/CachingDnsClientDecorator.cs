@@ -1,12 +1,16 @@
+using System;
 using System.Collections.Concurrent;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Astrolabed.Dns.Core;
 
 public sealed class CachingDnsClientDecorator : IDnsClient
 {
     private readonly IDnsClient _inner;
-    private readonly ConcurrentDictionary<string, CacheEntry> _cache = new();
+    private readonly ConcurrentDictionary<CacheKey, CacheEntry> _cache = new();
     private readonly int _maxEntries;
+    private int _count;
 
     public CachingDnsClientDecorator(IDnsClient inner, int maxEntries)
     {
@@ -17,26 +21,54 @@ public sealed class CachingDnsClientDecorator : IDnsClient
     public async Task<byte[]> QueryAsync(byte[] request, CancellationToken ct)
     {
         var msg = DnsParser.Parse(request);
-        var q = msg.Questions.First();
-        var key = $"{q.Name}|{q.Type}";
-
-        if (_cache.TryGetValue(key, out var entry) && entry.ExpiresAt > DateTimeOffset.UtcNow)
+        if (msg.Questions.Count == 0)
         {
-            return entry.Response;
+            return await _inner.QueryAsync(request, ct).ConfigureAwait(false);
         }
 
-        var response = await _inner.QueryAsync(request, ct);
-        var respMsg = DnsParser.Parse(response);
-        var ttl = respMsg.GetMinTtl();
-        var expires = DateTimeOffset.UtcNow.AddSeconds(ttl);
+        var q = msg.Questions[0];
+        var key = new CacheKey(q.Name, q.Type.GetHashCode());
+        long now = Environment.TickCount64;
 
-        if (_cache.Count < _maxEntries)
+        if (_cache.TryGetValue(key, out var entry))
         {
-            _cache[key] = new CacheEntry(response, expires);
+            if (now < entry.ExpiresTicks)
+            {
+                return entry.Response;
+            }
+
+            // Lazy cleanup of expired entry
+            if (_cache.TryRemove(key, out _))
+            {
+                Interlocked.Decrement(ref _count);
+            }
+        }
+
+        var response = await _inner.QueryAsync(request, ct).ConfigureAwait(false);
+        var respMsg = DnsParser.Parse(response);
+        int ttl = respMsg.GetMinTtl();
+
+        if (ttl > 0)
+        {
+            long expiresTicks = now + (ttl * 1000L);
+            var newEntry = new CacheEntry(response, expiresTicks);
+
+            if (_cache.ContainsKey(key))
+            {
+                _cache[key] = newEntry;
+            }
+            else if (Volatile.Read(ref _count) < _maxEntries)
+            {
+                if (_cache.TryAdd(key, newEntry))
+                {
+                    Interlocked.Increment(ref _count);
+                }
+            }
         }
 
         return response;
     }
 
-    private sealed record CacheEntry(byte[] Response, DateTimeOffset ExpiresAt);
+    private readonly record struct CacheKey(string Name, int TypeHash);
+    private readonly record struct CacheEntry(byte[] Response, long ExpiresTicks);
 }

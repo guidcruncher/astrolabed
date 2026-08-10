@@ -1,239 +1,267 @@
 using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
 
-namespace Astrolabed.Dns.Core
+namespace Astrolabed.Dns.Core;
+
+internal static class DnsResponseBuilder
 {
-    internal static class DnsResponseBuilder
+    private const int HeaderSize = 12;
+
+    public static int GetQuestionEnd(ReadOnlySpan<byte> req)
     {
-        private const int HeaderSize = 12;
-
-        public static int GetQuestionEnd(byte[] req)
+        if (req.Length < HeaderSize)
         {
-            if (req == null || req.Length < HeaderSize)
-                throw new ArgumentException("Request too short", nameof(req));
-
-            ushort qdcount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(4, 2));
-            int offset = HeaderSize;
-
-            for (int q = 0; q < qdcount; q++)
-            {
-                while (true)
-                {
-                    if (offset >= req.Length)
-                        throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(req));
-
-                    byte len = req[offset++];
-                    if (len == 0) break;
-
-                    // pointer inside question not allowed per strict spec; handle defensively
-                    if ((len & 0xC0) == 0xC0)
-                    {
-                        // pointer is two bytes total; we've consumed one, consume the second and stop
-                        offset++;
-                        break;
-                    }
-
-                    offset += len;
-                    if (offset > req.Length)
-                        throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(req));
-                }
-
-                // QTYPE + QCLASS = 4 bytes
-                if (offset + 4 > req.Length)
-                    throw new ArgumentException("Malformed DNS packet: missing QTYPE/QCLASS", nameof(req));
-
-                offset += 4;
-            }
-
-            return offset;
+            throw new ArgumentException("Request too short", nameof(req));
         }
 
-        private static int SkipName(byte[] buf, int offset)
+        ushort qdcount = BinaryPrimitives.ReadUInt16BigEndian(req.Slice(4, 2));
+        int offset = HeaderSize;
+
+        for (int q = 0; q < qdcount; q++)
         {
-            int len = buf.Length;
             while (true)
             {
-                if (offset >= len)
-                    throw new ArgumentException("Malformed DNS packet while parsing name", nameof(buf));
-
-                byte b = buf[offset++];
-                if (b == 0)
-                    break;
-
-                // pointer: two-byte pointer, stops name
-                if ((b & 0xC0) == 0xC0)
+                if (offset >= req.Length)
                 {
-                    // second byte must exist
-                    if (offset >= len)
-                        throw new ArgumentException("Malformed DNS packet: incomplete pointer", nameof(buf));
+                    throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(req));
+                }
+
+                byte len = req[offset++];
+                if (len == 0)
+                {
+                    break;
+                }
+
+                if ((len & 0xC0) == 0xC0)
+                {
+                    if (offset >= req.Length)
+                    {
+                        throw new ArgumentException("Malformed DNS packet: incomplete pointer", nameof(req));
+                    }
                     offset++;
                     break;
                 }
 
-                // label length byte - advance by that amount
-                offset += b;
-                if (offset > len)
-                    throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(buf));
-            }
-
-            return offset;
-        }
-
-        private static (byte[] bytes, ushort count) ExtractAdditionalRecords(byte[] req)
-        {
-            try
-            {
-                if (req == null || req.Length < HeaderSize)
-                    return (Array.Empty<byte>(), 0);
-
-                ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(10, 2));
-                if (arCount == 0)
-                    return (Array.Empty<byte>(), 0);
-
-                int qEnd = GetQuestionEnd(req);
-                int offset = qEnd;
-                var parts = new List<byte[]>();
-
-                for (int i = 0; i < arCount; i++)
+                offset += len;
+                if (offset > req.Length)
                 {
-                    int nameStart = offset;
-                    offset = SkipName(req, offset);
-
-                    // need at least TYPE(2) + CLASS(2) + TTL(4) + RDLENGTH(2)
-                    if (offset + 10 > req.Length)
-                        throw new ArgumentException("Malformed DNS packet: additional RR header too short", nameof(req));
-
-                    ushort rdlen = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(offset + 8, 2));
-
-                    int rrTotalLen = (offset + 10 + rdlen) - nameStart;
-                    if (nameStart + rrTotalLen > req.Length)
-                        throw new ArgumentException("Malformed DNS packet: additional RR data overruns packet", nameof(req));
-
-                    var rr = new byte[rrTotalLen];
-                    Array.Copy(req, nameStart, rr, 0, rrTotalLen);
-                    parts.Add(rr);
-
-                    offset = offset + 10 + rdlen;
+                    throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(req));
                 }
-
-                // concatenate
-                int total = 0;
-                foreach (var p in parts) total += p.Length;
-                var outBuf = new byte[total];
-                int pos = 0;
-                foreach (var p in parts)
-                {
-                    Array.Copy(p, 0, outBuf, pos, p.Length);
-                    pos += p.Length;
-                }
-
-                return (outBuf, (ushort)parts.Count);
             }
-            catch
+
+            if (offset + 4 > req.Length)
             {
-                // On any parse error, return none — safer than echoing malformed data
-                return (Array.Empty<byte>(), 0);
+                throw new ArgumentException("Malformed DNS packet: missing QTYPE/QCLASS", nameof(req));
             }
+
+            offset += 4;
         }
 
-        public static byte[] CopyQuestionBytes(byte[] req)
-        {
-            int end = GetQuestionEnd(req);
-            int len = end - HeaderSize;
-            var outBytes = new byte[len];
-            Array.Copy(req, HeaderSize, outBytes, 0, len);
-            return outBytes;
-        }
-
-        private static byte[] BuildHeader(ushort id, byte flagsHi, byte flagsLo, ushort qdCount, ushort anCount, ushort nsCount = 0, ushort arCount = 0)
-        {
-            var header = new byte[HeaderSize];
-            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(0, 2), id);
-            header[2] = flagsHi;
-            header[3] = flagsLo;
-            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(4, 2), qdCount);
-            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(6, 2), anCount);
-            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(8, 2), nsCount);
-            BinaryPrimitives.WriteUInt16BigEndian(header.AsSpan(10, 2), arCount);
-            return header;
-        }
-
-        public static byte[] BuildRcodeResponse(byte[] req, int rcode)
-        {
-            ushort id = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(0, 2));
-            byte reqFlagsHi = req[2];
-            byte flagsHi = (byte)((reqFlagsHi & 0x01) | 0x80); // keep RD, set QR
-            byte flagsLo = (byte)(0x80 | (rcode & 0x0F)); // RA=1 + rcode
-
-            var qBytes = CopyQuestionBytes(req);
-            ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(4, 2));
-
-            var add = ExtractAdditionalRecords(req);
-
-            var header = BuildHeader(id, flagsHi, flagsLo, qdCount, 0, 0, add.count);
-
-            var resp = new List<byte>(HeaderSize + qBytes.Length + add.bytes.Length);
-            resp.AddRange(header);
-            resp.AddRange(qBytes);
-
-            if (add.count > 0)
-                resp.AddRange(add.bytes);
-
-            return resp.ToArray();
-        }
-
-        public static byte[] BuildStaticIpResponse(byte[] req, IPAddress ip, int ttlSeconds = 60)
-        {
-            ushort id = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(0, 2));
-            byte reqFlagsHi = req[2];
-            byte flagsHi = (byte)((reqFlagsHi & 0x01) | 0x80); // keep RD, set QR
-            byte flagsLo = 0x80; // RA=1, RCODE=0
-
-            var qBytes = CopyQuestionBytes(req);
-            ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(4, 2));
-            ushort anCount = 1;
-
-            var add = ExtractAdditionalRecords(req);
-
-            var header = BuildHeader(id, flagsHi, flagsLo, qdCount, anCount, 0, add.count);
-
-            var outBytes = new List<byte>(HeaderSize + qBytes.Length + 16 + add.bytes.Length);
-            outBytes.AddRange(header);
-            outBytes.AddRange(qBytes);
-
-            // NAME: pointer to offset 12 (0xC00C)
-            outBytes.Add(0xC0);
-            outBytes.Add(0x0C);
-
-            // TYPE
-            if (ip.AddressFamily == AddressFamily.InterNetwork)
-                outBytes.AddRange(new byte[] { 0x00, 0x01 }); // A
-            else
-                outBytes.AddRange(new byte[] { 0x00, 0x1C }); // AAAA
-
-            // CLASS: IN
-            outBytes.AddRange(new byte[] { 0x00, 0x01 });
-
-            // TTL
-            var ttl = new byte[4];
-            BinaryPrimitives.WriteInt32BigEndian(ttl, ttlSeconds);
-            outBytes.AddRange(ttl);
-
-            // RDLENGTH (big-endian) + RDATA
-            var addrBytes = ip.GetAddressBytes();
-            outBytes.Add((byte)((addrBytes.Length >> 8) & 0xFF));
-            outBytes.Add((byte)(addrBytes.Length & 0xFF));
-            outBytes.AddRange(addrBytes);
-
-            if (add.count > 0)
-                outBytes.AddRange(add.bytes);
-
-            return outBytes.ToArray();
-        }
-
-        public static byte[] BuildServfail(byte[] req) => BuildRcodeResponse(req, 2);
+        return offset;
     }
+
+    private static int SkipName(ReadOnlySpan<byte> buf, int offset)
+    {
+        int len = buf.Length;
+        while (true)
+        {
+            if (offset >= len)
+            {
+                throw new ArgumentException("Malformed DNS packet while parsing name", nameof(buf));
+            }
+
+            byte b = buf[offset++];
+            if (b == 0)
+            {
+                break;
+            }
+
+            if ((b & 0xC0) == 0xC0)
+            {
+                if (offset >= len)
+                {
+                    throw new ArgumentException("Malformed DNS packet: incomplete pointer", nameof(buf));
+                }
+                offset++;
+                break;
+            }
+
+            offset += b;
+            if (offset > len)
+            {
+                throw new ArgumentException("Malformed DNS packet: label overruns packet", nameof(buf));
+            }
+        }
+
+        return offset;
+    }
+
+    private static bool TryGetAdditionalSection(ReadOnlySpan<byte> req, out int addStart, out int addLength, out ushort arCount)
+    {
+        addStart = 0;
+        addLength = 0;
+        arCount = 0;
+
+        try
+        {
+            if (req.Length < HeaderSize)
+            {
+                return false;
+            }
+
+            arCount = BinaryPrimitives.ReadUInt16BigEndian(req.Slice(10, 2));
+            if (arCount == 0)
+            {
+                return true;
+            }
+
+            int offset = GetQuestionEnd(req);
+            addStart = offset;
+
+            for (int i = 0; i < arCount; i++)
+            {
+                offset = SkipName(req, offset);
+
+                if (offset + 10 > req.Length)
+                {
+                    return false;
+                }
+
+                ushort rdlen = BinaryPrimitives.ReadUInt16BigEndian(req.Slice(offset + 8, 2));
+                offset += 10 + rdlen;
+
+                if (offset > req.Length)
+                {
+                    return false;
+                }
+            }
+
+            addLength = offset - addStart;
+            return true;
+        }
+        catch
+        {
+            addStart = 0;
+            addLength = 0;
+            arCount = 0;
+            return false;
+        }
+    }
+
+    public static byte[] CopyQuestionBytes(byte[] req)
+    {
+        ArgumentNullException.ThrowIfNull(req);
+        int end = GetQuestionEnd(req);
+        int len = end - HeaderSize;
+        var outBytes = GC.AllocateUninitializedArray<byte>(len);
+        req.AsSpan(HeaderSize, len).CopyTo(outBytes);
+        return outBytes;
+    }
+
+    public static byte[] BuildRcodeResponse(byte[] req, int rcode)
+    {
+        ArgumentNullException.ThrowIfNull(req);
+
+        ushort id = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(0, 2));
+        byte reqFlagsHi = req[2];
+        byte flagsHi = (byte)((reqFlagsHi & 0x01) | 0x80);
+        byte flagsLo = (byte)(0x80 | (rcode & 0x0F));
+        ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(4, 2));
+
+        int qEnd = GetQuestionEnd(req);
+        int qLen = qEnd - HeaderSize;
+
+        TryGetAdditionalSection(req, out int addStart, out int addLength, out ushort arCount);
+
+        int totalLen = HeaderSize + qLen + addLength;
+        var resp = GC.AllocateUninitializedArray<byte>(totalLen);
+        Span<byte> span = resp;
+
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(0, 2), id);
+        span[2] = flagsHi;
+        span[3] = flagsLo;
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(4, 2), qdCount);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(6, 2), 0);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(8, 2), 0);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(10, 2), arCount);
+
+        req.AsSpan(HeaderSize, qLen).CopyTo(span.Slice(HeaderSize));
+
+        if (addLength > 0)
+        {
+            req.AsSpan(addStart, addLength).CopyTo(span.Slice(HeaderSize + qLen));
+        }
+
+        return resp;
+    }
+
+    public static byte[] BuildStaticIpResponse(byte[] req, IPAddress ip, int ttlSeconds = 60)
+    {
+        ArgumentNullException.ThrowIfNull(req);
+        ArgumentNullException.ThrowIfNull(ip);
+
+        ushort id = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(0, 2));
+        byte reqFlagsHi = req[2];
+        byte flagsHi = (byte)((reqFlagsHi & 0x01) | 0x80);
+        byte flagsLo = 0x80;
+        ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(req.AsSpan(4, 2));
+
+        int qEnd = GetQuestionEnd(req);
+        int qLen = qEnd - HeaderSize;
+
+        TryGetAdditionalSection(req, out int addStart, out int addLength, out ushort arCount);
+
+        bool isIpv4 = ip.AddressFamily == AddressFamily.InterNetwork;
+        ushort qType = (ushort)(isIpv4 ? 1 : 28);
+        int ipLen = isIpv4 ? 4 : 16;
+        int answerLen = 2 + 2 + 2 + 4 + 2 + ipLen;
+
+        int totalLen = HeaderSize + qLen + answerLen + addLength;
+        var resp = GC.AllocateUninitializedArray<byte>(totalLen);
+        Span<byte> span = resp;
+
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(0, 2), id);
+        span[2] = flagsHi;
+        span[3] = flagsLo;
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(4, 2), qdCount);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(6, 2), 1);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(8, 2), 0);
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(10, 2), arCount);
+
+        int offset = HeaderSize;
+        req.AsSpan(HeaderSize, qLen).CopyTo(span.Slice(offset));
+        offset += qLen;
+
+        span[offset++] = 0xC0;
+        span[offset++] = 0x0C;
+
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), qType);
+        offset += 2;
+
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), 1);
+        offset += 2;
+
+        BinaryPrimitives.WriteInt32BigEndian(span.Slice(offset), ttlSeconds);
+        offset += 4;
+
+        BinaryPrimitives.WriteUInt16BigEndian(span.Slice(offset), (ushort)ipLen);
+        offset += 2;
+
+        if (!ip.TryWriteBytes(span.Slice(offset, ipLen), out _))
+        {
+            throw new InvalidOperationException("Failed to write IP address bytes");
+        }
+        offset += ipLen;
+
+        if (addLength > 0)
+        {
+            req.AsSpan(addStart, addLength).CopyTo(span.Slice(offset));
+        }
+
+        return resp;
+    }
+
+    public static byte[] BuildServfail(byte[] req) => BuildRcodeResponse(req, 2);
 }

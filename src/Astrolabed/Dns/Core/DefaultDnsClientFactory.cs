@@ -2,56 +2,60 @@ using System;
 using System.Net;
 using System.Net.Http;
 
-namespace Astrolabed.Dns.Core
+namespace Astrolabed.Dns.Core;
+
+public sealed class DefaultDnsClientFactory : IDnsClientFactory
 {
-    public sealed class DefaultDnsClientFactory : IDnsClientFactory
+    private static readonly IPEndPoint DefaultFallbackEndPoint = new(new IPAddress(new byte[] { 8, 8, 8, 8 }), 53);
+
+    private readonly IHttpClientFactory _httpFactory;
+
+    public DefaultDnsClientFactory(IHttpClientFactory httpFactory)
     {
-        private readonly IHttpClientFactory _httpFactory;
+        ArgumentNullException.ThrowIfNull(httpFactory);
+        _httpFactory = httpFactory;
+    }
 
-        public DefaultDnsClientFactory(IHttpClientFactory httpFactory)
+    public IDnsClient Create(Dns.UpstreamResolverOptions resolver)
+    {
+        ArgumentNullException.ThrowIfNull(resolver);
+
+        string address = resolver.Address?.Trim() ?? string.Empty;
+
+        if (Uri.TryCreate(address, UriKind.Absolute, out var endpoint) &&
+            (endpoint.Scheme == Uri.UriSchemeHttps || endpoint.Scheme == Uri.UriSchemeHttp))
         {
-            _httpFactory = httpFactory ?? throw new ArgumentNullException(nameof(httpFactory));
+            string clientName = !string.IsNullOrWhiteSpace(resolver.Name)
+                ? $"doh-{resolver.Name}"
+                : $"doh-{address}";
+
+            var http = _httpFactory.CreateClient(clientName);
+            return new DohDnsClient(http, endpoint, preferPost: true);
         }
 
-        public IDnsClient Create(Dns.UpstreamResolverOptions resolver)
+        int port = resolver.Port > 0 ? resolver.Port : 53;
+
+        if (IPAddress.TryParse(address, out var ip))
         {
-            if (resolver == null) throw new ArgumentNullException(nameof(resolver));
+            return new UdpDnsClient(new IPEndPoint(ip, port));
+        }
 
-            if (!string.IsNullOrWhiteSpace(resolver.Address) &&
-                (resolver.Address.StartsWith("https://", StringComparison.OrdinalIgnoreCase) ||
-                 resolver.Address.StartsWith("http://", StringComparison.OrdinalIgnoreCase)))
+        if (!string.IsNullOrWhiteSpace(address))
+        {
+            try
             {
-                var clientName = !string.IsNullOrWhiteSpace(resolver.Name)
-                    ? $"doh-{resolver.Name}"
-                    : $"doh-{resolver.Address}";
-
-                var http = _httpFactory.CreateClient(clientName);
-                http.Timeout = TimeSpan.FromSeconds(10);
-
-                var endpoint = new Uri(resolver.Address, UriKind.Absolute);
-                return new DohDnsClient(http, endpoint, preferPost: true);
+                var addrs = System.Net.Dns.GetHostAddresses(address);
+                if (addrs.Length > 0)
+                {
+                    return new UdpDnsClient(new IPEndPoint(addrs[0], port));
+                }
             }
-            else
+            catch
             {
-                // Plain IP or hostname -> UDP client
-                if (IPAddress.TryParse(resolver.Address, out var ip))
-                {
-                    return new UdpDnsClient(new IPEndPoint(ip, resolver.Port));
-                }
-
-                try
-                {
-                    var addrs = System.Net.Dns.GetHostAddresses(resolver.Address);
-                    if (addrs != null && addrs.Length > 0)
-                        return new UdpDnsClient(new IPEndPoint(addrs[0], resolver.Port));
-                }
-                catch
-                {
-                    // ignore, fallback below
-                }
-
-                return new UdpDnsClient(new IPEndPoint(IPAddress.Parse("8.8.8.8"), 53));
+                // Fallback below
             }
         }
+
+        return new UdpDnsClient(DefaultFallbackEndPoint);
     }
 }

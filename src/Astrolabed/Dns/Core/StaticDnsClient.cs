@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,20 +11,23 @@ public sealed class StaticDnsClient : IDnsClient
 
     public StaticDnsClient(IPAddress ip)
     {
+        ArgumentNullException.ThrowIfNull(ip);
         _ip = ip;
     }
 
     public Task<byte[]> QueryAsync(byte[] request, CancellationToken ct)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         try
         {
-            // Build a correct single-answer static IP response using the shared builder
-            return Task.FromResult(DnsResponseBuilder.BuildStaticIpResponse(request, _ip, ttlSeconds: 60));
+            byte[] response = DnsResponseBuilder.BuildStaticIpResponse(request, _ip, ttlSeconds: 60);
+            return Task.FromResult(response);
         }
         catch
         {
-            // If building fails, return a safe SERVFAIL response
-            return Task.FromResult(DnsResponseBuilder.BuildServfail(request));
+            byte[] servfail = DnsResponseBuilder.BuildServfail(request);
+            return Task.FromResult(servfail);
         }
     }
 }
