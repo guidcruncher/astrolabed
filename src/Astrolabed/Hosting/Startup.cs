@@ -19,18 +19,18 @@ https://guidcruncher.github.io/astrolabed/
 
 """);
 
-      var cmd = new ConfigurationBuilder()
-            .AddCommandLine(args, new Dictionary<string, string>
-            {
-                ["--config"] = "ConfigPath",
-                ["--env"] = "DOTNET_ENVIRONMENT",
-                ["--listen"] = "ListenOverride",
-                ["--resolver"] = "ResolverOverride",
-                ["--log-level"] = "Logging:Level"
-            })
-            .Build();
+        var cmd = new ConfigurationBuilder()
+              .AddCommandLine(args, new Dictionary<string, string>
+              {
+                  ["--config"] = "ConfigPath",
+                  ["--env"] = "DOTNET_ENVIRONMENT",
+                  ["--listen"] = "ListenOverride",
+                  ["--resolver"] = "ResolverOverride",
+                  ["--log-level"] = "Logging:Level"
+              })
+              .Build();
 
         var host = HostBuilderFactory.Build(args, cmd);
-return host;
+        return host;
     }
 }
