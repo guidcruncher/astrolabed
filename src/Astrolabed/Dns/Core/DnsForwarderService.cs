@@ -34,7 +34,7 @@ public sealed class DnsForwarderService
         IPEndPoint remote,
         CancellationToken ct)
     {
-        var requestId = Guid.NewGuid().ToString("N");
+        var requestId = Guid.CreateVersion7().ToString("N")
 
         _logger.LogDebug(
             "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
