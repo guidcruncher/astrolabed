@@ -25,6 +25,8 @@ public class Program
         var serverOptions = host.Services.GetRequiredService<ServerOptions>();
         MetricsSidecar.StartIfEnabled(host, serverOptions, args);
 
+	WebUiSidecar.StartIfEnabled(host, serverOptions, args);
+
         await host.RunAsync();
     }
 }
