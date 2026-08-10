@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+
 using Microsoft.Extensions.Hosting;
 
 namespace Astrolabed.Hosting;
