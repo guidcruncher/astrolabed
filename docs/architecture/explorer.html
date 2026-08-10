@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture Explorer</title>
+<style>
+  :root{
+    --bg:#0b1020; --bg2:#0f152b; --panel:#121a33; --panel2:#172142;
+    --line:#26314f; --line2:#34406a; --ink:#e8edf9; --ink2:#9fb0d4; --ink3:#6b7aa3;
+    --accent:#22d3ee; --accent2:#a855f7; --shadow:0 10px 30px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:radial-gradient(1200px 700px at 75% -10%, #16204180, transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, #2a1b4d55, transparent 55%), var(--bg);
+    color:var(--ink); font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial;
+    overflow:hidden;
+  }
+  a{color:var(--accent)}
+  button{font:inherit;color:inherit;cursor:pointer}
+
+  /* layout */
+  .app{display:flex;flex-direction:column;height:100vh}
+  header{
+    padding:14px 20px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#101830,#0c1226);display:flex;align-items:center;gap:18px;flex-wrap:wrap
+  }
+  header h1{font-size:16px;margin:0;letter-spacing:.3px}
+  header .sub{color:var(--ink2);font-size:12px;margin-top:2px}
+  header .tech{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .pill{font-size:11px;color:var(--ink2);background:#0d1530;border:1px solid var(--line);border-radius:999px;padding:3px 9px}
+
+  .bar{display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid var(--line);background:#0c1226cc;flex-wrap:wrap}
+  .crumbs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px}
+  .crumbs button{background:none;border:none;color:var(--ink2);padding:4px 6px;border-radius:6px}
+  .crumbs button:hover{color:var(--ink);background:#18224422}
+  .crumbs .sep{color:var(--ink3)}
+  .crumbs .here{color:var(--ink);font-weight:600}
+  .search{margin-left:auto;display:flex;gap:8px;align-items:center}
+  .search input{background:#0c1430;border:1px solid var(--line2);color:var(--ink);border-radius:8px;padding:7px 11px;width:220px;outline:none}
+  .search input:focus{border-color:var(--accent)}
+  .btn{background:#16204a;border:1px solid var(--line2);border-radius:8px;padding:7px 12px;color:var(--ink2)}
+  .btn:hover{color:var(--ink);border-color:var(--accent)}
+
+  .main{flex:1;display:flex;min-height:0}
+  .stage{position:relative;flex:1;overflow:auto;padding:34px}
+  .stageInner{position:relative;min-height:100%}
+  svg.edges{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+
+  .grid{position:relative}
+  .card{
+    position:relative;width:268px;background:linear-gradient(180deg,var(--panel),var(--panel2));
+    border:1px solid var(--line2);border-radius:14px;padding:14px 14px 12px;box-shadow:var(--shadow);
+    transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease;cursor:pointer
+  }
+  .card:hover{transform:translateY(-3px);border-color:var(--c,#34406a)}
+  .card.dim{opacity:.28;filter:saturate(.5)}
+  .card.sel{border-color:var(--c,var(--accent));box-shadow:0 0 0 2px var(--c,var(--accent))33, var(--shadow)}
+  .card .tl{display:flex;align-items:center;gap:9px;margin-bottom:7px}
+  .dot{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:0 0 10px var(--c)}
+  .card h3{margin:0;font-size:14.5px;line-height:1.25}
+  .card .type{font-size:10.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.6px}
+  .card p{margin:6px 0 0;color:var(--ink2);font-size:12.2px;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .card .meta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+  .tag{font-size:10px;color:var(--ink2);background:#0d1733;border:1px solid var(--line);border-radius:6px;padding:2px 7px}
+  .card .foot{display:flex;align-items:center;justify-content:space-between;margin-top:10px;color:var(--ink3);font-size:11px}
+  .chev{display:inline-flex;align-items:center;gap:4px;color:var(--accent);font-size:11.5px}
+  .extbadge{position:absolute;top:-9px;right:10px;font-size:9.5px;letter-spacing:.5px;text-transform:uppercase;
+    background:#1a2342;border:1px solid var(--line2);color:var(--ink2);border-radius:6px;padding:2px 7px}
+  .card.external{background:repeating-linear-gradient(135deg,#10162e,#10162e 9px,#0e1429 9px,#0e1429 18px);border-style:dashed}
+
+  /* detail drawer */
+  .drawer{width:0;flex:none;background:#0b1124;border-left:1px solid var(--line);overflow:hidden;transition:width .18s ease}
+  .drawer.open{width:420px}
+  .drawer .inner{width:420px;height:100%;overflow:auto;padding:20px}
+  .drawer h2{margin:0 0 2px;font-size:18px;display:flex;align-items:center;gap:9px}
+  .drawer .dtype{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--ink3);margin-bottom:12px}
+  .drawer section{margin:16px 0;border-top:1px solid var(--line);padding-top:14px}
+  .drawer section:first-of-type{border-top:none}
+  .drawer h4{margin:0 0 9px;font-size:11.5px;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
+  .drawer ul{margin:0;padding-left:18px}
+  .drawer li{margin:4px 0;color:var(--ink)}
+  .kv{color:var(--ink2)}
+  .file{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:#bfe9ff;background:#0c1734;border:1px solid var(--line);
+    border-radius:6px;padding:4px 7px;display:block;margin:5px 0;word-break:break-all}
+  .file .note{color:var(--ink3);font-family:inherit}
+  .conn{display:flex;gap:9px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .conn:last-child{border-bottom:none}
+  .conn .arrow{color:var(--ink3);flex:none;margin-top:1px}
+  .conn .body{flex:1}
+  .conn .to{font-weight:600;cursor:pointer}
+  .conn .to:hover{color:var(--accent)}
+  .conn .lbl{color:var(--ink2)}
+  .conn .pl{color:var(--ink3);font-size:11.5px;margin-top:2px}
+  .kind{font-size:9.5px;text-transform:uppercase;letter-spacing:.5px;padding:1px 6px;border-radius:5px;border:1px solid;white-space:nowrap}
+  .drillBtn{margin-top:14px;width:100%;background:linear-gradient(90deg,#15304f,#1d2a55);border:1px solid var(--line2);
+    border-radius:10px;padding:10px;color:var(--ink);font-weight:600}
+  .drillBtn:hover{border-color:var(--accent)}
+  .close{position:absolute;top:14px;right:16px;background:none;border:none;color:var(--ink3);font-size:20px}
+  .close:hover{color:var(--ink)}
+
+  /* legend / flows footer */
+  .foot-bar{border-top:1px solid var(--line);background:#0a1024;padding:9px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+  .legend{display:flex;gap:13px;flex-wrap:wrap}
+  .legend .it{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink2)}
+  .legend .sw{width:10px;height:10px;border-radius:3px}
+  .flowsBtn{margin-left:auto}
+
+  /* flows modal */
+  .modal{position:fixed;inset:0;background:#04060fe6;display:none;align-items:center;justify-content:center;z-index:40}
+  .modal.open{display:flex}
+  .modalCard{width:min(760px,92vw);max-height:84vh;overflow:auto;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:22px}
+  .flow{margin:14px 0;border:1px solid var(--line);border-radius:12px;padding:14px;background:#0e1530}
+  .flow h3{margin:0 0 4px;font-size:15px}
+  .flow .fsum{color:var(--ink2);font-size:12.5px;margin-bottom:10px}
+  .step{display:flex;gap:12px;padding:6px 0}
+  .step .n{flex:none;width:22px;height:22px;border-radius:50%;background:#16204a;border:1px solid var(--line2);
+    display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--accent)}
+  .step .sn{font-weight:600;cursor:pointer}
+  .step .sn:hover{color:var(--accent)}
+  .step .sa{color:var(--ink2);font-size:12.5px}
+
+  .drop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#04060fe6;z-index:50;text-align:center}
+  .drop.open{display:flex}
+  .drop .box{border:2px dashed var(--line2);border-radius:18px;padding:48px 60px;background:var(--panel)}
+  .drop h2{margin:0 0 8px}
+  .muted{color:var(--ink2)}
+  .hint{color:var(--ink3);font-size:11.5px}
+  ::-webkit-scrollbar{width:11px;height:11px}
+  ::-webkit-scrollbar-thumb{background:#1f2b4e;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:#2c3a66;background-clip:content-box}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div>
+      <h1 id="title">Architecture Explorer</h1>
+      <div class="sub" id="subtitle">Load an architecture.json to begin</div>
+    </div>
+    <div class="tech" id="tech"></div>
+  </header>
+
+  <div class="bar">
+    <nav class="crumbs" id="crumbs"></nav>
+    <div class="search">
+      <input id="search" placeholder="Search modules…" autocomplete="off"/>
+      <button class="btn" id="loadBtn">Open JSON</button>
+      <input type="file" id="file" accept=".json,application/json" hidden/>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="stage" id="stage">
+      <div class="stageInner" id="stageInner">
+        <svg class="edges" id="edges">
+          <defs>
+            <marker id="arrow" markerWidth="9" markerHeight="9" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L8,3 L0,6 Z" fill="context-stroke"></path>
+            </marker>
+          </defs>
+        </svg>
+        <div class="grid" id="grid"></div>
+      </div>
+    </div>
+    <aside class="drawer" id="drawer"><div class="inner" id="drawerInner"></div></aside>
+  </div>
+
+  <div class="foot-bar">
+    <div class="legend" id="legend"></div>
+    <button class="btn flowsBtn" id="flowsBtn">⟶ Flows</button>
+  </div>
+</div>
+
+<div class="modal" id="modal"><div class="modalCard" id="modalCard"></div></div>
+<div class="drop" id="drop">
+  <div class="box">
+    <h2>Drop architecture.json here</h2>
+    <div class="muted">or click “Open JSON”. The viewer is generic — reuse it for any project.</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+const $ = (s,r=document)=>r.querySelector(s);
+const el = (t,c)=>{const e=document.createElement(t); if(c) e.className=c; return e;};
+
+let DATA=null, TYPES={}, KINDS={}, INDEX=new Map(), PARENT=new Map();
+let path=[];            // array of node ids = current drill path ([] = root)
+let selectedId=null;
+
+const KIND_FALLBACK="#cbd5e1";
+const typeColor=t=>TYPES[t]?.color || "#7c89b5";
+const kindColor=k=>KINDS[k]?.color || KIND_FALLBACK;
+
+/* ---------- load ---------- */
+function buildIndex(){
+  INDEX.clear(); PARENT.clear();
+  const walk=(nodes,parent)=>{
+    for(const n of nodes){
+      INDEX.set(n.id,n); PARENT.set(n.id,parent);
+      if(n.children) walk(n.children,n.id);
+    }
+  };
+  walk(DATA.nodes,null);
+  for(const e of (DATA.externals||[])){ INDEX.set(e.id,e); PARENT.set(e.id,"__ext__"); e._external=true; }
+}
+function loadData(json){
+  DATA=json;
+  TYPES={}; (DATA.legend?.nodeTypes||[]).forEach(t=>TYPES[t.id]=t);
+  KINDS={}; (DATA.legend?.edgeKinds||[]).forEach(k=>KINDS[k.id]=k);
+  buildIndex();
+  path=[]; selectedId=null;
+  $("#title").textContent=DATA.meta?.title||"Architecture";
+  $("#subtitle").textContent=DATA.meta?.subtitle||"";
+  const tech=$("#tech"); tech.innerHTML="";
+  (DATA.meta?.tech||[]).forEach(t=>{const p=el("span","pill");p.textContent=t;tech.appendChild(p);});
+  renderLegend(); closeDrawer(); render();
+  $("#drop").classList.remove("open");
+}
+function renderLegend(){
+  const L=$("#legend"); L.innerHTML="";
+  (DATA.legend?.nodeTypes||[]).forEach(t=>{
+    const it=el("span","it"); const sw=el("span","sw"); sw.style.background=t.color;
+    it.appendChild(sw); it.appendChild(document.createTextNode(t.label)); L.appendChild(it);
+  });
+}
+
+/* ---------- current level ---------- */
+function currentNodes(){
+  // nodes shown at this level: children of the current node, or root nodes
+  let base;
+  if(path.length===0) base=DATA.nodes;
+  else { const cur=INDEX.get(path[path.length-1]); base=cur.children||[]; }
+  return base;
+}
+function levelExternals(nodes){
+  // externals referenced by connections of the visible nodes -> render them too so edges land somewhere
+  const ids=new Set(nodes.map(n=>n.id));
+  const ext=new Set();
+  for(const n of nodes){
+    for(const c of (n.connections||[])){
+      if(!ids.has(c.to) && INDEX.get(c.to)?._external) ext.add(c.to);
+    }
+  }
+  return [...ext].map(id=>INDEX.get(id));
+}
+
+/* ---------- render ---------- */
+const CARD_W=268, COL_GAP=104, ROW_GAP=24;
+
+function render(){
+  renderCrumbs();
+  const nodes=currentNodes();
+  const exts=levelExternals(nodes);
+  const all=[...nodes,...exts];
+  const grid=$("#grid"); grid.innerHTML=""; grid.style.width=""; grid.style.height="";
+  const visibleIds=new Set(all.map(n=>n.id));
+
+  // 1) create cards hidden so we can measure their real heights before placing them
+  const cardEls=new Map();
+  for(const n of all){
+    const c=makeCard(n,n._external);
+    c.style.position="absolute"; c.style.left="0"; c.style.top="0"; c.style.visibility="hidden";
+    grid.appendChild(c); cardEls.set(n.id,c);
+  }
+  // 2) layered layout (follows connection direction) → absolute positions
+  requestAnimationFrame(()=>{
+    const lay=layoutGraph(all, visibleIds, cardEls);
+    grid.style.width=lay.width+"px"; grid.style.height=lay.height+"px";
+    for(const n of all){
+      const p=lay.coords.get(n.id), c=cardEls.get(n.id);
+      c.style.left=p.x+"px"; c.style.top=p.y+"px"; c.style.visibility="visible";
+    }
+    requestAnimationFrame(()=>drawEdges(nodes, visibleIds));
+    applyHighlight();
+  });
+}
+
+/* Sugiyama-style layered layout: assign columns by longest path along connection
+   direction, order rows by barycenter to reduce crossings, stack with real heights. */
+function layoutGraph(all, visibleIds, cardEls){
+  const ids=all.map(n=>n.id);
+  if(!ids.length) return {coords:new Map(), width:0, height:0};
+
+  const edges=[];
+  for(const n of all) for(const c of (n.connections||[]))
+    if(visibleIds.has(c.to) && c.to!==n.id) edges.push({from:n.id,to:c.to});
+
+  const out=new Map(), inc=new Map();
+  ids.forEach(id=>{out.set(id,[]); inc.set(id,[]);});
+  edges.forEach(e=>{ out.get(e.from).push(e.to); inc.get(e.to).push(e.from); });
+
+  // back-edge detection (so cycles don't break layering) via DFS
+  const st=new Map(), back=new Set();
+  const dfs=u=>{ st.set(u,1); for(const v of out.get(u)){ const s=st.get(v);
+    if(s===1) back.add(u+">"+v); else if(!s) dfs(v); } st.set(u,2); };
+  ids.forEach(id=>{ if(!st.get(id)) dfs(id); });
+  const fout=new Map(); ids.forEach(id=>fout.set(id,[]));
+  edges.forEach(e=>{ if(!back.has(e.from+">"+e.to)) fout.get(e.from).push(e.to); });
+
+  // longest-path layering on the DAG (Kahn topological relax)
+  const layer=new Map(), indeg=new Map(); ids.forEach(id=>{layer.set(id,0); indeg.set(id,0);});
+  ids.forEach(id=>fout.get(id).forEach(v=>indeg.set(v,indeg.get(v)+1)));
+  const q=ids.filter(id=>indeg.get(id)===0);
+  while(q.length){ const u=q.shift();
+    for(const v of fout.get(u)){
+      if(layer.get(v)<layer.get(u)+1) layer.set(v,layer.get(u)+1);
+      indeg.set(v,indeg.get(v)-1); if(indeg.get(v)===0) q.push(v);
+    }
+  }
+  const maxL=Math.max(0,...ids.map(id=>layer.get(id)));
+  const layers=Array.from({length:maxL+1},()=>[]);
+  ids.forEach(id=>layers[layer.get(id)].push(id));
+
+  // barycenter ordering sweeps to reduce edge crossings
+  const idx=new Map(); const reindex=()=>layers.forEach(L=>L.forEach((id,i)=>idx.set(id,i)));
+  reindex();
+  for(let pass=0; pass<6; pass++){
+    const l2r=pass%2===0;
+    const order=l2r?[...layers.keys()]:[...layers.keys()].reverse();
+    for(const li of order){
+      const adj=l2r?li-1:li+1; if(adj<0||adj>maxL) continue;
+      const bary=id=>{
+        const nb=(l2r?inc.get(id):out.get(id)).filter(x=>layer.get(x)===adj);
+        return nb.length? nb.reduce((s,x)=>s+idx.get(x),0)/nb.length : idx.get(id);
+      };
+      layers[li]=layers[li].map(id=>[id,bary(id)]).sort((a,b)=>a[1]-b[1]).map(p=>p[0]);
+      reindex();
+    }
+  }
+
+  // place: columns left→right, rows stacked with measured heights, columns vertically centered
+  const h=id=>cardEls.get(id).offsetHeight||120;
+  const colH=layers.map(L=>L.reduce((s,id)=>s+h(id),0)+Math.max(0,L.length-1)*ROW_GAP);
+  const maxH=Math.max(1,...colH);
+  const coords=new Map();
+  layers.forEach((L,li)=>{
+    const x=li*(CARD_W+COL_GAP);
+    let y=Math.max(0,(maxH-colH[li])/2);
+    L.forEach(id=>{ coords.set(id,{x,y}); y+=h(id)+ROW_GAP; });
+  });
+  return {coords, width:layers.length*(CARD_W+COL_GAP)-COL_GAP, height:maxH};
+}
+
+function makeCard(n, isExt){
+  const c=el("div","card"+(isExt?" external":""));
+  c.style.setProperty("--c", typeColor(n.type));
+  c.dataset.id=n.id;
+  if(isExt){ const b=el("div","extbadge"); b.textContent="external"; c.appendChild(b); }
+
+  const tl=el("div","tl");
+  const dot=el("span","dot"); dot.style.setProperty("--c",typeColor(n.type)); dot.style.background=typeColor(n.type);
+  const tt=el("div");
+  const h=el("h3"); h.textContent=n.name; const ty=el("div","type"); ty.textContent=(TYPES[n.type]?.label||n.type||"");
+  tt.appendChild(h); tt.appendChild(ty);
+  tl.appendChild(dot); tl.appendChild(tt); c.appendChild(tl);
+
+  if(n.summary){ const p=el("p"); p.textContent=n.summary; c.appendChild(p); }
+
+  const tags=(n.tags||[]).slice(0,3);
+  if(tags.length){ const m=el("div","meta"); tags.forEach(t=>{const s=el("span","tag");s.textContent=t;m.appendChild(s);}); c.appendChild(m); }
+
+  const foot=el("div","foot");
+  const left=el("span"); const nc=(n.connections||[]).length;
+  left.textContent=nc?`${nc} link${nc>1?"s":""}`:"";
+  foot.appendChild(left);
+  if(n.children&&n.children.length){
+    const ch=el("span","chev"); ch.innerHTML=`${n.children.length} inside ▸`; foot.appendChild(ch);
+  }
+  c.appendChild(foot);
+
+  c.addEventListener("click",e=>{ e.stopPropagation(); selectNode(n.id); });
+  c.addEventListener("dblclick",e=>{ e.stopPropagation(); if(n.children&&n.children.length) drillInto(n.id); });
+  c.addEventListener("mouseenter",()=>hoverNode(n.id));
+  c.addEventListener("mouseleave",()=>hoverNode(null));
+  return c;
+}
+
+/* ---------- edges ---------- */
+function cardRect(id){
+  const c=$(`.card[data-id="${CSS.escape(id)}"]`); if(!c) return null;
+  const inner=$("#stageInner").getBoundingClientRect();
+  const r=c.getBoundingClientRect();
+  return {x:r.left-inner.left, y:r.top-inner.top, w:r.width, h:r.height, cx:r.left-inner.left+r.width/2, cy:r.top-inner.top+r.height/2};
+}
+function drawEdges(nodes, visibleIds){
+  const svg=$("#edges");
+  // clear (keep defs)
+  [...svg.querySelectorAll("path.e,text.elabel,g.eg")].forEach(n=>n.remove());
+  const inner=$("#stageInner");
+  svg.setAttribute("width",inner.scrollWidth); svg.setAttribute("height",inner.scrollHeight);
+
+  const edges=[];
+  for(const n of nodes){
+    for(const c of (n.connections||[])){
+      if(!visibleIds.has(c.to)) continue;
+      edges.push({from:n.id,to:c.to,kind:c.kind,label:c.label});
+    }
+  }
+  // offset parallel edges (same node pair) so they don't overlap
+  const seen={};
+  for(const e of edges){
+    const a=cardRect(e.from), b=cardRect(e.to); if(!a||!b) continue;
+    const key=[e.from,e.to].sort().join("|"); const idx=(seen[key]=(seen[key]||0)+1)-1;
+    const off=(idx%2===0?1:-1)*Math.ceil(idx/2)*14;
+    const col=kindColor(e.kind);
+
+    const g=document.createElementNS("http://www.w3.org/2000/svg","g"); g.setAttribute("class","eg");
+    g.dataset.from=e.from; g.dataset.to=e.to;
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute("class","e");
+    path.setAttribute("d", edgePath(a,b,off));
+    path.setAttribute("fill","none"); path.setAttribute("stroke",col);
+    path.setAttribute("stroke-width","1.7"); path.setAttribute("opacity",".5");
+    path.setAttribute("marker-end","url(#arrow)");
+    g.appendChild(path);
+    svg.appendChild(g);
+  }
+}
+// Cubic bezier that leaves the source on the side facing the target and enters
+// the target on its facing side — so arrowheads always point INTO the target.
+function edgePath(a,b,off){
+  const dx=b.cx-a.cx, dy=b.cy-a.cy;
+  const horizontal=Math.abs(dx)>=Math.abs(dy);
+  let p0,p1,c0,c1;
+  if(horizontal){
+    const right=dx>=0;
+    p0={x: right?a.x+a.w:a.x, y:a.cy+off};
+    p1={x: right?b.x:b.x+b.w, y:b.cy+off};
+    const k=Math.max(40, Math.abs(p1.x-p0.x)*0.5);
+    c0={x:p0.x+(right?k:-k), y:p0.y};
+    c1={x:p1.x+(right?-k:k), y:p1.y};
+  }else{
+    const down=dy>=0;
+    p0={x:a.cx+off, y: down?a.y+a.h:a.y};
+    p1={x:b.cx+off, y: down?b.y:b.y+b.h};
+    const k=Math.max(36, Math.abs(p1.y-p0.y)*0.5);
+    c0={x:p0.x, y:p0.y+(down?k:-k)};
+    c1={x:p1.x, y:p1.y+(down?-k:k)};
+  }
+  return `M${p0.x},${p0.y} C${c0.x},${c0.y} ${c1.x},${c1.y} ${p1.x},${p1.y}`;
+}
+
+/* ---------- highlight ---------- */
+let hoverId=null;
+function hoverNode(id){ hoverId=id; applyHighlight(); }
+function connectedSet(id){
+  const set=new Set([id]); const n=INDEX.get(id);
+  (n?.connections||[]).forEach(c=>set.add(c.to));
+  // incoming
+  for(const m of currentNodes()){ (m.connections||[]).forEach(c=>{ if(c.to===id) set.add(m.id); }); }
+  return set;
+}
+function applyHighlight(){
+  const focus=hoverId||selectedId;
+  const cards=[...document.querySelectorAll(".card")];
+  if(!focus){
+    cards.forEach(c=>{c.classList.remove("dim"); c.classList.toggle("sel", c.dataset.id===selectedId);});
+    [...document.querySelectorAll("g.eg path")].forEach(p=>p.setAttribute("opacity",".5"));
+    return;
+  }
+  const set=connectedSet(focus);
+  cards.forEach(c=>{
+    const on=set.has(c.dataset.id);
+    c.classList.toggle("dim",!on);
+    c.classList.toggle("sel", c.dataset.id===selectedId);
+  });
+  [...document.querySelectorAll("g.eg")].forEach(g=>{
+    const on=(g.dataset.from===focus||g.dataset.to===focus);
+    g.querySelector("path").setAttribute("opacity", on?".95":".08");
+    g.querySelector("path").setAttribute("stroke-width", on?"2.4":"1.5");
+  });
+}
+
+/* ---------- navigation ---------- */
+function renderCrumbs(){
+  const c=$("#crumbs"); c.innerHTML="";
+  const add=(label,fn,here)=>{
+    const b=el("button"); b.textContent=label; if(here) b.classList.add("here");
+    b.addEventListener("click",fn); c.appendChild(b);
+  };
+  add(DATA.meta?.title||"Root",()=>{path=[];selectNone();render();}, path.length===0);
+  path.forEach((id,i)=>{
+    const sep=el("span","sep"); sep.textContent="▸"; c.appendChild(sep);
+    add(INDEX.get(id)?.name||id, ()=>{ path=path.slice(0,i+1); selectNone(); render(); }, i===path.length-1);
+  });
+}
+function drillInto(id){
+  // ensure id is a child of current level; if not, rebuild path from ancestry
+  if(currentNodes().some(n=>n.id===id)){ path=[...path,id]; }
+  else { path=ancestry(id); }
+  selectNone(); render();
+}
+function ancestry(id){
+  const chain=[]; let cur=id;
+  while(cur && cur!=="__ext__"){ chain.unshift(cur); cur=PARENT.get(cur); }
+  // chain includes id itself; we want path to be the node whose children we view = id
+  return chain;
+}
+function selectNone(){ selectedId=null; closeDrawer(); }
+
+/* ---------- selection / drawer ---------- */
+function selectNode(id){
+  selectedId=id; applyHighlight(); openDrawer(id);
+}
+function openDrawer(id){
+  const n=INDEX.get(id); if(!n) return;
+  const d=$("#drawer"); d.classList.add("open");
+  const I=$("#drawerInner"); I.innerHTML="";
+
+  const close=el("button","close"); close.innerHTML="×"; close.onclick=closeDrawer; I.appendChild(close);
+
+  const h=el("h2");
+  const dot=el("span","dot"); dot.style.background=typeColor(n.type); dot.style.setProperty("--c",typeColor(n.type));
+  h.appendChild(dot); h.appendChild(document.createTextNode(n.name)); I.appendChild(h);
+  const ty=el("div","dtype"); ty.textContent=(TYPES[n.type]?.label||n.type||"")+(n._external?" · external system":"");
+  I.appendChild(ty);
+
+  if(n.summary){ const p=el("div"); p.style.color="var(--ink)"; p.textContent=n.summary; I.appendChild(p); }
+
+  if(n.tech?.length||n.tags?.length){
+    const s=sec("Tech & tags"); const m=el("div","meta");
+    (n.tech||[]).forEach(t=>{const x=el("span","pill");x.textContent=t;m.appendChild(x);});
+    (n.tags||[]).forEach(t=>{const x=el("span","tag");x.textContent=t;m.appendChild(x);});
+    s.appendChild(m); I.appendChild(s);
+  }
+
+  if(n.responsibilities?.length){
+    const s=sec("Responsibilities"); const ul=el("ul");
+    n.responsibilities.forEach(r=>{const li=el("li");li.textContent=r;ul.appendChild(li);});
+    s.appendChild(ul); I.appendChild(s);
+  }
+
+  if(n.keyFiles?.length){
+    const s=sec("Key files");
+    n.keyFiles.forEach(f=>{
+      const a=el("span","file"); a.textContent=f.path;
+      if(f.note){ const nn=el("span","note"); nn.textContent="  — "+f.note; a.appendChild(nn); }
+      s.appendChild(a);
+    });
+    I.appendChild(s);
+  }
+
+  const outs=n.connections||[];
+  const ins=incoming(id);
+  if(outs.length||ins.length){
+    const s=sec(`Connections (${outs.length} out · ${ins.length} in)`);
+    outs.forEach(c=>s.appendChild(connRow("→",c.to,c.label,c.kind,c.payload)));
+    ins.forEach(c=>s.appendChild(connRow("←",c.from,c.label,c.kind,c.payload)));
+    I.appendChild(s);
+  }
+
+  if(n.children?.length){
+    const btn=el("button","drillBtn");
+    btn.textContent=`Open ${n.children.length} module${n.children.length>1?"s":""} inside ▸`;
+    btn.onclick=()=>drillInto(id);
+    I.appendChild(btn);
+  }
+}
+function sec(title){ const s=el("section"); const h=el("h4"); h.textContent=title; s.appendChild(h); return s; }
+function connRow(dir,otherId,label,kind,payload){
+  const r=el("div","conn");
+  const a=el("span","arrow"); a.textContent=dir; r.appendChild(a);
+  const body=el("div","body");
+  const top=el("div");
+  const to=el("span","to"); to.textContent=INDEX.get(otherId)?.name||otherId;
+  to.onclick=()=>{ if(INDEX.get(otherId)){ jumpTo(otherId); } };
+  const k=el("span","kind"); k.textContent=KINDS[kind]?.label||kind||""; const col=kindColor(kind);
+  k.style.color=col; k.style.borderColor=col+"66"; k.style.background=col+"14";
+  top.appendChild(to); top.appendChild(document.createTextNode(" ")); top.appendChild(k);
+  body.appendChild(top);
+  if(label){ const l=el("div","lbl"); l.textContent=label; body.appendChild(l); }
+  if(payload){ const p=el("div","pl"); p.textContent=payload; body.appendChild(p); }
+  r.appendChild(body); return r;
+}
+function incoming(id){
+  const res=[];
+  INDEX.forEach((n)=>{ (n.connections||[]).forEach(c=>{ if(c.to===id) res.push({from:n.id,label:c.label,kind:c.kind,payload:c.payload}); }); });
+  return res;
+}
+function jumpTo(id){
+  // navigate to the level that shows id (its parent's children) and select it
+  const par=PARENT.get(id);
+  if(par==="__ext__"||par==null){ path=[]; }
+  else { path=ancestry(par); }
+  // if id is external, it shows on whatever level references it — keep current if visible
+  render();
+  // wait for layout then select
+  requestAnimationFrame(()=>{ selectNode(id); const c=$(`.card[data-id="${CSS.escape(id)}"]`); if(c) c.scrollIntoView({block:"center",behavior:"smooth"}); });
+}
+function closeDrawer(){ $("#drawer").classList.remove("open"); }
+
+/* ---------- search ---------- */
+$("#search").addEventListener("input",e=>{
+  const q=e.target.value.trim().toLowerCase();
+  const cards=[...document.querySelectorAll(".card")];
+  if(!q){ cards.forEach(c=>c.style.display=""); return; }
+  cards.forEach(c=>{
+    const n=INDEX.get(c.dataset.id);
+    const hay=[n.name,n.summary,(n.tags||[]).join(" "),(n.tech||[]).join(" "),n.type].join(" ").toLowerCase();
+    c.style.display=hay.includes(q)?"":"none";
+  });
+});
+
+/* ---------- flows ---------- */
+$("#flowsBtn").addEventListener("click",()=>{
+  const m=$("#modalCard"); m.innerHTML="";
+  const close=el("button","close"); close.innerHTML="×"; close.style.position="static"; close.style.float="right"; close.onclick=()=>$("#modal").classList.remove("open");
+  m.appendChild(close);
+  const h=el("h2"); h.textContent="Flows / sequences"; h.style.margin="0 0 6px"; m.appendChild(h);
+  (DATA.flows||[]).forEach(f=>{
+    const fc=el("div","flow"); const fh=el("h3"); fh.textContent=f.name; fc.appendChild(fh);
+    if(f.summary){ const s=el("div","fsum"); s.textContent=f.summary; fc.appendChild(s); }
+    (f.steps||[]).forEach((st,i)=>{
+      const row=el("div","step");
+      const n=el("div","n"); n.textContent=i+1; row.appendChild(n);
+      const t=el("div");
+      const sn=el("span","sn"); sn.textContent=INDEX.get(st.node)?.name||st.node;
+      sn.onclick=()=>{ $("#modal").classList.remove("open"); jumpTo(st.node); };
+      const sa=el("div","sa"); sa.textContent=st.action;
+      t.appendChild(sn); t.appendChild(sa); row.appendChild(t); fc.appendChild(row);
+    });
+    m.appendChild(fc);
+  });
+  $("#modal").classList.add("open");
+});
+$("#modal").addEventListener("click",e=>{ if(e.target.id==="modal") e.currentTarget.classList.remove("open"); });
+
+/* ---------- file loading ---------- */
+$("#loadBtn").addEventListener("click",()=>$("#file").click());
+$("#file").addEventListener("change",e=>{ const f=e.target.files[0]; if(f) readFile(f); });
+function readFile(f){ const r=new FileReader(); r.onload=()=>{ try{ loadData(JSON.parse(r.result)); }catch(err){ alert("Invalid JSON: "+err.message);} }; r.readAsText(f); }
+window.addEventListener("dragover",e=>{ e.preventDefault(); $("#drop").classList.add("open"); });
+$("#drop").addEventListener("dragleave",e=>{ if(e.target.id==="drop") $("#drop").classList.remove("open"); });
+window.addEventListener("drop",e=>{ e.preventDefault(); $("#drop").classList.remove("open"); const f=e.dataTransfer.files[0]; if(f) readFile(f); });
+window.addEventListener("resize",()=>{ if(DATA){ const nodes=currentNodes(); const vis=new Set([...nodes,...levelExternals(nodes)].map(n=>n.id)); drawEdges(nodes,vis);} });
+$("#stage").addEventListener("scroll",()=>{/* edges are absolute within inner, no redraw needed */});
+$("#stage").addEventListener("click",()=>{ /* click empty space clears selection */ selectedId=null; closeDrawer(); applyHighlight(); });
+
+/* ---------- boot: try sibling architecture.json, else show drop ---------- */
+(async function(){
+  try{
+    const res=await fetch("architecture.json",{cache:"no-store"});
+    if(res.ok){ loadData(await res.json()); return; }
+  }catch(e){/* file:// CORS — fall through */}
+  $("#drop").classList.add("open");
+})();
+</script>
+</body>
+</html>
