@@ -1,5 +1,6 @@
 using Astrolabed.Configuration;
 using Astrolabed.WebUI.Api;
+using Astrolabed.Hosting;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -17,6 +18,13 @@ public static class ConfigurationApi
     public static void Register(IHost mainHost, IEndpointRouteBuilder app)
     {
         var serverOptions = mainHost.Services.GetRequiredService<ServerOptions>();
+        var appRestartService = mainHost.Services.GetRequiredService<IApplicationRestartManager>();
+
+        // GET /api/system/restart
+        app.MapGet("/api/system/restart", () =>
+            {
+                appRestartService.RequestRestart(Startup.arguments);
+            });
 
         // GET /api/configuration
         app.MapGet("/api/configuration", () =>
