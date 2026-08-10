@@ -26,8 +26,7 @@ public static class ConfigurationApi
         app.MapPut("/api/configuration", (ServerOptions options) =>
             {
                 var configWriter = new ConfigurationWriter();
-                configWriter.Write(options);
-                return true;
+                return configWriter.Write(options);
             });
     }
 }

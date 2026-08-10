@@ -14,7 +14,7 @@ public class ConfigurationWriter
         PropertyNameCaseInsensitive = true
     };
 
-    public boolean Write(ServerOptions options)
+    public bool Write(ServerOptions options)
     {
         if (String.IsNullOrEmpty(HostBuilderFactory.ConfigurationFile))
         {
@@ -22,7 +22,6 @@ public class ConfigurationWriter
         }
 
         var fullPath = Path.Combine(AppContext.BaseDirectory, HostBuilderFactory.ConfigurationFile);
-        var backupFilePath = $"{fullPath}.bak";
 
         if (File.Exists(fullPath))
         {
