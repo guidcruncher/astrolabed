@@ -1,4 +1,6 @@
+using System;
 using System.Buffers;
+using System.Linq;
 using System.Net;
 
 using Astrolabed.Events;
@@ -7,16 +9,16 @@ using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Core;
 
-public sealed class AstrolabedService
+public sealed class DnsForwarderService
 {
-    private readonly ILogger<AstrolabedService> _logger;
+    private readonly ILogger<DnsForwarderService> _logger;
     private readonly DnsForwarderOptions _options;
     private readonly IDnsClient _defaultClient;
     private readonly RuleEngine.RuleEngine _ruleEngine;
     private readonly IDnsMetrics _metrics;
 
-    public AstrolabedService(
-        ILogger<AstrolabedService> logger,
+    public DnsForwarderService(
+        ILogger<DnsForwarderService> logger,
         DnsForwarderOptions options,
         IDnsClient defaultClient,
         RuleEngine.RuleEngine ruleEngine,
@@ -34,107 +36,44 @@ public sealed class AstrolabedService
         IPEndPoint remote,
         CancellationToken ct)
     {
-        var requestId = Guid.NewGuid().ToString("N");
+        string requestId = _logger.IsEnabled(LogLevel.Debug)
+            ? Guid.CreateVersion7().ToString("N")
+            : string.Empty;
 
-        _logger.LogDebug(
-            "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
-            requestId,
-            remote,
-            request.Length);
+        if (!string.IsNullOrEmpty(requestId))
+        {
+            _logger.LogDebug(
+                "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
+                requestId,
+                remote,
+                request.Length);
+        }
 
         var message = DnsParser.Parse(request);
-
         var q = message.Questions.FirstOrDefault();
+
         if (q is null)
         {
-            _logger.LogWarning(
-                "Request {RequestId}: Received DNS message with no questions from {Remote}",
-                requestId,
-                remote);
+            if (!string.IsNullOrEmpty(requestId))
+            {
+                _logger.LogWarning(
+                    "Request {RequestId}: Received DNS message with no questions from {Remote}",
+                    requestId,
+                    remote);
+            }
             return null;
         }
 
-        _logger.LogDebug(
-            "Request {RequestId}: DNS query from {Remote} for {Domain} ({Type})",
-            requestId,
-            remote,
-            q.Name,
-            q.Type);
+        string domain = q.Name ?? string.Empty;
 
-        var ruleResult = _ruleEngine.Match(q.Name, requestId);
+        // RuleEngine.QueryAsync executes cache lookup, block rule matching, and upstream querying internally
+        var response = await _ruleEngine.QueryAsync(domain, request, requestId, ct);
 
-        // --- BLOCK RULE ---
-        if (ruleResult.Block)
+        if (response is null || response.Length == 0)
         {
-            _logger.LogDebug(
-                "Request {RequestId}: Blocking query for {Domain} from {Remote}",
-                requestId,
-                q.Name,
-                remote);
-
-            var blocked = DnsParser.BuildBlockedResponse(message);
-
-            // PATCH DNS ID
-            blocked[0] = request[0];
-            blocked[1] = request[1];
-
-            // Wrap in non-pooled PooledBuffer
-            return new PooledBuffer(blocked, blocked.Length, fromPool: false);
+            return null;
         }
 
-        var active = ruleResult.Upstreams[0];
-
-        // --- CACHE CHECK (pooled) ---
-        if (_ruleEngine.Cache.TryGetPooled(q.Name, out var cachedBuf, out var cachedLen))
-        {
-            _metrics.RecordDnsCacheHit();
-
-            _logger.LogDebug(
-                "Request {RequestId}: Cache HIT for {Domain} (served without forwarding)",
-                requestId,
-                q.Name);
-
-            // Rent a send buffer from the pool to avoid allocating a new array per-hit
-            var sendBuf = ArrayPool<byte>.Shared.Rent(cachedLen);
-            // cachedBuf is non-null when TryGetPooled returned true
-            Buffer.BlockCopy(cachedBuf!, 0, sendBuf, 0, cachedLen);
-
-            // PATCH DNS ID
-            sendBuf[0] = request[0];
-            sendBuf[1] = request[1];
-
-            return new PooledBuffer(sendBuf, cachedLen, fromPool: true);
-        }
-
-        _logger.LogDebug(
-            "Request {RequestId}: Cache MISS for {Domain} (forwarding to upstream {Upstream})",
-            requestId,
-            q.Name,
-            active.Name);
-
-        _logger.LogDebug(
-            "Request {RequestId}: Forwarding {Domain} ({Type}) from {Remote} to upstream {Upstream}",
-            requestId,
-            q.Name,
-            q.Type,
-            remote,
-            active.Name);
-
-        // --- FORWARD + FALLBACK ---
-        var response = await _ruleEngine.QueryAsync(q.Name, request, requestId, ct);
-
-        _logger.LogDebug(
-            "Request {RequestId}: Completed DNS query for {Domain} from {Remote} using upstream {Upstream}",
-            requestId,
-            q.Name,
-            remote,
-            active.Name);
-
-        // Patch DNS ID in returned response (response may be a fresh array)
-        response[0] = request[0];
-        response[1] = request[1];
-
-        // Wrap response as non-pooled buffer (caller will not return it)
         return new PooledBuffer(response, response.Length, fromPool: false);
     }
 }

@@ -74,8 +74,8 @@ public sealed class SequentialFallbackTests
     {
         var engine = CreateEngine();
         var query = BuildQuery("anything.test");
-
-        var response = await engine.QueryAsync("anything.test", query, "id", CancellationToken.None);
+        var match = engine.Match("anything.test", "id");
+        var response = await engine.QueryAsync("anything.test", query, "id", match, CancellationToken.None);
 
         // All resolvers fail → SERVFAIL
         Assert.Equal(2, response[3] & 0x0F);

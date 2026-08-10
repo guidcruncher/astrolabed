@@ -1,6 +1,6 @@
 using Astrolabed.Configuration;
-using Astrolabed.WebUI.Api;
 using Astrolabed.Hosting;
+using Astrolabed.WebUI.Api;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;

@@ -43,7 +43,7 @@ public class DnsParserTests
 
         var q = msg.Questions[0];
         Assert.Equal("example.com", q.Name);
-        Assert.Equal(1, q.Type);
+        Assert.Equal(DnsType.A, q.Type);
         Assert.Equal(1, q.Class);
     }
 }

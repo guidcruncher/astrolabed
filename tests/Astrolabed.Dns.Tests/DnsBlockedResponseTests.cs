@@ -16,7 +16,7 @@ namespace Astrolabed.Dns.Tests
                 Id = 0x1234
             };
 
-            req.Questions.Add(new DnsQuestion { Name = "example.com", Type = 1, Class = 1 });
+            req.Questions.Add(new DnsQuestion { Name = "example.com", Type = DnsType.A, Class = 1 });
 
             var resp = DnsParser.BuildBlockedResponse(req);
 
@@ -25,7 +25,7 @@ namespace Astrolabed.Dns.Tests
             Assert.Equal("3", parsed.ResponseCode);
             Assert.Single(parsed.Questions);
             Assert.Equal("example.com", parsed.Questions[0].Name);
-            Assert.Equal((ushort)1, parsed.Questions[0].Type);
+            Assert.Equal(DnsType.A, parsed.Questions[0].Type);
             Assert.Equal((ushort)1, parsed.Questions[0].Class);
         }
     }

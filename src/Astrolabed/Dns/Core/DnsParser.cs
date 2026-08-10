@@ -1,16 +1,24 @@
+using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Text;
 
 namespace Astrolabed.Dns.Core;
 
 public static class DnsParser
 {
+    private const int MaxPointerJumps = 128;
+
     public static DnsMessage Parse(byte[] buffer)
     {
-        var msg = new DnsMessage();
+        ArgumentNullException.ThrowIfNull(buffer);
 
         if (buffer.Length < 12)
+        {
             throw new InvalidOperationException("DNS message too short");
+        }
 
+        var msg = new DnsMessage();
         int offset = 0;
 
         msg.Id = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
@@ -20,7 +28,6 @@ public static class DnsParser
         offset += 2;
 
         msg.IsResponse = (flags & 0x8000) != 0;
-        // Response code (last 4 bits of flags)
         msg.ResponseCode = ((flags & 0x000F)).ToString();
 
         ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
@@ -32,12 +39,13 @@ public static class DnsParser
         ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
         offset += 2;
 
+        // Question Section
         for (int i = 0; i < qdCount; i++)
         {
             var (name, newOffset) = ReadName(buffer, offset);
             offset = newOffset;
 
-            ushort type = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
+            ushort rawType = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
             ushort cls = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
@@ -45,17 +53,31 @@ public static class DnsParser
             msg.Questions.Add(new DnsQuestion
             {
                 Name = name,
-                Type = type,
+                Type = (DnsType)rawType,
                 Class = cls
             });
         }
 
-        for (int i = 0; i < anCount; i++)
+        // Answer Section
+        offset = ParseResourceRecords(buffer, offset, anCount, msg.Answers);
+
+        // Authority Section
+        offset = ParseResourceRecords(buffer, offset, nsCount, msg.Authorities);
+
+        // Additional Section
+        _ = ParseResourceRecords(buffer, offset, arCount, msg.Additionals);
+
+        return msg;
+    }
+
+    private static int ParseResourceRecords(byte[] buffer, int offset, int count, List<DnsResourceRecord> targetList)
+    {
+        for (int i = 0; i < count; i++)
         {
             var (name, newOffset) = ReadName(buffer, offset);
             offset = newOffset;
 
-            ushort type = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
+            ushort rawType = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
             ushort cls = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
@@ -65,26 +87,24 @@ public static class DnsParser
             offset += 2;
 
             if (offset + rdLength > buffer.Length)
-                throw new InvalidOperationException("RDATA length exceeds buffer");
+            {
+                throw new InvalidOperationException("RDATA length exceeds buffer bounds");
+            }
 
-            var rdata = buffer.Skip(offset).Take(rdLength).ToArray();
+            byte[] rdata = buffer.AsSpan(offset, rdLength).ToArray();
             offset += rdLength;
 
-            msg.Answers.Add(new DnsResourceRecord
+            targetList.Add(new DnsResourceRecord
             {
                 Name = name,
-                Type = type,
+                Type = (DnsType)rawType,
                 Class = cls,
                 Ttl = ttl,
                 RData = rdata
             });
         }
 
-        // Ensure ResponseCode is set from header RCODE (last 4 bits)
-        ushort headerFlags = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(2));
-        msg.ResponseCode = ((headerFlags & 0x000F)).ToString();
-
-        return msg;
+        return offset;
     }
 
     private static (string name, int offset) ReadName(byte[] buffer, int offset)
@@ -93,21 +113,34 @@ public static class DnsParser
         int originalOffset = offset;
         bool jumped = false;
         int jumpOffset = -1;
+        int jumpsCount = 0;
 
         while (true)
         {
             if (offset >= buffer.Length)
-                throw new InvalidOperationException("Name exceeds buffer");
+            {
+                throw new InvalidOperationException("Name exceeds buffer bounds");
+            }
 
             byte len = buffer[offset++];
 
             if (len == 0)
+            {
                 break;
+            }
 
+            // Compression pointer check (top 2 bits set: 0xC0)
             if ((len & 0xC0) == 0xC0)
             {
                 if (offset >= buffer.Length)
-                    throw new InvalidOperationException("Pointer exceeds buffer");
+                {
+                    throw new InvalidOperationException("Pointer exceeds buffer bounds");
+                }
+
+                if (++jumpsCount > MaxPointerJumps)
+                {
+                    throw new InvalidOperationException("Circular pointer loop detected in DNS compression header");
+                }
 
                 byte b2 = buffer[offset++];
                 int pointer = ((len & 0x3F) << 8) | b2;
@@ -123,28 +156,32 @@ public static class DnsParser
             }
 
             if (offset + len > buffer.Length)
-                throw new InvalidOperationException("Label exceeds buffer");
+            {
+                throw new InvalidOperationException("Label length exceeds buffer bounds");
+            }
 
-            var label = System.Text.Encoding.ASCII.GetString(buffer, offset, len);
+            string label = Encoding.ASCII.GetString(buffer, offset, len);
             offset += len;
             labels.Add(label);
         }
 
         if (jumped && jumpOffset != -1)
+        {
             offset = jumpOffset;
+        }
 
-        var name = string.Join(".", labels);
+        string name = string.Join(".", labels);
         return (name, offset);
     }
 
     public static byte[] BuildBlockedResponse(DnsMessage request)
     {
-        // Build NXDOMAIN response: copy header ID, set response + RCODE=3, echo question section.
-        // Calculate question section size
+        ArgumentNullException.ThrowIfNull(request);
+
         int qSize = 0;
         foreach (var q in request.Questions)
         {
-            qSize += GetNameWireLength(q.Name) + 4; // qname + qtype(2) + qclass(2)
+            qSize += GetNameWireLength(q.Name) + 4;
         }
 
         var buffer = new byte[12 + qSize];
@@ -153,9 +190,7 @@ public static class DnsParser
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), request.Id);
         offset += 2;
 
-        ushort flags = 0;
-        flags |= 0x8000; // QR = 1 (response)
-        flags |= 0x0003; // RCODE = 3 (NXDOMAIN)
+        ushort flags = 0x8003; // QR = 1 (response), RCODE = 3 (NXDOMAIN)
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), flags);
         offset += 2;
 
@@ -168,10 +203,11 @@ public static class DnsParser
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), 0); // ARCOUNT
         offset += 2;
 
-        // Write question section
         foreach (var q in request.Questions)
         {
-            offset += WriteNameWire(buffer, offset, q.Name);
+            int written = WriteNameWire(buffer.AsSpan(offset), q.Name);
+            offset += written;
+
             BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), (ushort)q.Type);
             offset += 2;
             BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), (ushort)q.Class);
@@ -184,34 +220,40 @@ public static class DnsParser
     private static int GetNameWireLength(string name)
     {
         if (string.IsNullOrEmpty(name))
-            return 1; // root
-
-        var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        int len = 0;
-        foreach (var p in parts)
-            len += 1 + System.Text.Encoding.ASCII.GetByteCount(p);
-        len += 1; // null terminator
-        return len;
-    }
-
-    private static int WriteNameWire(byte[] buffer, int offset, string name)
-    {
-        if (string.IsNullOrEmpty(name))
         {
-            buffer[offset++] = 0;
             return 1;
         }
 
         var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        int len = 0;
         foreach (var p in parts)
         {
-            var bytes = System.Text.Encoding.ASCII.GetBytes(p);
-            buffer[offset++] = (byte)bytes.Length;
-            Array.Copy(bytes, 0, buffer, offset, bytes.Length);
-            offset += bytes.Length;
+            len += 1 + Encoding.ASCII.GetByteCount(p);
+        }
+        len += 1; // Null terminator
+        return len;
+    }
+
+    private static int WriteNameWire(Span<byte> destination, string name)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            destination[0] = 0;
+            return 1;
         }
 
-        buffer[offset++] = 0; // terminator
-        return GetNameWireLength(name);
+        int written = 0;
+        var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+
+        foreach (var p in parts)
+        {
+            int byteCount = Encoding.ASCII.GetByteCount(p);
+            destination[written++] = (byte)byteCount;
+            Encoding.ASCII.GetBytes(p, destination.Slice(written, byteCount));
+            written += byteCount;
+        }
+
+        destination[written++] = 0;
+        return written;
     }
 }

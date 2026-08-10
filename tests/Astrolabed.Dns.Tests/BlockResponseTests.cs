@@ -56,7 +56,8 @@ public class BlockResponseTests
     public async Task Block_NXDOMAIN()
     {
         var engine = CreateEngine("NXDOMAIN");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", CancellationToken.None);
+        var match = engine.Match("adsdomain.com", "id");
+        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
 
         Assert.Equal(3, resp[3] & 0x0F);
     }
@@ -65,7 +66,8 @@ public class BlockResponseTests
     public async Task Block_SERVFAIL()
     {
         var engine = CreateEngine("SERVFAIL");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", CancellationToken.None);
+        var match = engine.Match("adsdomain.com", "id");
+        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
 
         Assert.Equal(2, resp[3] & 0x0F);
     }
@@ -74,7 +76,8 @@ public class BlockResponseTests
     public async Task Block_REFUSED()
     {
         var engine = CreateEngine("REFUSED");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", CancellationToken.None);
+        var match = engine.Match("adsdomain.com", "id");
+        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
 
         Assert.Equal(5, resp[3] & 0x0F);
     }
@@ -83,7 +86,8 @@ public class BlockResponseTests
     public async Task Block_STATIC_IP()
     {
         var engine = CreateEngine("STATIC_IP", "10.0.0.5");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", CancellationToken.None);
+        var match = engine.Match("adsdomain.com", "id");
+        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
 
         Assert.Contains((byte)10, resp);
         Assert.Contains((byte)0, resp);
