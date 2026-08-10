@@ -55,11 +55,7 @@ public static class WebUiSidecar
 
                     app.UseEndpoints(endpoints =>
                     {
-                        endpoints.MapGet("/", async context =>
-                        {
-                            context.Response.ContentType = "text/plain; version=0.0.4";
-                            await context.Response.WriteAsync("");
-                        });
+                        WebUiRouting.RegisterRoutes(mainHost, endpoints);
                     });
 
                     logger.LogInformation("WebUI endpoints registered");
