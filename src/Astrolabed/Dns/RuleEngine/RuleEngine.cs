@@ -71,7 +71,7 @@ public sealed class RuleEngine
         _compiler.BuildAutomata();
     }
 
-    public async Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, CancellationToken ct)
+    public async Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, RuleResult match, CancellationToken ct)
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
 
@@ -92,6 +92,14 @@ public sealed class RuleEngine
         if (isDebug)
         {
             _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", requestId, domain);
+        }
+
+        if (match.Block)
+        {
+            if (isDebug) _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
+                   requestId, domain, _options.BlockResponse.Mode);
+
+            return _blockBuilder.BuildBlockResponse(request);
         }
 
         var upstreams = _chainBuilder.BuildChain(match, domain, requestId);

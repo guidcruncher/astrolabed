@@ -96,7 +96,7 @@ public sealed class DnsForwarderService
         }
 
         // --- SLOW PATH: NETWORK FORWARDING ---
-        var response = await _ruleEngine.QueryAsync(q.Name, request, requestId, ct);
+        var response = await _ruleEngine.QueryAsync(q.Name, request, requestId, ruleResult, ct);
 
         response[0] = request[0];
         response[1] = request[1];
