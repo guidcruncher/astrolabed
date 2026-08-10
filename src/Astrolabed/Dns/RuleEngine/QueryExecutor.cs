@@ -31,10 +31,13 @@ internal sealed partial class QueryExecutor
         CancellationToken ct)
     {
         ushort qType = (ushort)DnsType.A;
+        ushort qClass = 1;
+
         var parsedReq = DnsMessage.TryParse(request);
         if (parsedReq?.Questions.Count > 0)
         {
             qType = (ushort)parsedReq.Questions[0].Type;
+            qClass = parsedReq.Questions[0].Class;
         }
 
         int count = upstreams.Count;
@@ -44,7 +47,9 @@ internal sealed partial class QueryExecutor
             try
             {
                 if (requestId is not null)
+                {
                     LogQueryingUpstream(_logger, requestId, upstream.Name, domain);
+                }
 
                 var resp = await upstream.Client.QueryAsync(request, ct).ConfigureAwait(false);
 
@@ -58,7 +63,9 @@ internal sealed partial class QueryExecutor
                 if (rcode == 2)
                 {
                     if (requestId is not null)
+                    {
                         LogServfail(_logger, requestId, upstream.Name, domain);
+                    }
                     continue;
                 }
 
@@ -67,13 +74,17 @@ internal sealed partial class QueryExecutor
                 if (ttl > 0)
                 {
                     if (requestId is not null)
+                    {
                         LogTtlFound(_logger, requestId, domain, ttl, upstream.Name);
-                    _cache.Store(domain, qType, resp, TimeSpan.FromSeconds(ttl));
+                    }
+                    _cache.Store(domain, qType, resp, TimeSpan.FromSeconds(ttl), qClass);
                 }
                 else
                 {
                     if (requestId is not null)
+                    {
                         LogNoTtlFound(_logger, requestId, domain, upstream.Name);
+                    }
                 }
 
                 return resp;
@@ -85,7 +96,9 @@ internal sealed partial class QueryExecutor
             catch (Exception ex)
             {
                 if (requestId is not null)
+                {
                     LogErrorQueryingUpstream(_logger, ex, requestId, upstream.Name, domain);
+                }
             }
         }
 

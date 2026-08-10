@@ -84,14 +84,16 @@ public sealed class RuleEngine
 
         ushort transactionId = request.Length >= 2 ? BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(0, 2)) : (ushort)0;
         ushort qType = (ushort)DnsType.A;
+        ushort qClass = 1;
 
         var message = DnsMessage.TryParse(request);
         if (message?.Questions.Count > 0)
         {
             qType = (ushort)message.Questions[0].Type;
+            qClass = message.Questions[0].Class;
         }
 
-        if (Cache.TryGet(domain, qType, transactionId, out var cached) && cached != null)
+        if (Cache.TryGet(domain, qType, transactionId, out var cached, qClass) && cached != null)
         {
             if (isDebug)
             {

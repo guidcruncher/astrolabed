@@ -1,90 +1,80 @@
 using System;
 using System.Buffers.Binary;
+using System.Linq;
 
-namespace Astrolabed.Dns.RuleEngine;
+using Astrolabed.Dns.Core;
 
-internal static class TtlExtractor
+namespace Astrolabed.Utils;
+
+public static class TtlExtractor
 {
-    public static int ExtractTtl(ReadOnlySpan<byte> msg)
+    public static int ExtractTtl(byte[] response)
     {
-        if (msg.Length < 12)
+        if (response == null || response.Length < 12)
         {
-            return -1;
+            return 0;
         }
 
-        ushort qd = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(4, 2));
-        ushort an = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(6, 2));
-
-        int offset = 12;
-
-        for (int i = 0; i < qd; i++)
+        var message = DnsMessage.TryParse(response);
+        if (message == null)
         {
-            offset = SkipName(msg, offset);
-            if (offset < 0 || offset + 4 > msg.Length)
-            {
-                return -1;
-            }
-
-            offset += 4;
+            return 0;
         }
 
-        uint min = uint.MaxValue;
-
-        for (int i = 0; i < an; i++)
+        // 1. Positive answers: return minimum non-zero answer TTL
+        if (message.Answers.Count > 0)
         {
-            offset = SkipName(msg, offset);
-            if (offset < 0 || offset + 10 > msg.Length)
+            int minTtl = int.MaxValue;
+            foreach (var answer in message.Answers)
             {
-                return -1;
+                if (answer.Ttl > 0 && answer.Ttl < minTtl)
+                {
+                    minTtl = answer.Ttl;
+                }
             }
+            return minTtl == int.MaxValue ? 0 : minTtl;
+        }
 
-            offset += 4; // Skip Type and Class
-
-            uint ttl = BinaryPrimitives.ReadUInt32BigEndian(msg.Slice(offset, 4));
-            offset += 4;
-
-            ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(offset, 2));
-            offset += 2 + rdLength;
-
-            if (offset > msg.Length)
+        // 2. Negative caching (RFC 2308): RCODE 3 (NXDOMAIN) or RCODE 0 with 0 answers (NODATA)
+        int rcode = response[3] & 0x0F;
+        if (rcode == 3 || (rcode == 0 && message.Answers.Count == 0))
+        {
+            var soaRecord = message.Authorities.FirstOrDefault(a => a.Type == DnsType.SOA);
+            if (soaRecord != null)
             {
-                return -1;
-            }
+                int soaRecordTtl = soaRecord.Ttl;
+                int soaMinimumField = ExtractSoaMinimumField(soaRecord.RData);
 
-            if (ttl < min)
-            {
-                min = ttl;
+                if (soaMinimumField > 0)
+                {
+                    // RFC 2308: Negative TTL = min(SOA.TTL, SOA.MINIMUM)
+                    return Math.Min(soaRecordTtl, soaMinimumField);
+                }
+
+                return Math.Max(0, soaRecordTtl);
             }
         }
 
-        return min == uint.MaxValue ? -1 : (int)Math.Min(min, int.MaxValue);
+        return 0;
     }
 
-    private static int SkipName(ReadOnlySpan<byte> msg, int offset)
+    private static int ExtractSoaMinimumField(byte[] rdata)
     {
-        int hops = 0;
-        while (offset < msg.Length)
+        if (rdata == null || rdata.Length < 20)
         {
-            byte len = msg[offset];
-
-            if (len == 0)
-            {
-                return offset + 1;
-            }
-
-            if ((len & 0xC0) == 0xC0)
-            {
-                return offset + 2;
-            }
-
-            offset += len + 1;
-
-            if (++hops > 128)
-            {
-                return -1;
-            }
+            return 0;
         }
 
-        return -1;
+        try
+        {
+            // MINIMUM TTL is the 32-bit integer located at the final 4 bytes of SOA RDATA
+            int offset = rdata.Length - 4;
+            uint minTtl = BinaryPrimitives.ReadUInt32BigEndian(rdata.AsSpan(offset, 4));
+            return minTtl > int.MaxValue ? int.MaxValue : (int)minTtl;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 }
