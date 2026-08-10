@@ -11,7 +11,7 @@ public sealed class HostsNxDomainTests
     [Fact]
     public void NonexistentDomain_Should_Return_NXDOMAIN()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

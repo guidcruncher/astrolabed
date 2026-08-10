@@ -10,7 +10,7 @@ public sealed class MultiResolverFallbackTests
 {
     private Astrolabed.Dns.RuleEngine.RuleEngine CreateEngine()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

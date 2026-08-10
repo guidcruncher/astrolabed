@@ -59,7 +59,7 @@ public static class DnsServiceCollectionExtensions
         // Global default IDnsClient (keeps previous behaviour but uses the factory)
         services.AddSingleton<IDnsClient>(sp =>
         {
-            var opt = sp.GetRequiredService<AstrolabedOptions>();
+            var opt = sp.GetRequiredService<DnsForwarderOptions>();
 
             var resolvers = opt.DefaultResolvers.Count > 0
                 ? opt.DefaultResolvers

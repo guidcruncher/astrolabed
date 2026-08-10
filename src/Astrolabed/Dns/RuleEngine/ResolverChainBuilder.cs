@@ -11,14 +11,14 @@ namespace Astrolabed.Dns.RuleEngine;
 
 internal sealed class ResolverChainBuilder
 {
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
     private readonly IDnsClient _defaultClient;
     private readonly IReadOnlyList<UpstreamEntry> _fallback;
     private readonly ILogger _logger;
     private readonly IDnsClientFactory _clientFactory;
 
     public ResolverChainBuilder(
-        AstrolabedOptions options,
+        DnsForwarderOptions options,
         IDnsClient defaultClient,
         IReadOnlyList<UpstreamEntry> fallback,
         IDnsClientFactory clientFactory,

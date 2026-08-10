@@ -16,7 +16,7 @@ public class HostsDnsPacketTests
 {
     private RuleEngine.RuleEngine CreateEngine(string ip)
     {
-        var opts = new AstrolabedOptions
+        var opts = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =

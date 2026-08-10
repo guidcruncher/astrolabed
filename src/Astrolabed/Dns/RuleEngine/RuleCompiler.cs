@@ -13,7 +13,7 @@ namespace Astrolabed.Dns.RuleEngine;
 internal sealed class RuleCompiler
 {
     private readonly ILogger _logger;
-    private readonly AstrolabedOptions _options;
+    private readonly DnsForwarderOptions _options;
     private readonly IDnsClientFactory _clientFactory;
 
     public IDnsClient DefaultClient { get; }
@@ -26,7 +26,7 @@ internal sealed class RuleCompiler
     public List<CompiledRule> RegexRules { get; } = new();
     public List<UpstreamEntry> FallbackResolvers { get; } = new();
 
-    public RuleCompiler(AstrolabedOptions options, ILogger logger, IDnsClientFactory clientFactory)
+    public RuleCompiler(DnsForwarderOptions options, ILogger logger, IDnsClientFactory clientFactory)
     {
         _options = options;
         _logger = logger;

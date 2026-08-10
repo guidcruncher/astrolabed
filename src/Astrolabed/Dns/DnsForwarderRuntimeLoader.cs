@@ -25,7 +25,7 @@ public sealed class AstrolabedRuntimeLoader
     {
         var logger = services.GetRequiredService<ILogger<AstrolabedRuntimeLoader>>();
 
-        var options = services.GetRequiredService<AstrolabedOptions>();
+        var options = services.GetRequiredService<DnsForwarderOptions>();
         var engine = services.GetRequiredService<RuleEngine.RuleEngine>();
 
         await LoadHostsAsync(options, engine, logger);
@@ -36,7 +36,7 @@ public sealed class AstrolabedRuntimeLoader
     // ------------------------------------------------------------
     // HOSTS
     // ------------------------------------------------------------
-    private async Task LoadHostsAsync(AstrolabedOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadHostsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
     {
         if (options.HostsFiles?.Any() != true)
         {
@@ -56,7 +56,7 @@ public sealed class AstrolabedRuntimeLoader
     // ------------------------------------------------------------
     // BLOCKLISTS
     // ------------------------------------------------------------
-    private async Task LoadBlocklistsAsync(AstrolabedOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadBlocklistsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
     {
         if (options.Blocklists?.Any() != true)
         {
@@ -73,7 +73,7 @@ public sealed class AstrolabedRuntimeLoader
     // ------------------------------------------------------------
     // ALLOWLISTS
     // ------------------------------------------------------------
-    private async Task LoadAllowlistsAsync(AstrolabedOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadAllowlistsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
     {
         if (options.Allowlists?.Any() != true)
         {

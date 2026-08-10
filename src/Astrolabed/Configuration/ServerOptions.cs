@@ -7,7 +7,7 @@ namespace Astrolabed;
 public sealed class ServerOptions
 {
 
-    public AstrolabedOptions Dns { get; set; } = new();
+    public DnsForwarderOptions Dns { get; set; } = new();
 
     public DhcpOptions Dhcp { get; set; } = new();
 

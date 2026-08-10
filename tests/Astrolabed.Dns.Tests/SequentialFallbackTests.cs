@@ -12,7 +12,7 @@ public sealed class SequentialFallbackTests
 {
     private Astrolabed.Dns.RuleEngine.RuleEngine CreateEngine()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             DefaultResolvers =
             {

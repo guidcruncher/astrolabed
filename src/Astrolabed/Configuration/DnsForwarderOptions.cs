@@ -1,6 +1,6 @@
 namespace Astrolabed.Dns;
 
-public sealed class AstrolabedOptions
+public sealed class DnsForwarderOptions
 {
     public ListenOptions Listen { get; set; } = new();
     public List<UpstreamResolverOptions> DefaultResolvers { get; set; } = new();

@@ -11,7 +11,7 @@ public sealed class HostsServfailTests
     [Fact]
     public void NonexistentDomain_Should_Return_SERVFAIL()
     {
-        var options = new AstrolabedOptions
+        var options = new DnsForwarderOptions
         {
             // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =
