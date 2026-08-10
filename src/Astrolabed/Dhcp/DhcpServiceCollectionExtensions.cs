@@ -19,6 +19,14 @@ public static class DhcpServiceCollectionExtensions
         if (!dhcp.Enabled)
             return services; // DHCP disabled — do nothing
 
+        using var serviceProvider = services.BuildServiceProvider();
+        var _logger = serviceProvider.GetRequiredService<ILogger>();
+
+        if (!IPAddress.TryParse(dhcp.ListenAddress, out IPAddress? address))
+        {
+            _logger.LogCritical("Invalid IP Address in DHCP ListenAddress. Cannot initialise DHCP Service");
+            return services;
+        }
 
         // DHCP engine + lease store
         services.AddSingleton<DhcpOptions>(dhcp);
