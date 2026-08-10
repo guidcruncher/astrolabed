@@ -7,7 +7,7 @@ public sealed class NtpServerOptions
 
     public bool Enabled { get; set; } = false;
 
-    public IPAddress ListenAddress { get; set; } = IPAddress.Any;
+    public string ListenAddress { get; set; } = "0.0.0.0";
     public int Port { get; set; } = 123;
     public int BufferSize { get; set; } = 65536;
     public int Stratum { get; set; } = 1;

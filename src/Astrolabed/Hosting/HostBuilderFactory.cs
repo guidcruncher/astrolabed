@@ -6,6 +6,9 @@ namespace Astrolabed.Hosting;
 
 public static class HostBuilderFactory
 {
+
+    public static string ConfigurationFile { get; set; } = "appsettings.json";
+
     public static IHost Build(string[] args, IConfiguration cmd)
     {
         return Host.CreateDefaultBuilder(args)
@@ -21,7 +24,10 @@ public static class HostBuilderFactory
                     config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
 
                 if (cmd["ConfigPath"] is string customConfig && !string.IsNullOrWhiteSpace(customConfig))
+                {
+                    HostBuilderFactory.ConfigurationFile = customConfig;
                     config.AddJsonFile(customConfig, optional: false, reloadOnChange: true);
+                }
 
                 config.AddEnvironmentVariables();
                 config.AddConfiguration(cmd);
@@ -41,6 +47,8 @@ public static class HostBuilderFactory
                     builder.AddConsole();
                 }).CreateLogger("HostBuilderFactory");
 
+                services.AddSingleton<IApplicationRestartManager, ApplicationRestartManager>();
+
                 logger.LogInformation("Registering services for environment: {Env}",
                     ctx.HostingEnvironment.EnvironmentName);
 
@@ -51,3 +59,4 @@ public static class HostBuilderFactory
             .Build();
     }
 }
+

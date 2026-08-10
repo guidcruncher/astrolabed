@@ -10,23 +10,24 @@ docker pull docker.io/guidcruncher/astrolabed:latest
 
 ```bash
 docker run \
-	-p 53:53/tcp \
-	-p 53:53/udp \
-	-p 67:67/udp \
+        -p 53:53/tcp \
+        -p 53:53/udp \
+        -p 67:67/udp \
         -p 68:68 \
-	-p 123:123/udp \
+        -p 123:123/udp \
         -p 1080:1080 \
-	-v ./appsettings.json:/app/appsettings.json:ro \
-	-v ./dnsforwarder:/var/lib/dnsforwarder \
+        -p 1081:1081 \
+        -v ./appsettings.json:/app/appsettings.json:ro \
+        -v ./dnsforwarder:/var/lib/dnsforwarder \
         -v ./hosts:/dns-hosts \
         -v ./rules:/dns-rules \
-	--cap-add NET_ADMIN \
-	--cap-add SYS_TIME \
-	--cap-add SYS_NICE \ 
+        --cap-add NET_ADMIN \
+        --cap-add SYS_TIME \
+        --cap-add SYS_NICE \ 
         --cap-add CHOWN \
         --cap-add NET_BIND_SERVICE \
         --cap-add NET_RAW \
-	docker.io/guidcruncher/astrolabed:latest
+        docker.io/guidcruncher/astrolabed:latest
 ```
 
 ## Docker Compose 
@@ -46,6 +47,7 @@ services:
       - "68:68"
       - "123:123/udp"
       - "1080:1080"
+      - "1081:1081"
     volumes:
       - ./appsettings.json:/app/appsettings.json:ro
       - ./dnsforwarder:/var/lib/dnsforwarder

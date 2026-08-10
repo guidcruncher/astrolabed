@@ -4,6 +4,9 @@ namespace Astrolabed.Hosting;
 
 public static class Startup
 {
+
+    public static string[] arguments { get; set; } = [];
+
     public static IHost BuildHost(string[] args)
     {
         Console.WriteLine("""
@@ -19,6 +22,7 @@ https://guidcruncher.github.io/astrolabed/
 
 """);
 
+        Startup.arguments = args;
         var cmd = new ConfigurationBuilder()
               .AddCommandLine(args, new Dictionary<string, string>
               {

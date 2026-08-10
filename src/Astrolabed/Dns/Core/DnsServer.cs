@@ -33,6 +33,13 @@ public sealed class DnsServer : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+
+        if (!IPAddress.TryParse(_options.Listen.Address, out IPAddress? address))
+        {
+            _logger.LogCritical("Invalid IP Address in DNS ListenAddress. Cannot initialise DNS Service");
+            return;
+        }
+
         var listenAddress = IPAddress.Parse(_options.Listen.Address);
         var endpoint = new IPEndPoint(listenAddress, _options.Listen.Port);
 

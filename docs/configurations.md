@@ -100,6 +100,11 @@ Comprehensive example for local/dev running.
     "ListenAddress": "127.0.0.1",
     "ListenPort": 1080
   },
+  "WebUI": {
+    "Enabled": true,
+    "ListenAddress": "127.0.0.1",
+    "ListenPort": 1081
+  },
   "Logging": {
     "Level": "Debug"
   }
@@ -200,6 +205,11 @@ Example tuned for running inside Docker (paths reference `/app/blocklists` for m
     "Location": "/metrics",
     "ListenAddress": "127.0.0.1",
     "ListenPort": 1080
+  },
+  "WebUI": {
+    "Enabled": true,
+    "ListenAddress": "127.0.0.1",
+    "ListenPort": 1081
   },
   "Logging": {
     "Level": "Warning"
