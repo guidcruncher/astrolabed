@@ -3,6 +3,7 @@ using Astrolabed.WebUI.Api;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,7 +24,7 @@ public static class ConfigurationApi
             return serverOptions;
         });
 
-        app.MapPut("/api/configuration", (ServerOptions options) =>
+        app.MapPut("/api/configuration", ([FromBody] ServerOptions options) =>
             {
                 var configWriter = new ConfigurationWriter();
                 return configWriter.Write(options);
