@@ -38,7 +38,12 @@ public sealed class NtpServerService : BackgroundService
         _udp.Client.ReceiveBufferSize = _options.BufferSize;
         _udp.Client.SendBufferSize = _options.BufferSize;
 
-        var ep = new IPEndPoint(_options.ListenAddress, _options.Port);
+        if (!IPAddress.TryParse(_options.ListenAddress, out IPAddress? address)) {
+	   _logger.LogCritical("Invalid IP Address in Ntp ListenAddress. Cannot initialise Ntp Service");
+	   return;
+        }
+
+        var ep = new IPEndPoint(address, _options.Port);
         _udp.Client.Bind(ep);
 
         _logger.LogInformation("NTP server listening on {Endpoint}", ep);
