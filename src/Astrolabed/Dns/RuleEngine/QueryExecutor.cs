@@ -30,6 +30,13 @@ internal sealed partial class QueryExecutor
         string? requestId,
         CancellationToken ct)
     {
+        ushort qType = (ushort)DnsType.A;
+        var parsedReq = DnsMessage.TryParse(request);
+        if (parsedReq?.Questions.Count > 0)
+        {
+            qType = (ushort)parsedReq.Questions[0].Type;
+        }
+
         int count = upstreams.Count;
         for (int i = 0; i < count; i++)
         {
@@ -61,7 +68,7 @@ internal sealed partial class QueryExecutor
                 {
                     if (requestId is not null)
                         LogTtlFound(_logger, requestId, domain, ttl, upstream.Name);
-                    _cache.Store(domain, resp, TimeSpan.FromSeconds(ttl));
+                    _cache.Store(domain, qType, resp, TimeSpan.FromSeconds(ttl));
                 }
                 else
                 {

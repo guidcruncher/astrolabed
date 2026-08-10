@@ -1,4 +1,6 @@
+using System;
 using System.Buffers;
+using System.Linq;
 using System.Net;
 
 using Astrolabed.Events;
@@ -34,12 +36,11 @@ public sealed class DnsForwarderService
         IPEndPoint remote,
         CancellationToken ct)
     {
-        // Generate correlation ID only if debug logging is active to save string allocations
-        string? requestId = _logger.IsEnabled(LogLevel.Debug)
+        string requestId = _logger.IsEnabled(LogLevel.Debug)
             ? Guid.CreateVersion7().ToString("N")
-            : null;
+            : string.Empty;
 
-        if (requestId is not null)
+        if (!string.IsNullOrEmpty(requestId))
         {
             _logger.LogDebug(
                 "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
@@ -53,7 +54,7 @@ public sealed class DnsForwarderService
 
         if (q is null)
         {
-            if (requestId is not null)
+            if (!string.IsNullOrEmpty(requestId))
             {
                 _logger.LogWarning(
                     "Request {RequestId}: Received DNS message with no questions from {Remote}",
@@ -63,43 +64,15 @@ public sealed class DnsForwarderService
             return null;
         }
 
-        var ruleResult = _ruleEngine.Match(q.Name, requestId);
+        string domain = q.Name ?? string.Empty;
 
-        // --- FAST PATH 1: BLOCK RULE ---
-        if (ruleResult.Block)
-        {
-            var blocked = DnsParser.BuildBlockedResponse(message);
-            blocked[0] = request[0];
-            blocked[1] = request[1];
+        // RuleEngine.QueryAsync executes cache lookup, block rule matching, and upstream querying internally
+        var response = await _ruleEngine.QueryAsync(domain, request, requestId, ct);
 
-            return new PooledBuffer(blocked, blocked.Length, fromPool: false);
-        }
-
-        // --- FAST PATH 2: CACHE CHECK ---
-        if (_ruleEngine.Cache.TryGetPooled(q.Name, out var cachedBuf, out var cachedLen))
-        {
-            _metrics.RecordDnsCacheHit();
-
-            var sendBuf = ArrayPool<byte>.Shared.Rent(cachedLen);
-            Buffer.BlockCopy(cachedBuf!, 0, sendBuf, 0, cachedLen);
-
-            sendBuf[0] = request[0];
-            sendBuf[1] = request[1];
-
-            return new PooledBuffer(sendBuf, cachedLen, fromPool: true);
-        }
-
-        // Validate upstream collection safety
-        if (ruleResult.Upstreams.Count == 0)
+        if (response is null || response.Length == 0)
         {
             return null;
         }
-
-        // --- SLOW PATH: NETWORK FORWARDING ---
-        var response = await _ruleEngine.QueryAsync(q.Name, request, requestId, ruleResult, ct);
-
-        response[0] = request[0];
-        response[1] = request[1];
 
         return new PooledBuffer(response, response.Length, fromPool: false);
     }

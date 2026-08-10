@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net.Http;
 
 using Astrolabed.Dns.Core;
@@ -71,22 +72,33 @@ public sealed class RuleEngine
         _compiler.BuildAutomata();
     }
 
+    public Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, CancellationToken ct)
+    {
+        var match = Match(domain, requestId);
+        return QueryAsync(domain, request, requestId, match, ct);
+    }
+
     public async Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, RuleResult match, CancellationToken ct)
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
 
-        if (Cache.TryGet(domain, out var cached) && cached != null)
+        ushort transactionId = request.Length >= 2 ? BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(0, 2)) : (ushort)0;
+        ushort qType = (ushort)DnsType.A;
+
+        var message = DnsMessage.TryParse(request);
+        if (message?.Questions.Count > 0)
+        {
+            qType = (ushort)message.Questions[0].Type;
+        }
+
+        if (Cache.TryGet(domain, qType, transactionId, out var cached) && cached != null)
         {
             if (isDebug)
             {
                 _logger.LogDebug("Request {RequestId}: Cache HIT for {Domain}", requestId, domain);
             }
 
-            // Copy cached buffer before mutating transaction ID bytes to prevent thread race/corruption
-            var responseCopy = (byte[])cached.Clone();
-            responseCopy[0] = request[0];
-            responseCopy[1] = request[1];
-            return responseCopy;
+            return cached;
         }
 
         if (isDebug)
@@ -96,8 +108,11 @@ public sealed class RuleEngine
 
         if (match.Block)
         {
-            if (isDebug) _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
-                   requestId, domain, _options.BlockResponse.Mode);
+            if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
+                    requestId, domain, _options.BlockResponse.Mode);
+            }
 
             return _blockBuilder.BuildBlockResponse(request);
         }
