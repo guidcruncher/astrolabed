@@ -1,63 +1,90 @@
-using System.Net;
-using System.Text.RegularExpressions;
-
-using Astrolabed.Dns.Core;
-using Astrolabed.Dns.Filtering;
-using Astrolabed.Utils;
-
-using Microsoft.Extensions.Logging;
+using System;
+using System.Buffers.Binary;
 
 namespace Astrolabed.Dns.RuleEngine;
 
 internal static class TtlExtractor
 {
-    public static int ExtractTtl(byte[] msg)
+    public static int ExtractTtl(ReadOnlySpan<byte> msg)
     {
-        int qd = (msg[4] << 8) | msg[5];
-        int an = (msg[6] << 8) | msg[7];
+        if (msg.Length < 12)
+        {
+            return -1;
+        }
+
+        ushort qd = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(4, 2));
+        ushort an = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(6, 2));
 
         int offset = 12;
 
         for (int i = 0; i < qd; i++)
-            offset = SkipName(msg, offset) + 4;
+        {
+            offset = SkipName(msg, offset);
+            if (offset < 0 || offset + 4 > msg.Length)
+            {
+                return -1;
+            }
 
-        int min = int.MaxValue;
+            offset += 4;
+        }
+
+        uint min = uint.MaxValue;
 
         for (int i = 0; i < an; i++)
         {
             offset = SkipName(msg, offset);
+            if (offset < 0 || offset + 10 > msg.Length)
+            {
+                return -1;
+            }
+
+            offset += 4; // Skip Type and Class
+
+            uint ttl = BinaryPrimitives.ReadUInt32BigEndian(msg.Slice(offset, 4));
             offset += 4;
 
-            int ttl = (msg[offset] << 24) |
-                      (msg[offset + 1] << 16) |
-                      (msg[offset + 2] << 8) |
-                      msg[offset + 3];
+            ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(msg.Slice(offset, 2));
+            offset += 2 + rdLength;
 
-            offset += 4;
-
-            int rd = (msg[offset] << 8) | msg[offset + 1];
-            offset += 2 + rd;
+            if (offset > msg.Length)
+            {
+                return -1;
+            }
 
             if (ttl < min)
+            {
                 min = ttl;
+            }
         }
 
-        return min == int.MaxValue ? -1 : min;
+        return min == uint.MaxValue ? -1 : (int)Math.Min(min, int.MaxValue);
     }
 
-    private static int SkipName(byte[] msg, int offset)
+    private static int SkipName(ReadOnlySpan<byte> msg, int offset)
     {
-        while (true)
+        int hops = 0;
+        while (offset < msg.Length)
         {
             byte len = msg[offset];
 
             if (len == 0)
+            {
                 return offset + 1;
+            }
 
             if ((len & 0xC0) == 0xC0)
+            {
                 return offset + 2;
+            }
 
             offset += len + 1;
+
+            if (++hops > 128)
+            {
+                return -1;
+            }
         }
+
+        return -1;
     }
 }

@@ -34,107 +34,73 @@ public sealed class DnsForwarderService
         IPEndPoint remote,
         CancellationToken ct)
     {
-        var requestId = Guid.CreateVersion7().ToString("N")
+        // Generate correlation ID only if debug logging is active to save string allocations
+        string? requestId = _logger.IsEnabled(LogLevel.Debug)
+            ? Guid.CreateVersion7().ToString("N")
+            : null;
 
-        _logger.LogDebug(
-            "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
-            requestId,
-            remote,
-            request.Length);
+        if (requestId is not null)
+        {
+            _logger.LogDebug(
+                "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
+                requestId,
+                remote,
+                request.Length);
+        }
 
         var message = DnsParser.Parse(request);
-
         var q = message.Questions.FirstOrDefault();
+
         if (q is null)
         {
-            _logger.LogWarning(
-                "Request {RequestId}: Received DNS message with no questions from {Remote}",
-                requestId,
-                remote);
+            if (requestId is not null)
+            {
+                _logger.LogWarning(
+                    "Request {RequestId}: Received DNS message with no questions from {Remote}",
+                    requestId,
+                    remote);
+            }
             return null;
         }
 
-        _logger.LogDebug(
-            "Request {RequestId}: DNS query from {Remote} for {Domain} ({Type})",
-            requestId,
-            remote,
-            q.Name,
-            q.Type);
-
         var ruleResult = _ruleEngine.Match(q.Name, requestId);
 
-        // --- BLOCK RULE ---
+        // --- FAST PATH 1: BLOCK RULE ---
         if (ruleResult.Block)
         {
-            _logger.LogDebug(
-                "Request {RequestId}: Blocking query for {Domain} from {Remote}",
-                requestId,
-                q.Name,
-                remote);
-
             var blocked = DnsParser.BuildBlockedResponse(message);
-
-            // PATCH DNS ID
             blocked[0] = request[0];
             blocked[1] = request[1];
 
-            // Wrap in non-pooled PooledBuffer
             return new PooledBuffer(blocked, blocked.Length, fromPool: false);
         }
 
-        var active = ruleResult.Upstreams[0];
-
-        // --- CACHE CHECK (pooled) ---
+        // --- FAST PATH 2: CACHE CHECK ---
         if (_ruleEngine.Cache.TryGetPooled(q.Name, out var cachedBuf, out var cachedLen))
         {
             _metrics.RecordDnsCacheHit();
 
-            _logger.LogDebug(
-                "Request {RequestId}: Cache HIT for {Domain} (served without forwarding)",
-                requestId,
-                q.Name);
-
-            // Rent a send buffer from the pool to avoid allocating a new array per-hit
             var sendBuf = ArrayPool<byte>.Shared.Rent(cachedLen);
-            // cachedBuf is non-null when TryGetPooled returned true
             Buffer.BlockCopy(cachedBuf!, 0, sendBuf, 0, cachedLen);
 
-            // PATCH DNS ID
             sendBuf[0] = request[0];
             sendBuf[1] = request[1];
 
             return new PooledBuffer(sendBuf, cachedLen, fromPool: true);
         }
 
-        _logger.LogDebug(
-            "Request {RequestId}: Cache MISS for {Domain} (forwarding to upstream {Upstream})",
-            requestId,
-            q.Name,
-            active.Name);
+        // Validate upstream collection safety
+        if (ruleResult.Upstreams.Count == 0)
+        {
+            return null;
+        }
 
-        _logger.LogDebug(
-            "Request {RequestId}: Forwarding {Domain} ({Type}) from {Remote} to upstream {Upstream}",
-            requestId,
-            q.Name,
-            q.Type,
-            remote,
-            active.Name);
-
-        // --- FORWARD + FALLBACK ---
+        // --- SLOW PATH: NETWORK FORWARDING ---
         var response = await _ruleEngine.QueryAsync(q.Name, request, requestId, ct);
 
-        _logger.LogDebug(
-            "Request {RequestId}: Completed DNS query for {Domain} from {Remote} using upstream {Upstream}",
-            requestId,
-            q.Name,
-            remote,
-            active.Name);
-
-        // Patch DNS ID in returned response (response may be a fresh array)
         response[0] = request[0];
         response[1] = request[1];
 
-        // Wrap response as non-pooled buffer (caller will not return it)
         return new PooledBuffer(response, response.Length, fromPool: false);
     }
 }

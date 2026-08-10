@@ -1,6 +1,4 @@
-using System.Net;
 using System.Net.Http;
-using System.Text.RegularExpressions;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
@@ -21,11 +19,16 @@ public sealed class RuleEngine
     private readonly QueryExecutor _executor;
     private readonly BlockResponseBuilder _blockBuilder;
 
-    private sealed class SimpleHttpClientFactory : IHttpClientFactory { public HttpClient CreateClient(string name) => new HttpClient(); }
+    private sealed class SimpleHttpClientFactory : IHttpClientFactory
+    {
+        private static readonly HttpClient SharedClient = new();
+        public HttpClient CreateClient(string name) => SharedClient;
+    }
 
     public DnsCache Cache { get; } = new();
 
-    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger) : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
+    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger)
+        : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
     {
     }
 
@@ -43,7 +46,9 @@ public sealed class RuleEngine
         if (options.Resolvers != null)
         {
             foreach (var r in options.Resolvers)
+            {
                 _compiler.AddResolver(r);
+            }
         }
 
         _compiler.BuildAutomata();
@@ -51,44 +56,60 @@ public sealed class RuleEngine
 
     public async Task AddHostsAsync(HostsFileSource src)
     {
-        var entries = await src.LoadAsync();
+        var entries = await src.LoadAsync().ConfigureAwait(false);
 
         foreach (var h in entries)
+        {
             _compiler.Hosts.Add(h.Domain, h.Address);
+        }
     }
 
     public async Task AddListAsync(IBlocklistSource source, bool block)
     {
-        var parsed = await source.LoadAsync();
+        var parsed = await source.LoadAsync().ConfigureAwait(false);
         _compiler.AddRules(parsed, block);
         _compiler.BuildAutomata();
     }
 
-    public async Task<byte[]> QueryAsync(string domain, byte[] request, string requestId, CancellationToken ct)
+    public async Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, CancellationToken ct)
     {
+        bool isDebug = _logger.IsEnabled(LogLevel.Debug);
+
         if (Cache.TryGet(domain, out var cached) && cached != null)
         {
-            _logger.LogDebug("Request {RequestId}: Cache HIT for {Domain}", requestId, domain);
-            cached[0] = request[0];
-            cached[1] = request[1];
-            return cached;
+            if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: Cache HIT for {Domain}", requestId, domain);
+            }
+
+            // Copy cached buffer before mutating transaction ID bytes to prevent thread race/corruption
+            var responseCopy = (byte[])cached.Clone();
+            responseCopy[0] = request[0];
+            responseCopy[1] = request[1];
+            return responseCopy;
         }
 
-        _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", requestId, domain);
+        if (isDebug)
+        {
+            _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", requestId, domain);
+        }
 
         var match = _matcher.Match(domain, requestId);
 
         if (match.Block)
         {
-            _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
-                requestId, domain, _options.BlockResponse.Mode);
+            if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
+                    requestId, domain, _options.BlockResponse.Mode);
+            }
 
             return _blockBuilder.BuildBlockResponse(request);
         }
 
         var upstreams = _chainBuilder.BuildChain(match, domain, requestId);
 
-        var response = await _executor.ExecuteAsync(upstreams, domain, request, requestId, ct);
+        var response = await _executor.ExecuteAsync(upstreams, domain, request, requestId, ct).ConfigureAwait(false);
 
         if (response == null)
         {
@@ -101,7 +122,7 @@ public sealed class RuleEngine
         return response;
     }
 
-    public RuleResult Match(string domain, string requestId)
+    public RuleResult Match(string domain, string? requestId)
     {
         return _matcher.Match(domain, requestId);
     }
@@ -111,6 +132,4 @@ public sealed class RuleEngine
         _compiler.AddRules(rules, block);
         _compiler.BuildAutomata();
     }
-
-
 }

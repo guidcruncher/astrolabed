@@ -1,12 +1,13 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 
 namespace Astrolabed.Dns.RuleEngine;
 
 public sealed class DnsCache
 {
-    private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
+    private readonly ConcurrentDictionary<string, CacheEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
 
     public bool TryGet(string domain, out byte[]? response)
     {
@@ -14,19 +15,19 @@ public sealed class DnsCache
 
         if (_entries.TryGetValue(domain, out var entry))
         {
-            if (DateTime.UtcNow < entry.Expires)
+            if (Environment.TickCount64 < entry.ExpiresTicks)
             {
-                // Copy only the used length to avoid exposing pooled buffer and keep callers independent
-                var copy = new byte[entry.Length];
+                // Allocate uninitialized memory since BlockCopy will overwrite every byte
+                var copy = GC.AllocateUninitializedArray<byte>(entry.Length);
                 Buffer.BlockCopy(entry.Buffer, 0, copy, 0, entry.Length);
                 response = copy;
                 return true;
             }
 
-            // Entry expired — remove and return pooled buffer
-            if (_entries.TryRemove(domain, out var removed))
+            // Remove only if the entry hasn't been updated concurrently
+            if (_entries.TryRemove(KeyValuePair.Create(domain, entry)))
             {
-                ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                ArrayPool<byte>.Shared.Return(entry.Buffer, clearArray: false);
             }
         }
 
@@ -35,19 +36,19 @@ public sealed class DnsCache
 
     public void Store(string domain, byte[] response, TimeSpan ttl)
     {
-        var expires = DateTime.UtcNow + ttl;
+        long expiresTicks = Environment.TickCount64 + (long)ttl.TotalMilliseconds;
         var pool = ArrayPool<byte>.Shared;
         var buf = pool.Rent(response.Length);
         Buffer.BlockCopy(response, 0, buf, 0, response.Length);
 
-        var newEntry = new CacheEntry(buf, response.Length, expires);
+        var newEntry = new CacheEntry(buf, response.Length, expiresTicks);
 
-        _entries.AddOrUpdate(domain,
+        _entries.AddOrUpdate(
+            domain,
             newEntry,
-            (key, existing) =>
+            (_, existing) =>
             {
-                // Return previous buffer to pool before replacing
-                ArrayPool<byte>.Shared.Return(existing.Buffer, clearArray: true);
+                pool.Return(existing.Buffer, clearArray: false);
                 return newEntry;
             });
     }
@@ -60,33 +61,21 @@ public sealed class DnsCache
 
         if (_entries.TryGetValue(domain, out var entry))
         {
-            if (DateTime.UtcNow < entry.Expires)
+            if (Environment.TickCount64 < entry.ExpiresTicks)
             {
                 buffer = entry.Buffer;
                 length = entry.Length;
                 return true;
             }
 
-            if (_entries.TryRemove(domain, out var removed))
+            if (_entries.TryRemove(KeyValuePair.Create(domain, entry)))
             {
-                ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                ArrayPool<byte>.Shared.Return(entry.Buffer, clearArray: false);
             }
         }
 
         return false;
     }
 
-    private sealed class CacheEntry
-    {
-        public byte[] Buffer { get; }
-        public int Length { get; }
-        public DateTime Expires { get; }
-
-        public CacheEntry(byte[] buffer, int length, DateTime expires)
-        {
-            Buffer = buffer;
-            Length = length;
-            Expires = expires;
-        }
-    }
+    private readonly record struct CacheEntry(byte[] Buffer, int Length, long ExpiresTicks);
 }

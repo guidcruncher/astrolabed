@@ -1,5 +1,8 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
-using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
@@ -9,7 +12,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.RuleEngine;
 
-internal sealed class QueryExecutor
+internal sealed partial class QueryExecutor
 {
     private readonly DnsCache _cache;
     private readonly ILogger _logger;
@@ -21,60 +24,79 @@ internal sealed class QueryExecutor
     }
 
     public async Task<byte[]?> ExecuteAsync(
-        List<UpstreamEntry> upstreams,
+        IReadOnlyList<UpstreamEntry> upstreams,
         string domain,
         byte[] request,
-        string requestId,
+        string? requestId,
         CancellationToken ct)
     {
-        foreach (var upstream in upstreams)
+        int count = upstreams.Count;
+        for (int i = 0; i < count; i++)
         {
+            var upstream = upstreams[i];
             try
             {
-                _logger.LogDebug("Request {RequestId}: Querying upstream {Upstream} for {Domain}",
-                    requestId, upstream.Name, domain);
+                if (requestId is not null)
+                    LogQueryingUpstream(_logger, requestId, upstream.Name, domain);
 
-                var resp = await upstream.Client.QueryAsync(request, ct);
+                var resp = await upstream.Client.QueryAsync(request, ct).ConfigureAwait(false);
 
                 if (resp.Length < 4)
+                {
                     continue;
+                }
 
-                var rcode = resp[3] & 0x0F;
+                int rcode = resp[3] & 0x0F;
 
                 if (rcode == 2)
                 {
-                    _logger.LogWarning("Request {RequestId}: Upstream {Upstream} returned SERVFAIL for {Domain}",
-                        requestId, upstream.Name, domain);
+                    if (requestId is not null)
+                        LogServfail(_logger, requestId, upstream.Name, domain);
                     continue;
                 }
 
-                var copy = resp.ToArray();
-                int ttl = TtlExtractor.ExtractTtl(copy);
+                int ttl = TtlExtractor.ExtractTtl(resp);
 
                 if (ttl > 0)
                 {
-                    _logger.LogDebug("Request {RequestId}: TTL for {Domain} is {TTL}s (via {Upstream})",
-                        requestId, domain, ttl, upstream.Name);
-
-                    _cache.Store(domain, copy, TimeSpan.FromSeconds(ttl));
+                    if (requestId is not null)
+                        LogTtlFound(_logger, requestId, domain, ttl, upstream.Name);
+                    _cache.Store(domain, resp, TimeSpan.FromSeconds(ttl));
                 }
                 else
                 {
-                    _logger.LogWarning("Request {RequestId}: No TTL found for {Domain} (via {Upstream})",
-                        requestId, domain, upstream.Name);
+                    if (requestId is not null)
+                        LogNoTtlFound(_logger, requestId, domain, upstream.Name);
                 }
 
-                return copy;
+                return resp;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Request {RequestId}: Error querying upstream {Upstream} for {Domain}",
-                    requestId, upstream.Name, domain);
+                if (requestId is not null)
+                    LogErrorQueryingUpstream(_logger, ex, requestId, upstream.Name, domain);
             }
         }
 
         return null;
     }
-}
 
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Request {RequestId}: Querying upstream {Upstream} for {Domain}")]
+    private static partial void LogQueryingUpstream(ILogger logger, string requestId, string upstream, string domain);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Warning, Message = "Request {RequestId}: Upstream {Upstream} returned SERVFAIL for {Domain}")]
+    private static partial void LogServfail(ILogger logger, string requestId, string upstream, string domain);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Request {RequestId}: TTL for {Domain} is {Ttl}s (via {Upstream})")]
+    private static partial void LogTtlFound(ILogger logger, string requestId, string domain, int ttl, string upstream);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Warning, Message = "Request {RequestId}: No TTL found for {Domain} (via {Upstream})")]
+    private static partial void LogNoTtlFound(ILogger logger, string requestId, string domain, string upstream);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Error, Message = "Request {RequestId}: Error querying upstream {Upstream} for {Domain}")]
+    private static partial void LogErrorQueryingUpstream(ILogger logger, Exception ex, string requestId, string upstream, string domain);
+}

@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.RegularExpressions;
 
 using Astrolabed.Dns.Core;
@@ -9,9 +8,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.RuleEngine;
 
-
 internal sealed class RuleCompiler
 {
+    private static readonly char[] SpecialPatternChars = ['*', '^', '$', '(', ')'];
+
     private readonly ILogger _logger;
     private readonly DnsForwarderOptions _options;
     private readonly IDnsClientFactory _clientFactory;
@@ -34,7 +34,7 @@ internal sealed class RuleCompiler
 
         UpstreamResolverOptions selected;
 
-        if (options.DefaultResolvers != null && options.DefaultResolvers.Count > 0)
+        if (options.DefaultResolvers is { Count: > 0 })
         {
             selected = options.DefaultResolvers[0];
         }
@@ -60,16 +60,20 @@ internal sealed class RuleCompiler
             : _clientFactory.Create(r);
 
         if (string.IsNullOrWhiteSpace(pattern) || pattern is "*" or ".*")
+        {
             FallbackResolvers.Add(new UpstreamEntry(r.Name, client));
+        }
 
         if (string.IsNullOrWhiteSpace(pattern))
+        {
             return;
+        }
 
         var rule = new CompiledRule(pattern, r.Block ? null : client, r.Block, r.Name, null);
 
         if (IsExact(pattern))
         {
-            Exact[pattern.ToLowerInvariant()] = rule;
+            Exact[pattern] = rule;
         }
         else if (IsSuffix(pattern))
         {
@@ -87,7 +91,7 @@ internal sealed class RuleCompiler
         {
             RegexRules.Add(rule with
             {
-                Regex = new Regex(pattern, RegexOptions.IgnoreCase)
+                Regex = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant)
             });
         }
     }
@@ -98,7 +102,9 @@ internal sealed class RuleCompiler
         {
             var pattern = rule.Pattern.ToString() ?? string.Empty;
             if (string.IsNullOrWhiteSpace(pattern))
+            {
                 continue;
+            }
 
             IDnsClient? client = block ? null : DefaultClient;
 
@@ -111,7 +117,7 @@ internal sealed class RuleCompiler
 
             if (IsExact(pattern))
             {
-                Exact[pattern.ToLowerInvariant()] = compiled;
+                Exact[pattern] = compiled;
             }
             else if (IsSuffix(pattern))
             {
@@ -138,19 +144,18 @@ internal sealed class RuleCompiler
     }
 
     private static bool IsExact(string p) =>
-        !p.Contains('*') && !p.Contains('^') && !p.Contains('$') &&
-        !p.Contains('(') && !p.Contains(')');
+        p.IndexOfAny(SpecialPatternChars) < 0;
 
     private static bool IsSuffix(string p) =>
-        p.StartsWith("*.") && IsExact(p[2..]);
+        p.StartsWith("*.", StringComparison.Ordinal) && IsExact(p[2..]);
 
     private static bool IsPrefix(string p) =>
-        (p.EndsWith(".*") && !p.StartsWith("*.")) ||
-        (p.Contains('*') && !p.StartsWith("*") && !p.EndsWith("*"));
+        (p.EndsWith(".*", StringComparison.Ordinal) && !p.StartsWith("*.", StringComparison.Ordinal)) ||
+        (p.Contains('*') && !p.StartsWith('*') && !p.EndsWith('*'));
 
     private static bool IsWildcard(string p) =>
-        p.StartsWith("*") && p.EndsWith("*") && p.Length > 2;
+        p.StartsWith('*') && p.EndsWith('*') && p.Length > 2;
 
     private static string ExtractPrefix(string p) =>
-        p.EndsWith(".*") ? p[..^2] : p.TrimEnd('*');
+        p.EndsWith(".*", StringComparison.Ordinal) ? p[..^2] : p.TrimEnd('*');
 }

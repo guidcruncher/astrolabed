@@ -1,10 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
 
 namespace Astrolabed.Dns.RuleEngine;
 
 internal sealed class HostMatcher
 {
-    private enum HostPatternKind
+    private enum HostPatternKind : byte
     {
         Exact,
         Suffix,
@@ -12,92 +14,142 @@ internal sealed class HostMatcher
         WildcardSubstring
     }
 
-    private sealed record HostPattern(
-        string Pattern,
+    private readonly record struct HostPattern(
         string Core,
         IPAddress Address,
         int Specificity,
         HostPatternKind Kind);
 
-    private readonly List<HostPattern> _patterns = new();
+    private readonly Dictionary<string, IPAddress> _exact = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<HostPattern> _nonExact = new();
+    private readonly object _lock = new();
+    private bool _isSorted;
 
     public void Add(string host, IPAddress ip)
     {
         var pattern = host.Trim();
         if (string.IsNullOrWhiteSpace(pattern))
-            return;
-
-        // Classification similar to rule engine, but simplified for hosts
-        if (!pattern.Contains('*'))
         {
-            // Exact host
-            var core = pattern.ToLowerInvariant();
-            _patterns.Add(new HostPattern(pattern, core, ip, core.Length, HostPatternKind.Exact));
             return;
         }
 
-        if (pattern.StartsWith("*."))
+        lock (_lock)
         {
-            // Suffix wildcard: *.example.com
-            var core = pattern[2..].ToLowerInvariant();
-            _patterns.Add(new HostPattern(pattern, core, ip, core.Length, HostPatternKind.Suffix));
-            return;
+            _isSorted = false;
+
+            if (!pattern.Contains('*'))
+            {
+                var core = pattern.ToLowerInvariant();
+                _exact[core] = ip;
+                return;
+            }
+
+            if (pattern.StartsWith("*.", StringComparison.Ordinal))
+            {
+                var core = pattern[2..].ToLowerInvariant();
+                _nonExact.Add(new HostPattern(core, ip, core.Length, HostPatternKind.Suffix));
+                return;
+            }
+
+            if (pattern.EndsWith(".*", StringComparison.Ordinal) && !pattern.StartsWith("*.", StringComparison.Ordinal))
+            {
+                var core = pattern[..^2].ToLowerInvariant();
+                _nonExact.Add(new HostPattern(core, ip, core.Length, HostPatternKind.Prefix));
+                return;
+            }
+
+            var trimmed = pattern.Trim('*').ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(trimmed))
+            {
+                return;
+            }
+
+            _nonExact.Add(new HostPattern(trimmed, ip, trimmed.Length, HostPatternKind.WildcardSubstring));
         }
-
-        if (pattern.EndsWith(".*") && !pattern.StartsWith("*."))
-        {
-            // Prefix wildcard: example.*
-            var core = pattern[..^2].ToLowerInvariant();
-            _patterns.Add(new HostPattern(pattern, core, ip, core.Length, HostPatternKind.Prefix));
-            return;
-        }
-
-        // General wildcard substring: *ads*, *tracking*, *cdn*.example.com
-        var trimmed = pattern.Trim('*').ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(trimmed))
-            return;
-
-        _patterns.Add(new HostPattern(pattern, trimmed, ip, trimmed.Length, HostPatternKind.WildcardSubstring));
     }
 
     public IPAddress? MatchMostSpecific(string domain)
     {
-        if (_patterns.Count == 0)
-            return null;
-
-        var lower = domain.ToLowerInvariant();
-
-        HostPattern? best = null;
-
-        foreach (var p in _patterns)
+        if (_exact.Count == 0 && _nonExact.Count == 0)
         {
-            if (!IsMatch(p, lower))
-                continue;
-
-            if (best == null || p.Specificity > best.Specificity)
-                best = p;
+            return null;
         }
 
-        return best?.Address;
+        string lower = ToLowerFast(domain);
+
+        // $O(1)$ fast path for exact matches
+        if (_exact.TryGetValue(lower, out var exactIp))
+        {
+            return exactIp;
+        }
+
+        if (_nonExact.Count == 0)
+        {
+            return null;
+        }
+
+        EnsureSorted();
+
+        // First matching pattern is guaranteed to be the most specific match
+        for (int i = 0; i < _nonExact.Count; i++)
+        {
+            var p = _nonExact[i];
+            if (IsMatch(p, lower))
+            {
+                return p.Address;
+            }
+        }
+
+        return null;
     }
 
-    private static bool IsMatch(HostPattern p, string domain)
+    private void EnsureSorted()
+    {
+        if (_isSorted)
+        {
+            return;
+        }
+
+        lock (_lock)
+        {
+            if (!_isSorted)
+            {
+                _nonExact.Sort((a, b) => b.Specificity.CompareTo(a.Specificity));
+                _isSorted = true;
+            }
+        }
+    }
+
+    private static bool IsMatch(in HostPattern p, string domain)
     {
         return p.Kind switch
         {
             HostPatternKind.Exact =>
-                string.Equals(domain, p.Core, StringComparison.OrdinalIgnoreCase),
+                string.Equals(domain, p.Core, StringComparison.Ordinal),
 
             HostPatternKind.Suffix =>
-                domain.EndsWith(p.Core, StringComparison.OrdinalIgnoreCase),
+                domain.EndsWith(p.Core, StringComparison.Ordinal),
 
             HostPatternKind.Prefix =>
-                domain.StartsWith(p.Core, StringComparison.OrdinalIgnoreCase),
+                domain.StartsWith(p.Core, StringComparison.Ordinal),
 
             HostPatternKind.WildcardSubstring =>
-                domain.Contains(p.Core, StringComparison.OrdinalIgnoreCase),
+                domain.Contains(p.Core, StringComparison.Ordinal),
 
             _ => false
         };
+    }
+
+    private static string ToLowerFast(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            if (c >= 'A' && c <= 'Z')
+            {
+                return s.ToLowerInvariant();
+            }
+        }
+        return s;
     }
 }

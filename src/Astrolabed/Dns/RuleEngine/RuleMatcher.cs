@@ -1,5 +1,4 @@
 using System.Net;
-using System.Text.RegularExpressions;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
@@ -20,14 +19,13 @@ internal sealed class RuleMatcher
         _logger = logger;
     }
 
-    private RuleResult HostOverride(IPAddress ip) =>
-        new RuleResult(
-            new List<UpstreamEntry> { new("hosts", new StaticDnsClient(ip)) },
-            false);
+    private static RuleResult HostOverride(IPAddress ip) =>
+        new(new List<UpstreamEntry>(1) { new("hosts", new StaticDnsClient(ip)) }, false);
 
-    public RuleResult Match(string domain, string requestId)
+    public RuleResult Match(string domain, string? requestId)
     {
-        var lower = domain.ToLowerInvariant();
+        bool isDebug = _logger.IsEnabled(LogLevel.Debug);
+        string lower = ToLowerFast(domain);
 
         //
         // HOSTS OVERRIDE
@@ -35,7 +33,10 @@ internal sealed class RuleMatcher
         var hostIp = _compiler.Hosts.MatchMostSpecific(lower);
         if (hostIp != null)
         {
-            _logger.LogDebug("Request {RequestId}: Hosts override matched for {Domain}", requestId, domain);
+            if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: Hosts override matched for {Domain}", requestId, domain);
+            }
             return HostOverride(hostIp);
         }
 
@@ -45,77 +46,86 @@ internal sealed class RuleMatcher
         var allow = ListPool<UpstreamEntry>.Rent();
         UpstreamEntry? block = null;
 
-        if (_compiler.Exact.TryGetValue(lower, out var ex))
-            Apply(ex, allow, ref block);
-
-        foreach (var r in _compiler.Suffix.MatchAll(lower))
-            Apply(r, allow, ref block);
-
-        foreach (var r in _compiler.Prefix.MatchAll(lower))
-            Apply(r, allow, ref block);
-
-        foreach (var r in _compiler.Aho.Match(lower))
-            Apply(r, allow, ref block);
-
-        foreach (var r in _compiler.RegexRules)
+        try
         {
-            if (r.Regex != null && r.Regex.IsMatch(domain))
+            if (_compiler.Exact.TryGetValue(lower, out var ex))
+            {
+                Apply(ex, allow, ref block);
+            }
+
+            foreach (var r in _compiler.Suffix.MatchAll(lower))
+            {
                 Apply(r, allow, ref block);
-        }
+            }
 
-        //
-        // ALLOW RULES
-        //
-        if (allow.Count > 0)
-        {
-            _logger.LogDebug("Request {RequestId}: Allow rules matched for {Domain}", requestId, domain);
-            var resultList = new List<UpstreamEntry>(allow);
-            ListPool<UpstreamEntry>.Return(allow);
-            return new RuleResult(resultList, false);
-        }
+            foreach (var r in _compiler.Prefix.MatchAll(lower))
+            {
+                Apply(r, allow, ref block);
+            }
 
-        //
-        // BLOCK RULES
-        //
-        if (block != null)
+            foreach (var r in _compiler.Aho.Match(lower))
+            {
+                Apply(r, allow, ref block);
+            }
+
+            foreach (var r in _compiler.RegexRules)
+            {
+                if (r.Regex != null && r.Regex.IsMatch(domain))
+                {
+                    Apply(r, allow, ref block);
+                }
+            }
+
+            //
+            // ALLOW RULES
+            //
+            if (allow.Count > 0)
+            {
+                if (isDebug)
+                {
+                    _logger.LogDebug("Request {RequestId}: Allow rules matched for {Domain}", requestId, domain);
+                }
+                return new RuleResult(new List<UpstreamEntry>(allow), false);
+            }
+
+            //
+            // BLOCK RULES
+            //
+            if (block != null)
+            {
+                if (isDebug)
+                {
+                    _logger.LogDebug("Request {RequestId}: Blocking domain {Domain} due to rule {Rule}",
+                        requestId, domain, block.Value.Name);
+                }
+                return new RuleResult(new List<UpstreamEntry>(1) { block.Value }, true);
+            }
+        }
+        finally
         {
-            _logger.LogDebug("Request {RequestId}: Blocking domain {Domain} due to rule {Rule}",
-                requestId, domain, block.Value.Name);
             ListPool<UpstreamEntry>.Return(allow);
-            return new RuleResult(new List<UpstreamEntry> { block.Value }, true);
         }
 
         //
         // NO RULES MATCHED
         //
-        ListPool<UpstreamEntry>.Return(allow);
-
-        //
-        // IMPORTANT:
-        // Restore original RuleEngine behaviour:
-        // If NO rules matched AND NO fallback resolvers exist,
-        // return ONE default resolver named "default".
-        //
-        // This is what your entire test suite expects.
-        //
         if (_compiler.FallbackResolvers.Count == 0)
         {
-            _logger.LogDebug("Request {RequestId}: No rules matched; using primary default resolver for {Domain}",
-                requestId, domain);
+            if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: No rules matched; using primary default resolver for {Domain}",
+                    requestId, domain);
+            }
 
             return new RuleResult(
-                new List<UpstreamEntry>
+                new List<UpstreamEntry>(1)
                 {
                     new("default", _compiler.DefaultClient)
                 },
                 false);
         }
 
-        //
-        // If fallback resolvers exist, return empty list.
-        // ResolverChainBuilder will append fallback/default chain.
-        //
-        return new RuleResult(new List<UpstreamEntry>(), false);
+        return new RuleResult(new List<UpstreamEntry>(0), false);
     }
 
     private void Apply(CompiledRule r, List<UpstreamEntry> allow, ref UpstreamEntry? block)
@@ -128,5 +138,18 @@ internal sealed class RuleMatcher
         {
             block ??= new UpstreamEntry(r.Name, r.Client ?? _compiler.DefaultClient);
         }
+    }
+
+    private static string ToLowerFast(string s)
+    {
+        for (int i = 0; i < s.Length; i++)
+        {
+            char c = s[i];
+            if (c >= 'A' && c <= 'Z')
+            {
+                return s.ToLowerInvariant();
+            }
+        }
+        return s;
     }
 }
