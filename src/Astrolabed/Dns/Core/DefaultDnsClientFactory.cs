@@ -22,15 +22,47 @@ public sealed class DefaultDnsClientFactory : IDnsClientFactory
 
         string address = resolver.Address?.Trim() ?? string.Empty;
 
-        if (Uri.TryCreate(address, UriKind.Absolute, out var endpoint) &&
-            (endpoint.Scheme == Uri.UriSchemeHttps || endpoint.Scheme == Uri.UriSchemeHttp))
+        if (Uri.TryCreate(address, UriKind.Absolute, out var endpoint))
         {
-            string clientName = !string.IsNullOrWhiteSpace(resolver.Name)
-                ? $"doh-{resolver.Name}"
-                : $"doh-{address}";
+            if (endpoint.Scheme == Uri.UriSchemeHttps || endpoint.Scheme == Uri.UriSchemeHttp)
+            {
+                string clientName = !string.IsNullOrWhiteSpace(resolver.Name)
+                    ? $"doh-{resolver.Name}"
+                    : $"doh-{address}";
 
-            var http = _httpFactory.CreateClient(clientName);
-            return new DohDnsClient(http, endpoint, preferPost: true);
+                var http = _httpFactory.CreateClient(clientName);
+                return new DohDnsClient(http, endpoint, preferPost: true);
+            }
+
+            if (endpoint.Scheme.Equals("tcp", StringComparison.OrdinalIgnoreCase) ||
+                endpoint.Scheme.Equals("dns+tcp", StringComparison.OrdinalIgnoreCase))
+            {
+                string host = endpoint.Host;
+                int tcpPort = endpoint.Port > 0 ? endpoint.Port : (resolver.Port > 0 ? resolver.Port : 53);
+
+                if (IPAddress.TryParse(host, out var tcpIp))
+                {
+                    return new TcpDnsClient(new IPEndPoint(tcpIp, tcpPort));
+                }
+
+                if (!string.IsNullOrWhiteSpace(host))
+                {
+                    try
+                    {
+                        var addrs = System.Net.Dns.GetHostAddresses(host);
+                        if (addrs.Length > 0)
+                        {
+                            return new TcpDnsClient(new IPEndPoint(addrs[0], tcpPort));
+                        }
+                    }
+                    catch
+                    {
+                        // Fallback below
+                    }
+                }
+
+                return new TcpDnsClient(DefaultFallbackEndPoint);
+            }
         }
 
         int port = resolver.Port > 0 ? resolver.Port : 53;

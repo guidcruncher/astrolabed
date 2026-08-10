@@ -94,19 +94,6 @@ public sealed class RuleEngine
             _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", requestId, domain);
         }
 
-        var match = _matcher.Match(domain, requestId);
-
-        if (match.Block)
-        {
-            if (isDebug)
-            {
-                _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
-                    requestId, domain, _options.BlockResponse.Mode);
-            }
-
-            return _blockBuilder.BuildBlockResponse(request);
-        }
-
         var upstreams = _chainBuilder.BuildChain(match, domain, requestId);
 
         var response = await _executor.ExecuteAsync(upstreams, domain, request, requestId, ct).ConfigureAwait(false);

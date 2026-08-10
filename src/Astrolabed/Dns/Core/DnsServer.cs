@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
@@ -17,15 +18,17 @@ namespace Astrolabed.Dns.Core;
 
 public sealed class DnsServer : BackgroundService
 {
-    private const int SocketBufferSize = 4 * 1024 * 1024; // 4 MB socket buffer for high throughput
-    private const int BufferSize = 4096; // Standard max DNS over UDP size
+    private const int SocketBufferSize = 4 * 1024 * 1024; // 4 MB socket buffer
+    private const int BufferSize = 4096;
+    private static readonly TimeSpan TcpClientIdleTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ILogger<DnsServer> _logger;
     private readonly DnsForwarderOptions _options;
     private readonly DnsForwarderService _forwarder;
     private readonly IDnsMetrics _metrics;
 
-    private Socket? _socket;
+    private Socket? _udpSocket;
+    private Socket? _tcpSocket;
     private Channel<PooledUdpPacket>? _channel;
 
     public DnsServer(
@@ -55,16 +58,26 @@ public sealed class DnsServer : BackgroundService
 
         var endpoint = new IPEndPoint(listenAddress, _options.Listen.Port);
 
-        _socket = new Socket(endpoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp)
+        // Configure UDP Socket
+        _udpSocket = new Socket(endpoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp)
         {
             ReceiveBufferSize = SocketBufferSize,
             SendBufferSize = SocketBufferSize
         };
+        _udpSocket.Bind(endpoint);
 
-        _socket.Bind(endpoint);
+        // Configure TCP Socket (RFC 1035 & RFC 7766)
+        _tcpSocket = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
+        {
+            NoDelay = true,
+            ReceiveBufferSize = SocketBufferSize,
+            SendBufferSize = SocketBufferSize
+        };
+        _tcpSocket.Bind(endpoint);
+        _tcpSocket.Listen(128);
 
         _logger.LogInformation(
-            "DNS forwarder listening on {Address}:{Port}",
+            "DNS forwarder listening on {Address}:{Port} (UDP & TCP)",
             _options.Listen.Address,
             _options.Listen.Port);
 
@@ -76,13 +89,21 @@ public sealed class DnsServer : BackgroundService
         });
 
         int workerCount = Math.Max(1, Environment.ProcessorCount);
-        var workers = new List<Task>(workerCount);
+        var tasks = new List<Task>(workerCount + 2);
 
         for (int i = 0; i < workerCount; i++)
         {
-            workers.Add(Task.Run(() => ProcessWorkerQueueAsync(stoppingToken), stoppingToken));
+            tasks.Add(Task.Run(() => ProcessWorkerQueueAsync(stoppingToken), stoppingToken));
         }
 
+        tasks.Add(Task.Run(() => ListenUdpAsync(endpoint, stoppingToken), stoppingToken));
+        tasks.Add(Task.Run(() => ListenTcpAsync(stoppingToken), stoppingToken));
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+    }
+
+    private async Task ListenUdpAsync(IPEndPoint endpoint, CancellationToken stoppingToken)
+    {
         EndPoint dummyRemoteEp = endpoint.AddressFamily == AddressFamily.InterNetwork
             ? new IPEndPoint(IPAddress.Any, 0)
             : new IPEndPoint(IPAddress.IPv6Any, 0);
@@ -92,7 +113,7 @@ public sealed class DnsServer : BackgroundService
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
             try
             {
-                var result = await _socket.ReceiveFromAsync(
+                var result = await _udpSocket!.ReceiveFromAsync(
                     buffer,
                     SocketFlags.None,
                     dummyRemoteEp,
@@ -100,7 +121,7 @@ public sealed class DnsServer : BackgroundService
 
                 var packet = new PooledUdpPacket(buffer, result.ReceivedBytes, result.RemoteEndPoint);
 
-                if (!_channel.Writer.TryWrite(packet))
+                if (!_channel!.Writer.TryWrite(packet))
                 {
                     await _channel.Writer.WriteAsync(packet, stoppingToken).ConfigureAwait(false);
                 }
@@ -113,12 +134,173 @@ public sealed class DnsServer : BackgroundService
             catch (Exception ex)
             {
                 ArrayPool<byte>.Shared.Return(buffer);
-                _logger.LogError(ex, "Error receiving DNS packet");
+                _logger.LogError(ex, "Error receiving UDP DNS packet");
             }
         }
 
-        _channel.Writer.Complete();
-        await Task.WhenAll(workers).ConfigureAwait(false);
+        _channel!.Writer.Complete();
+    }
+
+    private async Task ListenTcpAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                Socket clientSocket = await _tcpSocket!.AcceptAsync(stoppingToken).ConfigureAwait(false);
+                _ = Task.Run(() => HandleTcpConnectionAsync(clientSocket, stoppingToken), stoppingToken);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error accepting TCP DNS connection");
+            }
+        }
+    }
+
+    private async Task HandleTcpConnectionAsync(Socket clientSocket, CancellationToken stoppingToken)
+    {
+        using (clientSocket)
+        {
+            if (clientSocket.RemoteEndPoint is not IPEndPoint clientEp)
+            {
+                return;
+            }
+
+            byte[] lengthBuffer = ArrayPool<byte>.Shared.Rent(2);
+            try
+            {
+                while (!stoppingToken.IsCancellationRequested)
+                {
+                    using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    timeoutCts.CancelAfter(TcpClientIdleTimeout);
+
+                    bool success = await TryReadExactAsync(clientSocket, lengthBuffer.AsMemory(0, 2), timeoutCts.Token).ConfigureAwait(false);
+                    if (!success)
+                    {
+                        break; // Connection closed gracefully or idle timeout reached
+                    }
+
+                    ushort payloadLength = BinaryPrimitives.ReadUInt16BigEndian(lengthBuffer.AsSpan(0, 2));
+                    if (payloadLength < 12)
+                    {
+                        _logger.LogWarning("Malformed TCP DNS frame length ({Length}) from {Remote}", payloadLength, clientEp);
+                        break;
+                    }
+
+                    byte[] payloadBuffer = ArrayPool<byte>.Shared.Rent(payloadLength);
+                    try
+                    {
+                        await ReadExactAsync(clientSocket, payloadBuffer.AsMemory(0, payloadLength), timeoutCts.Token).ConfigureAwait(false);
+                        await ProcessTcpRequestAsync(clientSocket, clientEp, payloadBuffer, payloadLength, stoppingToken).ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        ArrayPool<byte>.Shared.Return(payloadBuffer);
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Service shutdown
+            }
+            catch (SocketException)
+            {
+                // Client disconnected
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error servicing TCP DNS connection from {Remote}", clientEp);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(lengthBuffer);
+            }
+        }
+    }
+
+    private async Task ProcessTcpRequestAsync(
+        Socket clientSocket,
+        IPEndPoint clientEp,
+        byte[] requestBuffer,
+        int requestLength,
+        CancellationToken ct)
+    {
+        long startTimestamp = Stopwatch.GetTimestamp();
+
+        try
+        {
+            var parsed = DnsMessage.TryParse(requestBuffer);
+
+            if (parsed is not null)
+            {
+                _metrics.RecordDnsQuery(new DnsQueryEvent(
+                    Timestamp: DateTime.UtcNow,
+                    ClientIp: clientEp.Address,
+                    ClientName: null,
+                    QueryName: parsed.QuestionName,
+                    QueryType: parsed.QuestionType));
+            }
+
+            var requestBytes = GC.AllocateUninitializedArray<byte>(requestLength);
+            requestBuffer.AsSpan(0, requestLength).CopyTo(requestBytes);
+
+            var response = await _forwarder.ProcessAsync(
+                requestBytes,
+                clientEp,
+                ct).ConfigureAwait(false);
+
+            if (response is not null)
+            {
+                ushort responseLength = (ushort)response.Length;
+                byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(2 + responseLength);
+                try
+                {
+                    BinaryPrimitives.WriteUInt16BigEndian(sendBuffer.AsSpan(0, 2), responseLength);
+                    response.Buffer.AsSpan(0, responseLength).CopyTo(sendBuffer.AsSpan(2));
+
+                    await clientSocket.SendAsync(
+                        sendBuffer.AsMemory(0, 2 + responseLength),
+                        SocketFlags.None,
+                        ct).ConfigureAwait(false);
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(sendBuffer);
+                }
+
+                var resp = DnsMessage.TryParse(response.Buffer);
+
+                if (resp is not null)
+                {
+                    _metrics.RecordDnsResponse(new DnsResponseEvent(
+                        Timestamp: DateTime.UtcNow,
+                        ClientIp: clientEp.Address,
+                        ClientName: null,
+                        QueryName: resp.QuestionName,
+                        QueryType: resp.QuestionType,
+                        Status: resp.ResponseCode.ToString(),
+                        ResponseIp: resp.AnswerAddress));
+                }
+
+                response.Return();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error processing TCP DNS request from {Remote}",
+                clientEp);
+        }
+        finally
+        {
+            double elapsedSeconds = Stopwatch.GetElapsedTime(startTimestamp).TotalSeconds;
+            _metrics.RecordDnsLatency(elapsedSeconds);
+        }
     }
 
     private async Task ProcessWorkerQueueAsync(CancellationToken ct)
@@ -131,11 +313,11 @@ public sealed class DnsServer : BackgroundService
             {
                 try
                 {
-                    await HandleRequestAsync(packet, ct).ConfigureAwait(false);
+                    await HandleUdpRequestAsync(packet, ct).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error handling DNS request in worker");
+                    _logger.LogError(ex, "Error handling UDP DNS request in worker");
                 }
                 finally
                 {
@@ -145,15 +327,13 @@ public sealed class DnsServer : BackgroundService
         }
     }
 
-    private async Task HandleRequestAsync(PooledUdpPacket packet, CancellationToken ct)
+    private async Task HandleUdpRequestAsync(PooledUdpPacket packet, CancellationToken ct)
     {
         long startTimestamp = Stopwatch.GetTimestamp();
 
         try
         {
-            var packetSpan = packet.Buffer.AsSpan(0, packet.Length);
-            var parsed = DnsMessage.TryParse(packetSpan);
-
+            var parsed = DnsMessage.TryParse(packet.Buffer);
             IPAddress clientIp = ((IPEndPoint)packet.RemoteEndPoint).Address;
 
             if (parsed is not null)
@@ -167,7 +347,7 @@ public sealed class DnsServer : BackgroundService
             }
 
             var requestBytes = GC.AllocateUninitializedArray<byte>(packet.Length);
-            packetSpan.CopyTo(requestBytes);
+            packet.Buffer.AsSpan(0, packet.Length).CopyTo(requestBytes);
 
             var response = await _forwarder.ProcessAsync(
                 requestBytes,
@@ -176,14 +356,13 @@ public sealed class DnsServer : BackgroundService
 
             if (response is not null)
             {
-                await _socket!.SendToAsync(
+                await _udpSocket!.SendToAsync(
                     response.Buffer.AsMemory(0, response.Length),
                     SocketFlags.None,
                     packet.RemoteEndPoint,
                     ct).ConfigureAwait(false);
 
-                var respSpan = response.Buffer.AsSpan(0, response.Length);
-                var resp = DnsMessage.TryParse(respSpan);
+                var resp = DnsMessage.TryParse(response.Buffer);
 
                 if (resp is not null)
                 {
@@ -204,7 +383,7 @@ public sealed class DnsServer : BackgroundService
         {
             _logger.LogError(
                 ex,
-                "Error processing DNS request from {Remote}",
+                "Error processing UDP DNS request from {Remote}",
                 packet.RemoteEndPoint);
         }
         finally
@@ -218,14 +397,46 @@ public sealed class DnsServer : BackgroundService
     {
         try
         {
-            _socket?.Dispose();
+            _udpSocket?.Dispose();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error disposing UDP listener socket");
         }
 
+        try
+        {
+            _tcpSocket?.Dispose();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disposing TCP listener socket");
+        }
+
         return base.StopAsync(cancellationToken);
+    }
+
+    private static async ValueTask ReadExactAsync(Socket socket, Memory<byte> target, CancellationToken ct)
+    {
+        if (!await TryReadExactAsync(socket, target, ct).ConfigureAwait(false))
+        {
+            throw new SocketException((int)SocketError.ConnectionReset);
+        }
+    }
+
+    private static async ValueTask<bool> TryReadExactAsync(Socket socket, Memory<byte> target, CancellationToken ct)
+    {
+        int totalRead = 0;
+        while (totalRead < target.Length)
+        {
+            int read = await socket.ReceiveAsync(target[totalRead..], SocketFlags.None, ct).ConfigureAwait(false);
+            if (read == 0)
+            {
+                return false;
+            }
+            totalRead += read;
+        }
+        return true;
     }
 
     private readonly struct PooledUdpPacket
