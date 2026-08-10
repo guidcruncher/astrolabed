@@ -12,6 +12,7 @@ all: restore build
 
 dig:
 	dig itv.com @127.0.0.1 -p 1053
+	dig +tcp google.com @127.0.0.1 -p 1053
 
 mkdocs-install:
 	pip install mkdocs --break-system-packages
