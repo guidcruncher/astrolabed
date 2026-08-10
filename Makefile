@@ -49,6 +49,8 @@ test:
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf ./src/Astrolabed/bin
+	rm -rf ./src/Astrolabed/obj
 	rm -rf ./BenchmarkDotNet.Artifacts
 	rm -rf ./tests/Astrolabed.Dhcp.Tests/bin
 	rm -rf ./tests/Astrolabed.Dns.Tests/bin
