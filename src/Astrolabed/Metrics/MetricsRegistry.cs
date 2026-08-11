@@ -27,8 +27,6 @@ public sealed class MetricsRegistry
     private long _ntpSyncFailuresTotal;
     private double _ntpOffsetMs;
 
-    private readonly object _lock = new();
-
     public MetricsRegistry()
     {
         _dnsLatencyCounts = new long[_dnsLatencyBuckets.Length];
@@ -40,47 +38,39 @@ public sealed class MetricsRegistry
 
     public void RecordDnsQuery(DnsQueryEvent evt)
     {
-        lock (_lock)
-        {
-            _dnsQueriesTotal++;
-        }
+        Interlocked.Increment(ref _dnsQueriesTotal);
     }
 
     public void RecordDnsResponse(DnsResponseEvent evt)
     {
-        lock (_lock)
-        {
-            _dnsResponsesTotal++;
+        Interlocked.Increment(ref _dnsResponsesTotal);
 
-            if (evt.Status == "NXDOMAIN")
-                _dnsNxDomainTotal++;
-            else if (evt.Status == "SERVFAIL")
-                _dnsServFailTotal++;
+        if (string.Equals(evt.Status, "NXDOMAIN", StringComparison.OrdinalIgnoreCase))
+        {
+            Interlocked.Increment(ref _dnsNxDomainTotal);
+        }
+        else if (string.Equals(evt.Status, "SERVFAIL", StringComparison.OrdinalIgnoreCase))
+        {
+            Interlocked.Increment(ref _dnsServFailTotal);
         }
     }
 
     public void RecordDnsCacheHit()
     {
-        lock (_lock)
-        {
-            _dnsCacheHitsTotal++;
-        }
+        Interlocked.Increment(ref _dnsCacheHitsTotal);
     }
 
     public void RecordDnsLatency(double seconds)
     {
-        lock (_lock)
-        {
-            _dnsLatencySum += seconds;
-            _dnsLatencyTotalCount++;
+        AddDouble(ref _dnsLatencySum, seconds);
+        Interlocked.Increment(ref _dnsLatencyTotalCount);
 
-            for (int i = 0; i < _dnsLatencyBuckets.Length; i++)
+        for (int i = 0; i < _dnsLatencyBuckets.Length; i++)
+        {
+            if (seconds <= _dnsLatencyBuckets[i])
             {
-                if (seconds <= _dnsLatencyBuckets[i])
-                {
-                    _dnsLatencyCounts[i]++;
-                    break;
-                }
+                Interlocked.Increment(ref _dnsLatencyCounts[i]);
+                break;
             }
         }
     }
@@ -91,20 +81,22 @@ public sealed class MetricsRegistry
 
     public void RecordDhcpLeaseAllocated(DhcpLeaseAllocatedEvent evt)
     {
-        lock (_lock)
-        {
-            _dhcpLeaseAllocationsTotal++;
-            _dhcpLeasesActive++;
-        }
+        Interlocked.Increment(ref _dhcpLeaseAllocationsTotal);
+        Interlocked.Increment(ref _dhcpLeasesActive);
     }
 
     public void RecordDhcpLeaseReleased(DhcpLeaseReleasedEvent evt)
     {
-        lock (_lock)
+        long current;
+        do
         {
-            if (_dhcpLeasesActive > 0)
-                _dhcpLeasesActive--;
+            current = Volatile.Read(ref _dhcpLeasesActive);
+            if (current <= 0)
+            {
+                break;
+            }
         }
+        while (Interlocked.CompareExchange(ref _dhcpLeasesActive, current - 1, current) != current);
     }
 
     // -----------------------------
@@ -113,14 +105,13 @@ public sealed class MetricsRegistry
 
     public void RecordNtpSync(NtpSyncEvent evt)
     {
-        lock (_lock)
+        Interlocked.Increment(ref _ntpSyncTotal);
+        if (!evt.Success)
         {
-            _ntpSyncTotal++;
-            if (!evt.Success)
-                _ntpSyncFailuresTotal++;
-
-            _ntpOffsetMs = evt.Offset.TotalMilliseconds;
+            Interlocked.Increment(ref _ntpSyncFailuresTotal);
         }
+
+        Volatile.Write(ref _ntpOffsetMs, evt.Offset.TotalMilliseconds);
     }
 
     // -----------------------------
@@ -129,70 +120,94 @@ public sealed class MetricsRegistry
 
     public string RenderPrometheus()
     {
-        lock (_lock)
+        var sb = new StringBuilder();
+
+        // Snapshot atomic values
+        long dnsQueries = Interlocked.Read(ref _dnsQueriesTotal);
+        long dnsResponses = Interlocked.Read(ref _dnsResponsesTotal);
+        long dnsNxDomain = Interlocked.Read(ref _dnsNxDomainTotal);
+        long dnsServFail = Interlocked.Read(ref _dnsServFailTotal);
+        long dnsCacheHits = Interlocked.Read(ref _dnsCacheHitsTotal);
+
+        long dnsLatencyCount = Interlocked.Read(ref _dnsLatencyTotalCount);
+        double dnsLatencySum = Volatile.Read(ref _dnsLatencySum);
+
+        long dhcpAllocations = Interlocked.Read(ref _dhcpLeaseAllocationsTotal);
+        long dhcpActive = Interlocked.Read(ref _dhcpLeasesActive);
+
+        long ntpTotal = Interlocked.Read(ref _ntpSyncTotal);
+        long ntpFailures = Interlocked.Read(ref _ntpSyncFailuresTotal);
+        double ntpOffset = Volatile.Read(ref _ntpOffsetMs);
+
+        // DNS Counters
+        sb.AppendLine("# HELP dns_queries_total Total number of DNS queries.");
+        sb.AppendLine("# TYPE dns_queries_total counter");
+        sb.AppendLine($"dns_queries_total {dnsQueries}");
+
+        sb.AppendLine("# HELP dns_responses_total Total number of DNS responses.");
+        sb.AppendLine("# TYPE dns_responses_total counter");
+        sb.AppendLine($"dns_responses_total {dnsResponses}");
+
+        sb.AppendLine("# HELP dns_nxdomain_total Total number of NXDOMAIN responses.");
+        sb.AppendLine("# TYPE dns_nxdomain_total counter");
+        sb.AppendLine($"dns_nxdomain_total {dnsNxDomain}");
+
+        sb.AppendLine("# HELP dns_servfail_total Total number of SERVFAIL responses.");
+        sb.AppendLine("# TYPE dns_servfail_total counter");
+        sb.AppendLine($"dns_servfail_total {dnsServFail}");
+
+        sb.AppendLine("# HELP dns_cache_hits_total Total number of DNS cache hits.");
+        sb.AppendLine("# TYPE dns_cache_hits_total counter");
+        sb.AppendLine($"dns_cache_hits_total {dnsCacheHits}");
+
+        // DNS Latency Histogram
+        sb.AppendLine("# HELP dns_latency_seconds DNS query latency in seconds.");
+        sb.AppendLine("# TYPE dns_latency_seconds histogram");
+
+        long cumulative = 0;
+        for (int i = 0; i < _dnsLatencyBuckets.Length; i++)
         {
-            var sb = new StringBuilder();
-
-            // DNS Counters
-            sb.AppendLine("# HELP dns_queries_total Total number of DNS queries.");
-            sb.AppendLine("# TYPE dns_queries_total counter");
-            sb.AppendLine($"dns_queries_total {_dnsQueriesTotal}");
-
-            sb.AppendLine("# HELP dns_responses_total Total number of DNS responses.");
-            sb.AppendLine("# TYPE dns_responses_total counter");
-            sb.AppendLine($"dns_responses_total {_dnsResponsesTotal}");
-
-            sb.AppendLine("# HELP dns_nxdomain_total Total number of NXDOMAIN responses.");
-            sb.AppendLine("# TYPE dns_nxdomain_total counter");
-            sb.AppendLine($"dns_nxdomain_total {_dnsNxDomainTotal}");
-
-            sb.AppendLine("# HELP dns_servfail_total Total number of SERVFAIL responses.");
-            sb.AppendLine("# TYPE dns_servfail_total counter");
-            sb.AppendLine($"dns_servfail_total {_dnsServFailTotal}");
-
-            sb.AppendLine("# HELP dns_cache_hits_total Total number of DNS cache hits.");
-            sb.AppendLine("# TYPE dns_cache_hits_total counter");
-            sb.AppendLine($"dns_cache_hits_total {_dnsCacheHitsTotal}");
-
-            // DNS Latency Histogram
-            sb.AppendLine("# HELP dns_latency_seconds DNS query latency in seconds.");
-            sb.AppendLine("# TYPE dns_latency_seconds histogram");
-
-            long cumulative = 0;
-            for (int i = 0; i < _dnsLatencyBuckets.Length; i++)
-            {
-                cumulative += _dnsLatencyCounts[i];
-                sb.AppendLine(
-                    $"dns_latency_seconds_bucket{{le=\"{_dnsLatencyBuckets[i]}\"}} {cumulative}"
-                );
-            }
-
-            sb.AppendLine($"dns_latency_seconds_sum {_dnsLatencySum}");
-            sb.AppendLine($"dns_latency_seconds_count {_dnsLatencyTotalCount}");
-
-            // DHCP
-            sb.AppendLine("# HELP dhcp_lease_allocations_total Total number of DHCP lease allocations.");
-            sb.AppendLine("# TYPE dhcp_lease_allocations_total counter");
-            sb.AppendLine($"dhcp_lease_allocations_total {_dhcpLeaseAllocationsTotal}");
-
-            sb.AppendLine("# HELP dhcp_leases_active Number of active DHCP leases.");
-            sb.AppendLine("# TYPE dhcp_leases_active gauge");
-            sb.AppendLine($"dhcp_leases_active {_dhcpLeasesActive}");
-
-            // NTP
-            sb.AppendLine("# HELP ntp_sync_total Total number of NTP sync attempts.");
-            sb.AppendLine("# TYPE ntp_sync_total counter");
-            sb.AppendLine($"ntp_sync_total {_ntpSyncTotal}");
-
-            sb.AppendLine("# HELP ntp_sync_failures_total Total number of failed NTP syncs.");
-            sb.AppendLine("# TYPE ntp_sync_failures_total counter");
-            sb.AppendLine($"ntp_sync_failures_total {_ntpSyncFailuresTotal}");
-
-            sb.AppendLine("# HELP ntp_offset_ms Last measured NTP offset in milliseconds.");
-            sb.AppendLine("# TYPE ntp_offset_ms gauge");
-            sb.AppendLine($"ntp_offset_ms {_ntpOffsetMs}");
-
-            return sb.ToString();
+            cumulative += Interlocked.Read(ref _dnsLatencyCounts[i]);
+            sb.AppendLine($"dns_latency_seconds_bucket{{le=\"{_dnsLatencyBuckets[i]}\"}} {cumulative}");
         }
+
+        sb.AppendLine($"dns_latency_seconds_bucket{{le=\"+Inf\"}} {dnsLatencyCount}");
+        sb.AppendLine($"dns_latency_seconds_sum {dnsLatencySum}");
+        sb.AppendLine($"dns_latency_seconds_count {dnsLatencyCount}");
+
+        // DHCP
+        sb.AppendLine("# HELP dhcp_lease_allocations_total Total number of DHCP lease allocations.");
+        sb.AppendLine("# TYPE dhcp_lease_allocations_total counter");
+        sb.AppendLine($"dhcp_lease_allocations_total {dhcpAllocations}");
+
+        sb.AppendLine("# HELP dhcp_leases_active Number of active DHCP leases.");
+        sb.AppendLine("# TYPE dhcp_leases_active gauge");
+        sb.AppendLine($"dhcp_leases_active {dhcpActive}");
+
+        // NTP
+        sb.AppendLine("# HELP ntp_sync_total Total number of NTP sync attempts.");
+        sb.AppendLine("# TYPE ntp_sync_total counter");
+        sb.AppendLine($"ntp_sync_total {ntpTotal}");
+
+        sb.AppendLine("# HELP ntp_sync_failures_total Total number of failed NTP syncs.");
+        sb.AppendLine("# TYPE ntp_sync_failures_total counter");
+        sb.AppendLine($"ntp_sync_failures_total {ntpFailures}");
+
+        sb.AppendLine("# HELP ntp_offset_ms Last measured NTP offset in milliseconds.");
+        sb.AppendLine("# TYPE ntp_offset_ms gauge");
+        sb.AppendLine($"ntp_offset_ms {ntpOffset}");
+
+        return sb.ToString();
+    }
+
+    private static void AddDouble(ref double location, double value)
+    {
+        double newWeight, oldWeight;
+        do
+        {
+            oldWeight = location;
+            newWeight = oldWeight + value;
+        }
+        while (Interlocked.CompareExchange(ref location, newWeight, oldWeight) != oldWeight);
     }
 }

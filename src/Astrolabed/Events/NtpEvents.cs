@@ -1,11 +1,17 @@
-using System.Net;
-
 namespace Astrolabed.Events;
 
 public sealed record NtpSyncEvent(
-    DateTime Timestamp,
-    IPAddress ClientIp,
-    string? ClientName,
+    DateTimeOffset Timestamp,
+    string Server,
+    string ClientName, 
+    string ClientIp,
     TimeSpan Offset,
+    TimeSpan Delay,
     bool Success)
+    : EventRecord(Timestamp);
+
+public sealed record NtpOffsetEvent(
+    DateTimeOffset Timestamp,
+    string Peer,
+    double OffsetSeconds)
     : EventRecord(Timestamp);

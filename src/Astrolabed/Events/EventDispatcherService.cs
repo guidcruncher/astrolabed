@@ -23,7 +23,7 @@ public sealed class EventDispatcherService : BackgroundService
     {
         _logger.LogInformation("Event dispatcher started.");
 
-        await foreach (var evt in _bus.ConsumeAsync(stoppingToken))
+        await foreach (var evt in _bus.ConsumeAsync(stoppingToken).ConfigureAwait(false))
         {
             foreach (var consumer in _consumers)
             {
@@ -33,7 +33,11 @@ public sealed class EventDispatcherService : BackgroundService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Consumer failed processing event {Event}", evt);
+                    _logger.LogError(
+                        ex,
+                        "Consumer {ConsumerType} failed processing event {Event}",
+                        consumer.GetType().Name,
+                        evt);
                 }
             }
         }

@@ -4,24 +4,24 @@ using System.Net.NetworkInformation;
 namespace Astrolabed.Events;
 
 public sealed record DhcpLeaseAllocatedEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     IPAddress ClientIp,
     PhysicalAddress Mac,
     string? ClientName,
     IPAddress ServerId,
-    DateTime LeaseStart,
-    DateTime LeaseExpiry)
+    DateTimeOffset LeaseStart,
+    DateTimeOffset LeaseExpiry)
     : EventRecord(Timestamp);
 
 public sealed record DhcpLeaseReleasedEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     PhysicalAddress Mac,
     IPAddress? ClientIp,
     string? ClientName)
     : EventRecord(Timestamp);
 
 public sealed record DhcpNakEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     PhysicalAddress Mac,
     IPAddress? RequestedIp,
     string Reason)

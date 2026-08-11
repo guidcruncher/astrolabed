@@ -3,7 +3,7 @@ using System.Net;
 namespace Astrolabed.Events;
 
 public sealed record DnsQueryEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     IPAddress ClientIp,
     string? ClientName,
     string QueryName,
@@ -11,7 +11,7 @@ public sealed record DnsQueryEvent(
     : EventRecord(Timestamp);
 
 public sealed record DnsResponseEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     IPAddress ClientIp,
     string? ClientName,
     string QueryName,
@@ -21,7 +21,7 @@ public sealed record DnsResponseEvent(
     : EventRecord(Timestamp);
 
 public sealed record DnsUpstreamLatencyEvent(
-    DateTime Timestamp,
+    DateTimeOffset Timestamp,
     string UpstreamName,
     TimeSpan Duration,
     bool Success)
