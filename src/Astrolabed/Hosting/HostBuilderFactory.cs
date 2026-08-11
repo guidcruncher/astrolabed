@@ -1,3 +1,5 @@
+using System;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -6,7 +8,6 @@ namespace Astrolabed.Hosting;
 
 public static class HostBuilderFactory
 {
-
     public static string ConfigurationFile { get; set; } = "appsettings.json";
 
     public static IHost Build(string[] args, IConfiguration cmd)
@@ -21,7 +22,9 @@ public static class HostBuilderFactory
                 config.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
 
                 if (env.Equals("Docker", StringComparison.OrdinalIgnoreCase))
+                {
                     config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
+                }
 
                 if (cmd["ConfigPath"] is string customConfig && !string.IsNullOrWhiteSpace(customConfig))
                 {
@@ -38,25 +41,20 @@ public static class HostBuilderFactory
                 logging.AddConsole();
 
                 var level = ctx.Configuration["Logging:Level"] ?? "Information";
-                logging.SetMinimumLevel(Enum.Parse<LogLevel>(level, ignoreCase: true));
+                if (Enum.TryParse<LogLevel>(level, ignoreCase: true, out var parsedLevel))
+                {
+                    logging.SetMinimumLevel(parsedLevel);
+                }
+                else
+                {
+                    logging.SetMinimumLevel(LogLevel.Information);
+                }
             })
             .ConfigureServices((ctx, services) =>
             {
-                var logger = LoggerFactory.Create(builder =>
-                {
-                    builder.AddConsole();
-                }).CreateLogger("HostBuilderFactory");
-
                 services.AddSingleton<IApplicationRestartManager, ApplicationRestartManager>();
-
-                logger.LogInformation("Registering services for environment: {Env}",
-                    ctx.HostingEnvironment.EnvironmentName);
-
                 ServiceRegistration.Register(ctx, services);
-
-                logger.LogInformation("Service registration completed.");
             })
             .Build();
     }
 }
-

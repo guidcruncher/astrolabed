@@ -1,4 +1,3 @@
-using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,37 +14,9 @@ public static class HostRestartExtensions
     /// </summary>
     public static async Task RestartAsync(this IHost host, string[]? arguments = null, CancellationToken cancellationToken = default)
     {
-        string? processPath = Environment.ProcessPath;
-        if (string.IsNullOrEmpty(processPath))
-        {
-            throw new InvalidOperationException("Failed to resolve current executable process path.");
-        }
-
-        var startInfo = new ProcessStartInfo(processPath)
-        {
-            UseShellExecute = false,
-            WorkingDirectory = AppContext.BaseDirectory
-        };
-
-        if (arguments is not null)
-        {
-            foreach (string arg in arguments)
-            {
-                startInfo.ArgumentList.Add(arg);
-            }
-        }
-        else
-        {
-            string[] currentArgs = Environment.GetCommandLineArgs();
-            for (int i = 1; i < currentArgs.Length; i++)
-            {
-                startInfo.ArgumentList.Add(currentArgs[i]);
-            }
-        }
-
+        var startInfo = ApplicationRestartManager.CreateRestartStartInfo(arguments);
         var lifetime = host.Services.GetRequiredService<IHostApplicationLifetime>();
 
-        // Schedule process restart strictly after the host finished running shutdown delegates
         lifetime.ApplicationStopped.Register(() =>
         {
             Process.Start(startInfo);

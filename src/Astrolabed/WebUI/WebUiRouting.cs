@@ -1,19 +1,13 @@
 using Astrolabed.WebUI.Api;
 
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Routing;
 
 namespace Astrolabed.Hosting;
 
 public static class WebUiRouting
 {
-
-    public static void RegisterRoutes(IHost mainHost, IEndpointRouteBuilder endpoints)
+    public static void RegisterRoutes(IEndpointRouteBuilder endpoints)
     {
-        ConfigurationApi.Register(mainHost, endpoints);
+        ConfigurationApi.Register(endpoints);
     }
-
 }
