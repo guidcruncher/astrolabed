@@ -29,7 +29,9 @@ public static class DhcpServiceCollectionExtensions
         services.AddSingleton<ICidrPoolAllocator, CidrPoolAllocator>();
         services.AddSingleton<IArpConflictDetector, ArpConflictDetector>();
         services.AddSingleton<IDhcpLeaseEngine, DhcpLeaseEngine>();
-        services.AddSingleton<IDhcpServerEngine, DhcpServerEngine>();
+
+        services.AddSingleton<DhcpServerEngine>();
+        services.AddSingleton<IDhcpServerEngine>(sp => sp.GetRequiredService<DhcpServerEngine>());
 
         services.AddSingleton<IDhcpLeaseStore>(sp =>
         {
