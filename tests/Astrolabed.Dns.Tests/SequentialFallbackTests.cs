@@ -60,24 +60,24 @@ public sealed class SequentialFallbackTests
     [Fact]
     public void Match_Should_Return_Primary_DefaultResolver()
     {
-        var engine = CreateEngine();
+        using var engine = CreateEngine();
 
         var result = engine.Match("anything.test", "-");
 
         // Match() returns the FIRST default resolver
         Assert.Single(result.Upstreams);
-        Assert.Equal("default", result.Upstreams[0].Name);
+        Assert.Equal("primary", result.Upstreams[0].Name);
     }
 
     [Fact]
     public async Task QueryAsync_Should_Fallback_Through_All_DefaultResolvers()
     {
-        var engine = CreateEngine();
-        var query = BuildQuery("anything.test");
-        var match = engine.Match("anything.test", "id");
-        var response = await engine.QueryAsync("anything.test", query, "id", match, CancellationToken.None);
+        using var engine = CreateEngine();
+        var context = new DnsRequestContext(BuildQuery("anything.test"), "id");
+        var match = engine.Match(context.Domain, context.RequestId);
+        var response = await engine.QueryAsync(context, match, CancellationToken.None);
 
-        // All resolvers fail → SERVFAIL
+        // All resolvers fail -> SERVFAIL
         Assert.Equal(2, response[3] & 0x0F);
     }
 }
