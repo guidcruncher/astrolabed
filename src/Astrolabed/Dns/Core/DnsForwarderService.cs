@@ -41,7 +41,6 @@ public sealed class DnsForwarderService
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        // Single Parse Entry Point: Converts wire bytes to context once
         var context = new DnsRequestContext(request, requestId);
 
         if (string.IsNullOrEmpty(context.Domain))
@@ -67,8 +66,7 @@ public sealed class DnsForwarderService
 
     private static byte[] ApplyTruncationIfNeeded(byte[] response, byte[] request)
     {
-        int arCount = request.Length >= 12 ? BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(10, 2)) : 0;
-        int maxPayloadSize = arCount > 0 ? 1232 : 512;
+        int maxPayloadSize = ExtractEdns0PayloadSize(request);
 
         if (response.Length <= maxPayloadSize)
         {
@@ -93,5 +91,57 @@ public sealed class DnsForwarderService
         truncated.AsSpan(6, 6).Clear(); // Clear section counts
 
         return truncated;
+    }
+
+    private static int ExtractEdns0PayloadSize(byte[] request)
+    {
+        if (request.Length < 12) return 512;
+
+        ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(4, 2));
+        ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(10, 2));
+
+        if (arCount == 0) return 512;
+
+        int offset = 12;
+
+        // Skip Question Section
+        for (int i = 0; i < qdCount; i++)
+        {
+            offset = SkipDomainName(request, offset);
+            if (offset < 0 || offset + 4 > request.Length) return 512;
+            offset += 4; // Type + Class
+        }
+
+        // Search Additional Section specifically for OPT Record (TYPE 41)
+        for (int i = 0; i < arCount; i++)
+        {
+            offset = SkipDomainName(request, offset);
+            if (offset < 0 || offset + 10 > request.Length) return 512;
+
+            ushort type = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset, 2));
+            ushort udpSize = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset + 2, 2));
+            ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset + 8, 2));
+
+            if (type == 41) // OPT record
+            {
+                return Math.Max(512, (int)udpSize);
+            }
+
+            offset += 10 + rdLength;
+        }
+
+        return 512;
+    }
+
+    private static int SkipDomainName(byte[] buffer, int offset)
+    {
+        while (offset < buffer.Length)
+        {
+            byte len = buffer[offset];
+            if (len == 0) return offset + 1;
+            if ((len & 0xC0) == 0xC0) return offset + 2; // Pointer
+            offset += len + 1;
+        }
+        return -1;
     }
 }

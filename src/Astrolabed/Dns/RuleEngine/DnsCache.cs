@@ -27,7 +27,11 @@ public sealed class DnsCache : IDisposable
         var interval = cleanupInterval ?? TimeSpan.FromMinutes(1);
         _cleanupTimer = new Timer(_ => TriggerEviction(), null, interval, interval);
 
-        Task.Run(() => ProcessEvictionsAsync(_cts.Token));
+        Task.Factory.StartNew(
+            () => ProcessEvictionsAsync(_cts.Token),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
 
     public bool TryGet(in DnsRequestContext context, out byte[]? response)

@@ -16,10 +16,10 @@ internal sealed partial class QueryExecutor
 {
     private readonly DnsCache _cache;
     private readonly ILogger _logger;
-    private static readonly ConcurrentDictionary<string, CircuitState> Circuits = new();
+    private readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
 
     private static readonly TimeSpan DefaultPerUpstreamTimeout = TimeSpan.FromMilliseconds(1500);
-    private static readonly TimeSpan CircuitBreakerDuration = TimeSpan.FromSeconds(30);
+    private static readonly long CircuitBreakerDurationMs = 30_000; // 30 seconds
 
     public QueryExecutor(DnsCache cache, ILogger logger)
     {
@@ -38,7 +38,7 @@ internal sealed partial class QueryExecutor
         for (int i = 0; i < count; i++)
         {
             var upstream = upstreams[i];
-            var circuit = Circuits.GetOrAdd(upstream.Name, _ => new CircuitState());
+            var circuit = _circuits.GetOrAdd(upstream.Name, _ => new CircuitState());
 
             if (circuit.IsUnhealthy())
             {
@@ -113,11 +113,11 @@ internal sealed partial class QueryExecutor
     private sealed class CircuitState
     {
         private int _consecutiveFailures;
-        private long _openUntilTicks;
+        private long _openUntilTick;
 
         public bool IsUnhealthy()
         {
-            return DateTime.UtcNow.Ticks < Volatile.Read(ref _openUntilTicks);
+            return Environment.TickCount64 < Volatile.Read(ref _openUntilTick);
         }
 
         public void RecordSuccess()
@@ -129,7 +129,7 @@ internal sealed partial class QueryExecutor
         {
             if (Interlocked.Increment(ref _consecutiveFailures) >= 3)
             {
-                Volatile.Write(ref _openUntilTicks, DateTime.UtcNow.Add(CircuitBreakerDuration).Ticks);
+                Volatile.Write(ref _openUntilTick, Environment.TickCount64 + CircuitBreakerDurationMs);
             }
         }
     }
