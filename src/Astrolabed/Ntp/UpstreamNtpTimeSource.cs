@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -22,8 +23,9 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
     private DateTime _referenceUtc = DateTime.UtcNow;
     private TimeSpan _baseOffset = TimeSpan.Zero;
     private TimeSpan _remainingSlew = TimeSpan.Zero;
-    private int _stratum = 2;
+    private int _stratum = 16;
     private uint _referenceId = 0x4C4F434C; // "LOCL"
+    private byte _leapIndicator = 3;        // 3 = Unsynchronized
 
     private static readonly TimeSpan StepThreshold = TimeSpan.FromMilliseconds(128);
     private const double MaxSlewRateSecondsPerSecond = 0.0005; // 500 PPM (0.5ms/s)
@@ -49,6 +51,7 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         DateTime refUtc;
         int stratum;
         uint refId;
+        byte leap;
 
         lock (_stateLock)
         {
@@ -56,6 +59,7 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             refUtc = _referenceUtc;
             stratum = _stratum;
             refId = _referenceId;
+            leap = _leapIndicator;
         }
 
         var unadjustedNow = DateTime.UtcNow;
@@ -65,7 +69,8 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             Offset: currentOffset,
             Stratum: stratum,
             ReferenceUtc: refUtc,
-            ReferenceId: refId));
+            ReferenceId: refId,
+            LeapIndicator: leap));
     }
 
     private async Task SyncLoopAsync(CancellationToken ct)
@@ -109,28 +114,61 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 
     private async Task SyncOnceAsync(string server, CancellationToken ct)
     {
-        using var udp = new UdpClient();
-        udp.Client.ReceiveTimeout = 3000;
+        IPAddress[] ipAddresses;
+        try
+        {
+            ipAddresses = await System.Net.Dns.GetHostAddressesAsync(server, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DNS lookup failed for upstream server {Server}", server);
+            return;
+        }
 
-        var ipAddresses = await System.Net.Dns.GetHostAddressesAsync(server, ct).ConfigureAwait(false);
         if (ipAddresses.Length == 0)
         {
             _logger.LogWarning("DNS lookup returned no IP addresses for server {Server}", server);
             return;
         }
 
-        var selectedIp = ipAddresses[Random.Shared.Next(ipAddresses.Length)];
-        var endpoint = new IPEndPoint(selectedIp, 123);
-        var request = new byte[48];
-        request[0] = 0b_00100011; // LI=0, VN=4, Mode=3 (client)
+        // Shuffle address array for random load distribution
+        Random.Shared.Shuffle(ipAddresses);
 
-        var t1 = DateTime.UtcNow;
-        await udp.SendAsync(request, request.Length, endpoint).ConfigureAwait(false);
+        foreach (var selectedIp in ipAddresses)
+        {
+            if (ct.IsCancellationRequested) break;
 
-        var response = await udp.ReceiveAsync(ct).ConfigureAwait(false);
-        var t4 = DateTime.UtcNow;
+            try
+            {
+                using var udp = new UdpClient();
+                udp.Client.ReceiveTimeout = 3000;
 
-        ParseResponse(response.Buffer, t1, t4, selectedIp);
+                var endpoint = new IPEndPoint(selectedIp, 123);
+                var request = new byte[48];
+                request[0] = 0b_00100011; // LI=0, VN=4, Mode=3 (client)
+
+                var t1 = DateTime.UtcNow;
+                await udp.SendAsync(request, request.Length, endpoint).ConfigureAwait(false);
+
+                var response = await udp.ReceiveAsync(ct).ConfigureAwait(false);
+                var t4 = DateTime.UtcNow;
+
+                ParseResponse(response.Buffer, t1, t4, selectedIp);
+
+                // Exit on successful response from any address
+                return;
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "Failed sync attempt against IP {Ip} for server {Server}", selectedIp, server);
+            }
+        }
+
+        _logger.LogWarning("All resolved IP addresses failed to respond for upstream server {Server}", server);
     }
 
     private void ParseResponse(byte[] buffer, DateTime t1, DateTime t4, IPAddress serverIp)
@@ -146,6 +184,7 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         var calculatedOffset = ((t2 - t1) + (t3 - t4)) / 2;
         var delay = (t4 - t1) - (t3 - t2);
 
+        byte incomingLeap = (byte)((buffer[0] >> 6) & 0x03);
         byte incomingStratum = buffer[1];
         int newStratum = incomingStratum < 15 ? incomingStratum + 1 : 16;
         uint newRefId = NtpReferenceId.FormatReferenceId(serverIp, newStratum);
@@ -155,6 +194,7 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             _referenceUtc = t3;
             _stratum = newStratum;
             _referenceId = newRefId;
+            _leapIndicator = incomingLeap;
 
             var offsetDifference = calculatedOffset - _baseOffset;
 
@@ -176,11 +216,10 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 
     private async Task SlewLoopAsync(CancellationToken ct)
     {
-        const int intervalMs = 100;
-        double intervalSeconds = intervalMs / 1000.0;
-        double maxSlewPerStepSeconds = MaxSlewRateSecondsPerSecond * intervalSeconds;
+        const int targetIntervalMs = 100;
+        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(targetIntervalMs));
 
-        using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(intervalMs));
+        long lastTimestamp = Stopwatch.GetTimestamp();
 
         while (!ct.IsCancellationRequested)
         {
@@ -193,6 +232,12 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
                 break;
             }
 
+            long currentTimestamp = Stopwatch.GetTimestamp();
+            double actualElapsedSeconds = Stopwatch.GetElapsedTime(lastTimestamp, currentTimestamp).TotalSeconds;
+            lastTimestamp = currentTimestamp;
+
+            double maxSlewSeconds = MaxSlewRateSecondsPerSecond * actualElapsedSeconds;
+
             lock (_stateLock)
             {
                 if (_remainingSlew == TimeSpan.Zero) continue;
@@ -200,14 +245,14 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
                 double remainingSeconds = _remainingSlew.TotalSeconds;
                 double adjustmentSeconds;
 
-                if (Math.Abs(remainingSeconds) <= maxSlewPerStepSeconds)
+                if (Math.Abs(remainingSeconds) <= maxSlewSeconds)
                 {
                     adjustmentSeconds = remainingSeconds;
                     _remainingSlew = TimeSpan.Zero;
                 }
                 else
                 {
-                    adjustmentSeconds = Math.Sign(remainingSeconds) * maxSlewPerStepSeconds;
+                    adjustmentSeconds = Math.Sign(remainingSeconds) * maxSlewSeconds;
                     _remainingSlew -= TimeSpan.FromSeconds(adjustmentSeconds);
                 }
 

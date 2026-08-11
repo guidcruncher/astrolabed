@@ -1,16 +1,13 @@
 using System;
 using System.Buffers.Binary;
-using System.Net;
-using System.Net.Sockets;
-using System.Security.Cryptography;
 
 namespace Astrolabed.Ntp;
 
-
 public static class NtpTimestamp
 {
-    private static readonly DateTime NtpEpoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Era0Epoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private const long TicksPerSecond = TimeSpan.TicksPerSecond;
+    private const long SecondsPerEra = 0x100000000L; // 2^32 seconds (~136 years)
 
     public static void WriteTimestamp(Span<byte> destination, DateTime utc)
     {
@@ -24,18 +21,19 @@ public static class NtpTimestamp
             utc = utc.ToUniversalTime();
         }
 
-        var ticks = (utc - NtpEpoch).Ticks;
-        if (ticks < 0)
+        var totalTicks = (utc - Era0Epoch).Ticks;
+        if (totalTicks < 0)
         {
-            ticks = 0;
+            totalTicks = 0;
         }
 
-        var seconds = (uint)(ticks / TicksPerSecond);
-        var remainingTicks = ticks % TicksPerSecond;
+        var totalSeconds = totalTicks / TicksPerSecond;
+        var eraSeconds = (uint)(totalSeconds % SecondsPerEra);
+        var remainingTicks = totalTicks % TicksPerSecond;
 
         var fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
 
-        BinaryPrimitives.WriteUInt32BigEndian(destination[..4], seconds);
+        BinaryPrimitives.WriteUInt32BigEndian(destination[..4], eraSeconds);
         BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(4, 4), fraction);
     }
 
@@ -61,7 +59,17 @@ public static class NtpTimestamp
         uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
         uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
 
-        long ticks = (seconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
-        return NtpEpoch.AddTicks(ticks);
+        long eraOffsetSeconds = 0;
+
+        // If high bit is 0, timestamp is in Era 1 (post-Feb 2036).
+        if ((seconds & 0x80000000) == 0)
+        {
+            eraOffsetSeconds = SecondsPerEra;
+        }
+
+        long totalSeconds = seconds + eraOffsetSeconds;
+        long ticks = (totalSeconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
+
+        return Era0Epoch.AddTicks(ticks);
     }
 }

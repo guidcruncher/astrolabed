@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -17,6 +18,8 @@ public sealed class NtpServerService : BackgroundService
     private readonly NtpServerOptions _options;
     private readonly INtpMetrics _metrics;
 
+    private readonly SemaphoreSlim _concurrencySemaphore;
+    private readonly ConcurrentDictionary<Task, bool> _activeTasks = new();
     private UdpClient? _udp;
 
     public NtpServerService(
@@ -31,6 +34,9 @@ public sealed class NtpServerService : BackgroundService
         _handler = handler;
         _options = options.Value;
         _metrics = metrics;
+
+        int maxConcurrency = Math.Max(1, _options.MaxConcurrentRequests);
+        _concurrencySemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -60,7 +66,21 @@ public sealed class NtpServerService : BackgroundService
             try
             {
                 var result = await _udp.ReceiveAsync(stoppingToken).ConfigureAwait(false);
-                _ = ProcessRequestAsync(result, stoppingToken);
+
+                await _concurrencySemaphore.WaitAsync(stoppingToken).ConfigureAwait(false);
+
+                var task = ProcessRequestAsync(result, stoppingToken);
+                _activeTasks.TryAdd(task, true);
+
+                _ = task.ContinueWith(
+                    t =>
+                    {
+                        _activeTasks.TryRemove(t, out _);
+                        _concurrencySemaphore.Release();
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
             catch (OperationCanceledException)
             {
@@ -71,6 +91,8 @@ public sealed class NtpServerService : BackgroundService
                 _logger.LogError(ex, "Error receiving UDP packet");
             }
         }
+
+        await CompleteActiveTasksAsync().ConfigureAwait(false);
     }
 
     private async Task ProcessRequestAsync(UdpReceiveResult result, CancellationToken ct)
@@ -110,10 +132,21 @@ public sealed class NtpServerService : BackgroundService
         }
     }
 
+    private async Task CompleteActiveTasksAsync()
+    {
+        var tasks = _activeTasks.Keys;
+        if (tasks.Count > 0)
+        {
+            _logger.LogInformation("Waiting for {Count} active NTP requests to complete...", tasks.Count);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+    }
+
     public override void Dispose()
     {
         _udp?.Close();
         _udp?.Dispose();
+        _concurrencySemaphore.Dispose();
         base.Dispose();
     }
 }

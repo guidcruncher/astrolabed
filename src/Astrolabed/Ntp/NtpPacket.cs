@@ -48,7 +48,8 @@ public sealed class NtpPacket
         DateTime receiveUtc,
         DateTime transmitUtc,
         int stratum = 2,
-        uint referenceId = 0x4C4F434C)
+        uint referenceId = 0x4C4F434C,
+        byte leapIndicator = 0)
     {
         Span<byte> rxBuf = stackalloc byte[8];
         Span<byte> txBuf = stackalloc byte[8];
@@ -58,7 +59,7 @@ public sealed class NtpPacket
 
         return new NtpPacket
         {
-            LeapIndicator = 0,
+            LeapIndicator = leapIndicator,
             Version = request.Version > 0 ? request.Version : (byte)4,
             Mode = 4,
             Stratum = (byte)stratum,

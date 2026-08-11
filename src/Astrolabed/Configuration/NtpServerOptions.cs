@@ -15,4 +15,6 @@ public sealed class NtpServerOptions
 
     public UpstreamNtpOptions Upstream { get; set; } = new();
 
+    public int MaxConcurrentRequests { get; set; } = 1000;
+
 }

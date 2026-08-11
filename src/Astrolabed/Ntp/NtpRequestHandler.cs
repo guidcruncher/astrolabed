@@ -41,7 +41,8 @@ public sealed class NtpRequestHandler : INtpRequestHandler
                 correctedReceiveUtc,
                 correctedTransmitUtc,
                 upstream.Stratum,
-                upstream.ReferenceId);
+                upstream.ReferenceId,
+                upstream.LeapIndicator);
 
             var bytes = responsePacket.ToBytes();
 
