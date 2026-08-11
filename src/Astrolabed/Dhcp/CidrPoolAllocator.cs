@@ -25,6 +25,12 @@ public sealed class CidrPoolAllocator
         _last = (net | ~mask) - 1;
     }
 
+    public bool IsInPool(IPAddress ip)
+    {
+        uint value = ToUInt32(ip);
+        return value >= _first && value <= _last;
+    }
+
     public IEnumerable<IPAddress> AllocationSequence(IEnumerable<IPAddress> used)
     {
         var usedSet = used.Select(ToUInt32).ToHashSet();
@@ -36,7 +42,6 @@ public sealed class CidrPoolAllocator
                 yield return ip;
         }
     }
-
 
     public IPAddress? Allocate(IEnumerable<IPAddress> used)
     {

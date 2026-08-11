@@ -1,6 +1,8 @@
+using System;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Threading.Tasks;
 
 using Astrolabed.Dhcp;
 
@@ -21,7 +23,7 @@ public class LeaseEngineTests
         var engine = new DhcpLeaseEngine(store, pool);
         var arp = new ArpConflictDetector(IPAddress.Parse("127.0.0.1"));
 
-        var lease = await engine.AllocateWithArpCheck(Mac(1), TimeSpan.FromHours(1), arp);
+        var lease = await engine.AllocateWithArpCheckAsync(Mac(1), TimeSpan.FromHours(1), arp);
 
         Assert.Equal("192.168.10.1", lease.Ip.ToString());
         Assert.Single(store.GetActiveLeases());
@@ -35,33 +37,33 @@ public class LeaseEngineTests
         var engine = new DhcpLeaseEngine(store, pool);
         var arp = new ArpConflictDetector(IPAddress.Parse("127.0.0.1"));
 
-        var first = await engine.AllocateWithArpCheck(Mac(1), TimeSpan.FromHours(1), arp);
-        var second = await engine.AllocateWithArpCheck(Mac(1), TimeSpan.FromHours(1), arp);
+        var first = await engine.AllocateWithArpCheckAsync(Mac(1), TimeSpan.FromHours(1), arp);
+        var second = await engine.AllocateWithArpCheckAsync(Mac(1), TimeSpan.FromHours(1), arp);
 
         Assert.Equal(first.Ip, second.Ip);
     }
 
     [Fact]
-    public void Release_ShouldRemoveLease()
+    public async Task Release_ShouldRemoveLease()
     {
         var store = new InMemoryDhcpLeaseStore();
         var pool = new CidrPoolAllocator("192.168.10.0/29");
         var engine = new DhcpLeaseEngine(store, pool);
 
-        store.Save(new DhcpLease
+        await store.SaveAsync(new DhcpLease
         {
             Mac = Mac(1),
             Ip = IPAddress.Parse("192.168.10.1"),
             ExpiresAt = DateTimeOffset.UtcNow.AddHours(1)
         });
 
-        engine.Release(Mac(1));
+        await engine.ReleaseAsync(Mac(1));
 
         Assert.Empty(store.GetActiveLeases());
     }
 
     [Fact]
-    public void Decline_ShouldQuarantineIp()
+    public async Task Decline_ShouldQuarantineIp()
     {
         var store = new InMemoryDhcpLeaseStore();
         var pool = new CidrPoolAllocator("192.168.10.0/29");
@@ -69,9 +71,8 @@ public class LeaseEngineTests
 
         var ip = IPAddress.Parse("192.168.10.5");
 
-        engine.Decline(ip);
+        await engine.DeclineAsync(ip);
 
         Assert.Contains(ip, store.GetBadIps());
     }
-
 }
