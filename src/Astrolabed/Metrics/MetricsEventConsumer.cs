@@ -15,59 +15,47 @@ public sealed class MetricsEventConsumer : IEventConsumer
     {
         _registry = registry;
         _logger = logger;
-
-        _logger.LogInformation(
-            "MetricsEventConsumer created. Registry hash: {Hash}",
-            _registry.GetHashCode());
     }
 
     public void Consume(EventRecord evt)
     {
-        if (evt == null)
+        if (evt is null)
         {
-            _logger.LogWarning("Consume called with null event");
             return;
         }
 
-        _logger.LogTrace("Consume received event: {EventType}", evt.GetType().Name);
+        if (_logger.IsEnabled(LogLevel.Trace))
+        {
+            _logger.LogTrace("Consume received event: {EventType}", evt.GetType().Name);
+        }
 
         switch (evt)
         {
             case DnsQueryEvent q:
-                _logger.LogTrace("Recording DNS Query event: {Event}", q);
                 _registry.RecordDnsQuery(q);
                 break;
 
             case DnsResponseEvent r:
-                _logger.LogTrace("Recording DNS Response event: {Event}", r);
                 _registry.RecordDnsResponse(r);
                 break;
 
-            case DnsCacheHitEvent h:
-                _logger.LogTrace("Recording DNS Cache Hit event");
+            case DnsCacheHitEvent:
                 _registry.RecordDnsCacheHit();
                 break;
 
             case DnsLatencyEvent l:
-                _logger.LogTrace("Recording DNS Latency event: {Seconds}", l.Seconds);
                 _registry.RecordDnsLatency(l.Seconds);
                 break;
 
             case DhcpLeaseAllocatedEvent d1:
-                _logger.LogTrace("Recording DHCP Lease Allocated event: {Event}", d1);
                 _registry.RecordDhcpLeaseAllocated(d1);
                 break;
 
             case DhcpLeaseReleasedEvent d2:
-                _logger.LogTrace("Recording DHCP Lease Released event: {Event}", d2);
                 _registry.RecordDhcpLeaseReleased(d2);
                 break;
 
             case NtpSyncEvent n:
-                _logger.LogTrace(
-                    "Recording NTP Sync event: Success={Success}, OffsetMs={OffsetMs}",
-                    n.Success,
-                    n.Offset.TotalMilliseconds);
                 _registry.RecordNtpSync(n);
                 break;
 
