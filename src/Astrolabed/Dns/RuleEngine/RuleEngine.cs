@@ -26,7 +26,7 @@ public sealed class RuleEngine
         public HttpClient CreateClient(string name) => SharedClient;
     }
 
-    public DnsCache Cache { get; } = new();
+    public DnsCache Cache { get; } = default;
 
     public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger)
         : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
@@ -35,6 +35,9 @@ public sealed class RuleEngine
 
     public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger, IDnsClientFactory clientFactory)
     {
+        Cache = new DnsCache(options.Caching.MaxEntries, 
+	TimeSpan.FromMinutes(options.Caching.CleanupIntervalMinutes));
+
         _options = options;
         _logger = logger;
 

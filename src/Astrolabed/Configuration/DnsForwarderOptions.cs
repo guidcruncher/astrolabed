@@ -36,4 +36,5 @@ public sealed class CachingOptions
     public bool Enabled { get; set; } = true;
     public int TtlSeconds { get; set; } = 300;
     public int MaxEntries { get; set; } = 10000;
+    public int CleanupIntervalMinutes { get; set; } = 5;
 }
