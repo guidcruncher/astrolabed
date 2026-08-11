@@ -66,7 +66,7 @@ public sealed class SequentialFallbackTests
 
         // Match() returns the FIRST default resolver
         Assert.Single(result.Upstreams);
-        Assert.Equal("primary", result.Upstreams[0].Name);
+        Assert.Equal("default", result.Upstreams[0].Name);
     }
 
     [Fact]
