@@ -5,37 +5,19 @@ namespace Astrolabed.Dhcp;
 
 public interface IDhcpLeaseStore
 {
-    //
-    // Load all persisted data (leases + bad IPs)
-    //
     Task LoadAsync();
 
-    //
-    // Save all persisted data
-    //
     Task SaveAsync();
 
-    //
-    // Active leases
-    //
     IEnumerable<DhcpLease> GetActiveLeases();
 
-    //
-    // Save or update a lease
-    //
-    void Save(DhcpLease lease);
+    Task SaveAsync(DhcpLease lease);
 
-    //
-    // Remove lease by MAC
-    //
-    void Remove(PhysicalAddress mac);
+    Task RemoveAsync(PhysicalAddress mac);
 
-    //
-    // Bad IP quarantine list (from DECLINE)
-    //
     IEnumerable<IPAddress> GetBadIps();
 
-    void AddBadIp(IPAddress ip);
+    Task AddBadIpAsync(IPAddress ip);
 
-    void RemoveBadIp(IPAddress ip);
+    Task RemoveBadIpAsync(IPAddress ip);
 }

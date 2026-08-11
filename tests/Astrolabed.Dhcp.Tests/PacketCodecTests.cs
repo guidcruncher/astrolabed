@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 
 using Astrolabed.Dhcp;
@@ -18,8 +19,9 @@ public class PacketCodecTests
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("1.1.1.1"),
-        null,
-            TimeSpan.FromHours(1));
+            null,
+            TimeSpan.FromHours(1),
+            IPAddress.Parse("255.255.255.248"));
 
         var parsed = DhcpPacketCodec.Parse(offer);
         Assert.Equal(DhcpMessageType.Offer, parsed.GetMessageType());
@@ -35,8 +37,9 @@ public class PacketCodecTests
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("1.1.1.1"),
-        null,
-            TimeSpan.FromHours(1));
+            null,
+            TimeSpan.FromHours(1),
+            IPAddress.Parse("255.255.255.248"));
 
         var parsed = DhcpPacketCodec.Parse(ack);
         Assert.Equal("192.168.10.55", parsed.Yiaddr.ToString());

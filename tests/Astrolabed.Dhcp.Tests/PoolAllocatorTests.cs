@@ -5,7 +5,6 @@ using Astrolabed.Dhcp;
 
 using Xunit;
 
-
 namespace Astrolabed.Dhcp.Tests;
 
 public class PoolAllocatorTests

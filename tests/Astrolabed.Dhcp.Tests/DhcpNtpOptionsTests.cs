@@ -8,7 +8,7 @@ namespace Astrolabed.Dhcp.Tests;
 
 public class DhcpNtpOptionTests
 {
-    private DhcpPacket MakeBasePacket()
+    private static DhcpPacket MakeBasePacket()
     {
         return new DhcpPacket
         {
@@ -35,6 +35,7 @@ public class DhcpNtpOptionTests
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
         var ntp = IPAddress.Parse("192.168.1.123");
+        var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var offerBytes = DhcpPacketCodec.BuildOffer(
             req,
@@ -43,7 +44,8 @@ public class DhcpNtpOptionTests
             router,
             dns,
             ntp,
-            TimeSpan.FromHours(1));
+            TimeSpan.FromHours(1),
+            subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
@@ -58,6 +60,7 @@ public class DhcpNtpOptionTests
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
+        var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var offerBytes = DhcpPacketCodec.BuildOffer(
             req,
@@ -65,8 +68,9 @@ public class DhcpNtpOptionTests
             serverId,
             router,
             dns,
-            null,                     // <-- no NTP
-            TimeSpan.FromHours(1));
+            null,
+            TimeSpan.FromHours(1),
+            subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
@@ -81,6 +85,7 @@ public class DhcpNtpOptionTests
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
         var ntp = IPAddress.Parse("192.168.1.123");
+        var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var ackBytes = DhcpPacketCodec.BuildAck(
             req,
@@ -89,7 +94,8 @@ public class DhcpNtpOptionTests
             router,
             dns,
             ntp,
-            TimeSpan.FromHours(1));
+            TimeSpan.FromHours(1),
+            subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
@@ -107,13 +113,15 @@ public class DhcpNtpOptionTests
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
         var ntp = IPAddress.Parse("192.168.1.123");
+        var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var ackBytes = DhcpPacketCodec.BuildInformAck(
             req,
             serverId,
             router,
             dns,
-            ntp);
+            ntp,
+            subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
@@ -129,13 +137,15 @@ public class DhcpNtpOptionTests
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
+        var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var ackBytes = DhcpPacketCodec.BuildInformAck(
             req,
             serverId,
             router,
             dns,
-            null);
+            null,
+            subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
