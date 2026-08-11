@@ -1,12 +1,31 @@
 SOLUTION = Astrolabed.sln
 PROJECT = src/Astrolabed/Astrolabed.csproj
-TESTSDNS = tests/Astrolabed.Dns.Tests/Astrolabed.Dns.Tests.csproj
-TESTSDHCP = tests/Astrolabed.Dhcp.Tests/Astrolabed.Dhcp.Tests.csproj
-TESTSNTP = tests/Astrolabed.Ntp.Tests/Astrolabed.Ntp.Tests.csproj
 BUILD_DIR = bin/
 RUNTIME = linux-x64
+IMAGE_NAME ?= guidcruncher/astrolabed
 
-.PHONY: all build clean run test restore publish metrics dev benchmark format dig docs mkdocs-install
+NTP_HOST ?= 127.0.0.1
+NTP_PORT ?= 1123
+
+export QUERY_NTP
+define QUERY_NTP
+import socket, struct, time
+
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+s.settimeout(3.0)
+msg = b'\x1b' + 47 * b'\x00'
+
+try:
+    s.sendto(msg, ('$(NTP_HOST)', $(NTP_PORT)))
+    data, _ = s.recvfrom(1024)
+    if data:
+        sec = struct.unpack('!I', data[40:44])[0] - 2208988800
+        print(f'Response: {time.ctime(sec)}')
+except Exception as e:
+    print(f'Query failed: {e}')
+endef
+
+.PHONY: all build clean run dev test restore publish metrics benchmark format format-json dig docs mkdocs-install ntp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
 
 all: restore build
 
@@ -14,16 +33,17 @@ dig:
 	dig itv.com @127.0.0.1 -p 1053
 	dig +tcp google.com @127.0.0.1 -p 1053
 
+ntp:
+	@python3 -c "$$QUERY_NTP"
+
 mkdocs-install:
-	pip install mkdocs --break-system-packages
-	pip install mkdocs-material --break-system-packages
-	pip install mkdocs-mermaid2-plugin --break-system-packages
+	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin
 
 docs:
 	mkdocs serve --dev-addr 0.0.0.0:8000 --config-file ./mkdocs.yml --watch ./docs
 
 metrics:
-	curl http://127.0.0.1:1080/metrics  -v
+	curl -v http://127.0.0.1:1080/metrics
 
 restore:
 	dotnet restore $(SOLUTION)
@@ -32,7 +52,7 @@ build:
 	dotnet build $(SOLUTION) -c Release
 
 format:
-	dotnet format ${SOLUTION}
+	dotnet format $(SOLUTION)
 
 format-json:
 	@for f in ./src/Astrolabed/*.json; do \
@@ -45,30 +65,18 @@ run:
 	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
 
 dev:
-	dotnet run --project ${PROJECT} -c Debug -- --config appsettings.Development.json
+	dotnet run --project $(PROJECT) -c Debug -- --config appsettings.Development.json
 
 benchmark:
 	dotnet run -c Release --project tests/Astrolabed.Benchmarks/Astrolabed.Benchmarks.csproj
 
 test:
-	dotnet test $(TESTSDNS) -c Release --no-build
-	dotnet test $(TESTSDHCP) -c Release --no-build
-	dotnet test ${TESTSNTP} -c Release --no-build
+	dotnet test $(SOLUTION) -c Release
 
 clean:
-	rm -rf $(BUILD_DIR)
-	rm -rf ./src/Astrolabed/bin
-	rm -rf ./src/Astrolabed/obj
-	rm -rf ./BenchmarkDotNet.Artifacts
-	rm -rf ./tests/Astrolabed.Dhcp.Tests/bin
-	rm -rf ./tests/Astrolabed.Dns.Tests/bin
-	rm -rf ./tests/Astrolabed.Benchmarks/bin
-	rm -rf ./tests/Astrolabed.Ntp.Tests/bin
-	rm -rf ./tests/Astrolabed.Dhcp.Tests/obj
-	rm -rf ./tests/Astrolabed.Dns.Tests/obj
-	rm -rf ./tests/Astrolabed.Ntp.Tests/obj
-	rm -rf ./tests/Astrolabed.Benchmarks/obj
 	dotnet clean $(SOLUTION)
+	rm -rf $(BUILD_DIR) publish/ BenchmarkDotNet.Artifacts
+	find . -type d \( -name "bin" -o -name "obj" \) -exec rm -rf {} +
 
 publish:
 	dotnet publish $(PROJECT) -c Release -r $(RUNTIME) --self-contained false -o publish/
@@ -77,34 +85,31 @@ docker-build:
 	docker buildx build \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
-		--progress=plain
+		--progress=plain \
 		.
 
 docker-run:
-	docker compose -f ./docker-compose.yml down
-	docker compose -f ./docker-compose.yml rm -f
+	docker compose -f ./docker-compose.yml down -v
 	docker compose -f ./docker-compose.yml build --no-cache
 	docker compose -f ./docker-compose.yml up -d
 	docker compose -f ./docker-compose.yml logs -f
 
 docker-shell:
-	docker compose exec -i -t astrolabed bash
+	docker compose exec -it astrolabed bash
 
 docker-run-dev:
-	docker compose -f ./docker-compose-dev.yml down
-	docker compose -f ./docker-compose-dev.yml rm -f
+	docker compose -f ./docker-compose-dev.yml down -v
 	docker compose -f ./docker-compose-dev.yml build --no-cache
 	docker compose -f ./docker-compose-dev.yml up -d
 	docker compose -f ./docker-compose-dev.yml logs -f
 
 docker-stop:
-	docker compose -f ./docker-compose.yml stop
-	docker compose -f ./docker-compose.yml rm -f
+	docker compose -f ./docker-compose.yml down
 
-docker-publish: ## Build the Docker image
+docker-publish:
 	docker buildx build \
 		--file ./Dockerfile \
-		--tag docker.io/guidcruncher/astrolabed:latest \
+		--tag docker.io/$(IMAGE_NAME):latest \
 		--progress=plain \
 		--push \
 		.
