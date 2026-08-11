@@ -1,15 +1,13 @@
-
-using System.Buffers.Binary;
 using System.Net.Sockets;
-
-using Astrolabed;
-
-using Microsoft.Extensions.Logging;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Astrolabed.Ntp;
 
 public interface INtpRequestHandler
 {
-    Task<NtpResponse> HandleAsync(UdpReceiveResult result, UdpClient udp, CancellationToken ct);
+    Task<NtpResponse> HandleAsync(
+        UdpReceiveResult result,
+        UdpClient udp,
+        CancellationToken ct);
 }
-

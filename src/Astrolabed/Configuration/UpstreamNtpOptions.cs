@@ -12,5 +12,5 @@ public sealed class UpstreamNtpOptions
         "1.pool.ntp.org"
     ];
 
-    public int PollIntervalSeconds { get; set; } = 16;
+    public int PollIntervalSeconds { get; set; } = 64;
 }

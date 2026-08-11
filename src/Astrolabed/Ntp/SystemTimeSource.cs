@@ -6,16 +6,18 @@ namespace Astrolabed.Ntp;
 
 public sealed class SystemTimeSource : INtpTimeSource
 {
-    private readonly DateTime _ref = DateTime.UtcNow;
-
     public Task<NtpTimeResult> GetTimeAsync(CancellationToken ct)
     {
+        ct.ThrowIfCancellationRequested();
+
         var now = DateTime.UtcNow;
 
         return Task.FromResult(new NtpTimeResult(
             UtcNow: now,
             Offset: TimeSpan.Zero,
-            Stratum: 16,
-            ReferenceUtc: _ref));
+            Stratum: 1,
+            ReferenceUtc: now,
+            ReferenceId: 0x47505300, // "GPS\0"
+            LeapIndicator: 0));
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -7,6 +9,7 @@ using Astrolabed.Events;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Ntp;
 
@@ -17,60 +20,100 @@ public sealed class NtpServerService : BackgroundService
     private readonly NtpServerOptions _options;
     private readonly INtpMetrics _metrics;
 
+    private readonly SemaphoreSlim _concurrencySemaphore;
+    private readonly ConcurrentDictionary<Task, bool> _activeTasks = new();
     private UdpClient? _udp;
 
     public NtpServerService(
         ILogger<NtpServerService> logger,
         INtpRequestHandler handler,
-        NtpServerOptions options,
+        IOptions<NtpServerOptions> options,
         INtpMetrics metrics)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         _logger = logger;
         _handler = handler;
-        _options = options;
+        _options = options.Value;
         _metrics = metrics;
+
+        int maxConcurrency = Math.Max(1, _options.MaxConcurrentRequests);
+        _concurrencySemaphore = new SemaphoreSlim(maxConcurrency, maxConcurrency);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _udp = new UdpClient(AddressFamily.InterNetwork);
-        _udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        _udp.Client.ReceiveBufferSize = _options.BufferSize;
-        _udp.Client.SendBufferSize = _options.BufferSize;
-
-        if (!IPAddress.TryParse(_options.ListenAddress, out IPAddress? address))
+        if (!IPAddress.TryParse(_options.ListenAddress, out var address))
         {
             _logger.LogCritical("Invalid IP Address in NTP ListenAddress. Cannot initialise NTP Service");
             return;
         }
 
-        var ep = new IPEndPoint(address, _options.Port);
-        _udp.Client.Bind(ep);
+        _udp = new UdpClient(address.AddressFamily);
+        _udp.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
 
-        _logger.LogInformation("NTP server listening on {Endpoint}", ep);
+        if (_options.BufferSize > 0)
+        {
+            _udp.Client.ReceiveBufferSize = _options.BufferSize;
+            _udp.Client.SendBufferSize = _options.BufferSize;
+        }
+
+        var endpoint = new IPEndPoint(address, _options.Port);
+        _udp.Client.Bind(endpoint);
+
+        _logger.LogInformation("NTP server listening on {Endpoint}", endpoint);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            UdpReceiveResult result;
-
             try
             {
-                result = await _udp.ReceiveAsync(stoppingToken).ConfigureAwait(false);
+                var result = await _udp.ReceiveAsync(stoppingToken).ConfigureAwait(false);
+
+                await _concurrencySemaphore.WaitAsync(stoppingToken).ConfigureAwait(false);
+
+                var task = ProcessRequestAsync(result, stoppingToken);
+                _activeTasks.TryAdd(task, true);
+
+                _ = task.ContinueWith(
+                    t =>
+                    {
+                        if (t.IsFaulted && t.Exception is not null)
+                        {
+                            _logger.LogError(t.Exception, "Unhandled exception processing NTP request task.");
+                        }
+
+                        _activeTasks.TryRemove(t, out _);
+                        _concurrencySemaphore.Release();
+                    },
+                    CancellationToken.None,
+                    TaskContinuationOptions.ExecuteSynchronously,
+                    TaskScheduler.Default);
             }
             catch (OperationCanceledException)
             {
                 break;
             }
-
-            _ = Task.Run(() => HandleRequestAsync(result, stoppingToken), stoppingToken);
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error receiving UDP packet");
+            }
         }
+
+        await CompleteActiveTasksAsync().ConfigureAwait(false);
     }
 
-    private async Task HandleRequestAsync(UdpReceiveResult result, CancellationToken ct)
+    private async Task ProcessRequestAsync(UdpReceiveResult result, CancellationToken ct)
     {
         try
         {
-            var response = await _handler.HandleAsync(result, _udp!, ct).ConfigureAwait(false);
+            var client = _udp;
+            if (client is null) return;
+
+            var response = await _handler.HandleAsync(result, client, ct).ConfigureAwait(false);
 
             _metrics.Sync(new NtpSyncEvent(
                 Timestamp: DateTime.UtcNow,
@@ -79,13 +122,17 @@ public sealed class NtpServerService : BackgroundService
                 Offset: response.Offset,
                 Success: response.Success));
 
-            if (response.Bytes is not null)
+            if (response.Bytes is { Length: > 0 })
             {
-                await _udp!.SendAsync(
+                await client.SendAsync(
                     response.Bytes,
                     response.Bytes.Length,
                     result.RemoteEndPoint).ConfigureAwait(false);
             }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Socket was closed during application shutdown
         }
         catch (Exception ex)
         {
@@ -103,17 +150,21 @@ public sealed class NtpServerService : BackgroundService
         }
     }
 
+    private async Task CompleteActiveTasksAsync()
+    {
+        var tasks = _activeTasks.Keys;
+        if (tasks.Count > 0)
+        {
+            _logger.LogInformation("Waiting for {Count} active NTP requests to complete...", tasks.Count);
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+    }
+
     public override void Dispose()
     {
-        try
-        {
-            _udp?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error disposing UDP listener");
-        }
-
+        _udp?.Close();
+        _udp?.Dispose();
+        _concurrencySemaphore.Dispose();
         base.Dispose();
     }
 }
