@@ -51,7 +51,8 @@ Comprehensive example for local/dev running.
     "Caching": {
       "Enabled": true,
       "TtlSeconds": 300,
-      "MaxEntries": 2000
+      "MaxEntries": 10000,
+      "CleanupIntervalMinutes": 15
     },
     "BlockResponse": {
       "Mode": "NXDOMAIN",
@@ -157,7 +158,8 @@ Example tuned for running inside Docker (paths reference `/app/blocklists` for m
     "Caching": {
       "Enabled": true,
       "TtlSeconds": 300,
-      "MaxEntries": 10000
+      "MaxEntries": 10000,
+      "CleanupIntervalMinutes": 5
     },
     "BlockResponse": {
       "Mode": "NXDOMAIN",
