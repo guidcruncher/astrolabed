@@ -1,10 +1,7 @@
-
-using System.Buffers.Binary;
+using System;
 using System.Net.Sockets;
-
-using Astrolabed;
-
-using Microsoft.Extensions.Logging;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Astrolabed.Ntp;
 

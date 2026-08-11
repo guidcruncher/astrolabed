@@ -1,12 +1,13 @@
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using Astrolabed;
 using Astrolabed.Ntp;
-
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Ntp.Bootstrap;
-
 
 public sealed class NtpRuntimeLoader : IHostedService
 {
@@ -16,11 +17,13 @@ public sealed class NtpRuntimeLoader : IHostedService
 
     public NtpRuntimeLoader(
         ILogger<NtpRuntimeLoader> logger,
-        NtpServerOptions options,
+        IOptions<NtpServerOptions> options,
         INtpTimeSource timeSource)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         _logger = logger;
-        _options = options;
+        _options = options.Value;
         _timeSource = timeSource;
     }
 
@@ -32,15 +35,15 @@ public sealed class NtpRuntimeLoader : IHostedService
             return;
         }
 
-        _logger.LogInformation("NTP Runtime Loader starting…");
+        _logger.LogInformation("NTP Runtime Loader starting.");
 
-        // Example: warm-up reference timestamp
+        // Warm-up reference timestamp
         var result = await _timeSource.GetTimeAsync(cancellationToken);
         var refUtc = result.ReferenceUtc;
         _logger.LogInformation("Reference time initialized: {RefUtc}", refUtc);
 
-        // Example: load upstream sync or GPS discipline
-        await Task.Delay(10, cancellationToken); // placeholder for real work
+        // Load upstream sync or GPS discipline
+        await Task.Delay(10, cancellationToken);
 
         _logger.LogInformation("NTP Runtime Loader completed.");
     }
@@ -51,4 +54,3 @@ public sealed class NtpRuntimeLoader : IHostedService
         return Task.CompletedTask;
     }
 }
-

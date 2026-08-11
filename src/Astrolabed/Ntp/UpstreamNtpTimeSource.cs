@@ -4,42 +4,61 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Ntp;
 
 public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 {
+    private static readonly DateTime NtpEpoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private const long TicksPerSecond = TimeSpan.TicksPerSecond;
+
     private readonly ILogger<UpstreamNtpTimeSource> _logger;
     private readonly UpstreamNtpOptions _options;
 
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _syncTask;
 
+    private readonly object _stateLock = new();
     private DateTime _referenceUtc = DateTime.UtcNow;
     private TimeSpan _offset = TimeSpan.Zero;
     private int _stratum = 2;
 
     public UpstreamNtpTimeSource(
         ILogger<UpstreamNtpTimeSource> logger,
-        NtpServerOptions options)
+        IOptions<NtpServerOptions> options)
     {
+        ArgumentNullException.ThrowIfNull(options);
+
         _logger = logger;
-        _options = options.Upstream;
+        _options = options.Value.Upstream;
 
         _syncTask = Task.Run(() => SyncLoopAsync(_cts.Token));
     }
 
     public Task<NtpTimeResult> GetTimeAsync(CancellationToken ct)
     {
-        var now = DateTime.UtcNow + _offset;
+        ct.ThrowIfCancellationRequested();
+
+        TimeSpan offset;
+        DateTime refUtc;
+        int stratum;
+
+        lock (_stateLock)
+        {
+            offset = _offset;
+            refUtc = _referenceUtc;
+            stratum = _stratum;
+        }
+
+        var now = DateTime.UtcNow + offset;
 
         return Task.FromResult(new NtpTimeResult(
             UtcNow: now,
-            Offset: _offset,
-            Stratum: _stratum,
-            ReferenceUtc: _referenceUtc));
+            Offset: offset,
+            Stratum: stratum,
+            ReferenceUtc: refUtc));
     }
 
     private async Task SyncLoopAsync(CancellationToken ct)
@@ -54,9 +73,18 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         {
             foreach (var server in _options.Servers)
             {
+                if (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+
                 try
                 {
                     await SyncOnceAsync(server, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -64,8 +92,15 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
                 }
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(_options.PollIntervalSeconds), ct)
-                      .ConfigureAwait(false);
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(_options.PollIntervalSeconds), ct)
+                          .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
         }
     }
 
@@ -74,9 +109,15 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         using var udp = new UdpClient();
         udp.Client.ReceiveTimeout = 3000;
 
-        var ip = await System.Net.Dns.GetHostAddressesAsync(server, ct).ConfigureAwait(false);
-        var endpoint = new IPEndPoint(ip[0], 123);
+        var ipAddresses = await System.Net.Dns.GetHostAddressesAsync(server, ct).ConfigureAwait(false);
 
+        if (ipAddresses.Length == 0)
+        {
+            _logger.LogWarning("DNS lookup returned no IP addresses for server {Server}", server);
+            return;
+        }
+
+        var endpoint = new IPEndPoint(ipAddresses[0], 123);
         var request = BuildClientRequest();
         var t1 = DateTime.UtcNow;
 
@@ -97,41 +138,52 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 
     private void ParseResponse(byte[] buffer, DateTime t1, DateTime t4)
     {
-        var t2 = ReadTimestamp(buffer, 32);
-        var t3 = ReadTimestamp(buffer, 40);
+        if (buffer.Length < 48)
+        {
+            throw new ArgumentException("Upstream NTP response must be at least 48 bytes.");
+        }
+
+        var t2 = ReadTimestamp(buffer.AsSpan(32, 8));
+        var t3 = ReadTimestamp(buffer.AsSpan(40, 8));
 
         var offset = ((t2 - t1) + (t3 - t4)) / 2;
         var delay = (t4 - t1) - (t3 - t2);
 
-        _offset = offset;
-        _referenceUtc = t3;
-        _stratum = buffer[1];
+        lock (_stateLock)
+        {
+            _offset = offset;
+            _referenceUtc = t3;
+            _stratum = buffer[1];
+        }
 
         _logger.LogDebug(
             "Upstream NTP sync: offset={Offset} delay={Delay} stratum={Stratum}",
-            offset, delay, _stratum);
+            offset, delay, buffer[1]);
     }
 
-    private static DateTime ReadTimestamp(byte[] buffer, int offset)
+    private static DateTime ReadTimestamp(ReadOnlySpan<byte> buffer)
     {
-        uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(offset, 4));
-        uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.AsSpan(offset + 4, 4));
+        uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
+        uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
 
-        var epoch = new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        double fracSeconds = fraction / (double)0x100000000L;
-
-        return epoch.AddSeconds(seconds + fracSeconds);
+        long ticks = (seconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
+        return NtpEpoch.AddTicks(ticks);
     }
 
     public async ValueTask DisposeAsync()
     {
         _cts.Cancel();
+
         try
         {
             await _syncTask.ConfigureAwait(false);
         }
-        catch
+        catch (OperationCanceledException)
         {
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception encountered while stopping NTP synchronization loop.");
         }
 
         _cts.Dispose();

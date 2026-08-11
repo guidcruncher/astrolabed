@@ -1,11 +1,8 @@
-using System.Buffers.Binary;
+using System;
 using System.Net.Sockets;
-
-using Astrolabed;
-using Astrolabed.Ntp;
-
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Ntp;
 
@@ -27,19 +24,23 @@ public sealed class NtpRequestHandler : INtpRequestHandler
         UdpClient udp,
         CancellationToken ct)
     {
+        var receiveUtc = DateTime.UtcNow;
+
         try
         {
-            // Parse request
             var request = NtpPacket.Parse(result.Buffer);
 
-            // Get upstream time
             var upstream = await _timeSource.GetTimeAsync(ct);
+            var transmitUtc = DateTime.UtcNow;
 
-            // Build response packet
+            // Apply upstream offset correction if present
+            var correctedReceiveUtc = receiveUtc + upstream.Offset;
+            var correctedTransmitUtc = transmitUtc + upstream.Offset;
+
             var responsePacket = NtpPacket.BuildResponse(
                 request,
-                upstream.UtcNow,
-                upstream.Offset);
+                correctedReceiveUtc,
+                correctedTransmitUtc);
 
             var bytes = responsePacket.ToBytes();
 
@@ -57,26 +58,7 @@ public sealed class NtpRequestHandler : INtpRequestHandler
             return new NtpResponse(
                 Success: false,
                 Offset: TimeSpan.Zero,
-                Bytes: null);
+                Bytes: Array.Empty<byte>());
         }
     }
-
-    private static void WriteInt32(byte[] buffer, int offset, int value)
-    {
-        BinaryPrimitives.WriteInt32BigEndian(buffer.AsSpan(offset, 4), value);
-    }
-
-    private static void WriteTimestamp(byte[] buffer, int offset, DateTime utc)
-    {
-        var epoch = new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var span = utc - epoch;
-
-        ulong seconds = (ulong)span.TotalSeconds;
-        double fraction = span.TotalSeconds - Math.Floor(span.TotalSeconds);
-        ulong frac = (ulong)(fraction * 0x100000000L);
-
-        BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(offset, 4), (uint)seconds);
-        BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(offset + 4, 4), (uint)frac);
-    }
 }
-

@@ -26,7 +26,7 @@ public class UpstreamNtpTimeSourceTests
 
         return new UpstreamNtpTimeSource(
             NullLogger<UpstreamNtpTimeSource>.Instance,
-            options
+            Options.Create(options)
         );
     }
 
@@ -141,7 +141,7 @@ public class UpstreamNtpTimeSourceTests
         var delta = (actual - expected).Duration();
 
         Assert.True(delta < TimeSpan.FromMicroseconds(10),
-            $"Reference timestamp differs by {delta.TotalMicroseconds} µs");
+            $"Reference timestamp differs by {delta.TotalMicroseconds} us");
     }
 
     [Fact]

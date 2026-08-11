@@ -1,11 +1,8 @@
-using System.Net;
-
 using Astrolabed;
+using Astrolabed.Ntp;
 using Astrolabed.Ntp.Bootstrap;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Ntp.Bootstrap;
 
@@ -15,16 +12,20 @@ public static class NtpServerServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration config)
     {
-        var server = config.Get<ServerOptions>() ?? new ServerOptions();
-        var ntp = server.Ntp;
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
 
-        if (!ntp.Enabled)
-            return services; // NTP disabled — do nothing
+        var ntpSection = config.GetSection("Ntp");
+        var ntpOptions = ntpSection.Get<NtpServerOptions>() ?? new NtpServerOptions();
 
+        if (!ntpOptions.Enabled)
+        {
+            return services;
+        }
 
-        services.AddSingleton<NtpServerOptions>(ntp);
+        services.Configure<NtpServerOptions>(ntpSection);
 
-        if (ntp.Upstream.Enabled)
+        if (ntpOptions.Upstream.Enabled)
         {
             services.AddSingleton<INtpTimeSource, UpstreamNtpTimeSource>();
         }
@@ -35,12 +36,10 @@ public static class NtpServerServiceCollectionExtensions
 
         services.AddSingleton<INtpRequestHandler, NtpRequestHandler>();
 
-        // Runtime loader runs BEFORE the server starts
         services.AddHostedService<NtpRuntimeLoader>();
-
-        // NTP server itself
         services.AddHostedService<NtpServerService>();
 
         return services;
     }
 }
+

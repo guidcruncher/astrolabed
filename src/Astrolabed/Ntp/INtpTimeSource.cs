@@ -1,3 +1,8 @@
+using System;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
+
 namespace Astrolabed.Ntp;
 
 public interface INtpTimeSource
@@ -16,3 +21,4 @@ public sealed record NtpTimeResult(
     TimeSpan Offset,
     int Stratum,
     DateTime ReferenceUtc);
+

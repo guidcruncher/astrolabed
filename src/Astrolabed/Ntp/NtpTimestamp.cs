@@ -5,22 +5,47 @@ namespace Astrolabed.Ntp;
 
 public static class NtpTimestamp
 {
-    private static readonly DateTime Epoch =
-        new DateTime(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime Epoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private const long TicksPerSecond = TimeSpan.TicksPerSecond; // 10,000,000
+
+    public static void WriteTimestamp(Span<byte> destination, DateTime utc)
+    {
+        if (destination.Length < 8)
+        {
+            throw new ArgumentException("Destination span must be at least 8 bytes.", nameof(destination));
+        }
+
+        if (utc.Kind != DateTimeKind.Utc)
+        {
+            utc = utc.ToUniversalTime();
+        }
+
+        var ticks = (utc - Epoch).Ticks;
+
+        if (ticks < 0)
+        {
+            ticks = 0;
+        }
+
+        var seconds = (uint)(ticks / TicksPerSecond);
+        var remainingTicks = ticks % TicksPerSecond;
+
+        // Scale 100-ns ticks (10,000,000 per sec) across 32-bit fraction range (2^32)
+        var fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
+
+        BinaryPrimitives.WriteUInt32BigEndian(destination[..4], seconds);
+        BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(4, 4), fraction);
+    }
 
     public static void WriteTimestamp(byte[] buffer, int offset, DateTime utc)
     {
-        if (utc.Kind != DateTimeKind.Utc)
-            utc = utc.ToUniversalTime();
+        ArgumentNullException.ThrowIfNull(buffer);
 
-        var span = utc - Epoch;
+        if (offset < 0 || offset + 8 > buffer.Length)
+        {
+            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the buffer.");
+        }
 
-        ulong seconds = (ulong)span.TotalSeconds;
-        double fraction = span.TotalSeconds - Math.Floor(span.TotalSeconds);
-        ulong frac = (ulong)(fraction * 0x100000000L);
-
-        BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(offset, 4), (uint)seconds);
-        BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(offset + 4, 4), (uint)frac);
+        WriteTimestamp(buffer.AsSpan(offset, 8), utc);
     }
 }
-
