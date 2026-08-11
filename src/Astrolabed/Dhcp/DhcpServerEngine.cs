@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -26,6 +27,9 @@ public sealed class DhcpServerEngine
     private readonly IPAddress _router;
     private readonly IPAddress _dns;
     private readonly IPAddress? _ntp;
+    private readonly IPAddress _subnetMask;
+    private readonly TimeSpan _defaultLeaseTime;
+    private readonly TimeSpan _maxLeaseTime;
 
     private readonly bool _testMode;
     private IPEndPoint? _lastClient;
@@ -53,11 +57,68 @@ public sealed class DhcpServerEngine
         _serverId = IPAddress.Parse(config.ServerIdentifier);
         _router = IPAddress.Parse(config.Router);
         _dns = IPAddress.Parse(config.DnsServer);
+        _subnetMask = ParseSubnetMaskFromCidr(config.PoolCidr);
+        _defaultLeaseTime = TimeSpan.FromHours(1);
+        _maxLeaseTime = TimeSpan.FromDays(7);
 
         if (!string.IsNullOrWhiteSpace(config.NtpServer))
             _ntp = IPAddress.Parse(config.NtpServer);
         else
             _ntp = null;
+    }
+
+    private static IPAddress ParseSubnetMaskFromCidr(string? cidr)
+    {
+        if (string.IsNullOrWhiteSpace(cidr))
+            throw new ArgumentException("Pool CIDR configuration cannot be null or empty.", nameof(cidr));
+
+        var parts = cidr.Split('/');
+        if (parts.Length < 2 || !int.TryParse(parts[1], out int prefix) || prefix < 0 || prefix > 32)
+        {
+            prefix = 24;
+        }
+
+        uint mask = prefix switch
+        {
+            0 => 0,
+            32 => uint.MaxValue,
+            _ => uint.MaxValue << (32 - prefix)
+        };
+
+        Span<byte> bytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, mask);
+        return new IPAddress(bytes);
+    }
+
+    private TimeSpan GetRequestedLeaseTime(DhcpPacket req)
+    {
+        var opt = req.Options.FirstOrDefault(o => o.Code == 51);
+        if (opt != null && opt.Data.Length >= 4)
+        {
+            uint requestedSeconds = BinaryPrimitives.ReadUInt32BigEndian(opt.Data);
+            if (requestedSeconds > 0)
+            {
+                var requestedSpan = TimeSpan.FromSeconds(requestedSeconds);
+                if (requestedSpan > _maxLeaseTime)
+                    return _maxLeaseTime;
+
+                return requestedSpan;
+            }
+        }
+
+        return _defaultLeaseTime;
+    }
+
+    private static IPAddress? DetermineRequestedIp(DhcpPacket req)
+    {
+        var optIp = req.GetRequestedIp();
+        if (optIp != null)
+            return optIp;
+
+        if (!req.Ciaddr.Equals(IPAddress.Any))
+            return req.Ciaddr;
+
+        return null;
     }
 
     private void LogClientName(DhcpPacket req, PhysicalAddress mac)
@@ -104,10 +165,25 @@ public sealed class DhcpServerEngine
             {
                 break;
             }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error reading from UDP transport");
+                continue;
+            }
 
             _lastClient = result.RemoteEndPoint;
 
-            var req = DhcpPacketCodec.Parse(result.Buffer);
+            DhcpPacket req;
+            try
+            {
+                req = DhcpPacketCodec.Parse(result.Buffer);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse incoming DHCP packet from {Endpoint}", result.RemoteEndPoint);
+                continue;
+            }
+
             var type = req.GetMessageType();
             var mac = new PhysicalAddress(req.Chaddr.Take(req.Hlen).ToArray());
 
@@ -124,11 +200,11 @@ public sealed class DhcpServerEngine
                     break;
 
                 case DhcpMessageType.Release:
-                    HandleRelease(req, mac);
+                    await HandleReleaseAsync(req, mac).ConfigureAwait(false);
                     break;
 
                 case DhcpMessageType.Decline:
-                    HandleDecline(req, mac);
+                    await HandleDeclineAsync(req, mac).ConfigureAwait(false);
                     break;
 
                 case DhcpMessageType.Inform:
@@ -143,10 +219,16 @@ public sealed class DhcpServerEngine
         }
     }
 
-    private IPEndPoint ReplyEndpoint()
+    private IPEndPoint DetermineReplyEndpoint(DhcpPacket req)
     {
         if (_testMode && _lastClient is not null)
             return _lastClient;
+
+        if (!req.Giaddr.Equals(IPAddress.Any))
+            return new IPEndPoint(req.Giaddr, 67);
+
+        if (!req.Ciaddr.Equals(IPAddress.Any))
+            return new IPEndPoint(req.Ciaddr, 68);
 
         return new IPEndPoint(IPAddress.Broadcast, 68);
     }
@@ -155,9 +237,11 @@ public sealed class DhcpServerEngine
     {
         _logger.LogTrace("DHCP DISCOVER from {Mac}", mac);
 
-        var lease = await _leaseEngine.AllocateWithArpCheck(
+        TimeSpan leaseTime = GetRequestedLeaseTime(req);
+
+        var lease = await _leaseEngine.AllocateWithArpCheckAsync(
             mac,
-            TimeSpan.FromHours(1),
+            leaseTime,
             _arp).ConfigureAwait(false);
 
         var offer = DhcpPacketCodec.BuildOffer(
@@ -167,9 +251,10 @@ public sealed class DhcpServerEngine
             _router,
             _dns,
             _ntp,
-            TimeSpan.FromHours(1));
+            leaseTime,
+            _subnetMask);
 
-        await _transport.SendAsync(offer, offer.Length, ReplyEndpoint())
+        await _transport.SendAsync(offer, offer.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
 
         _logger.LogTrace("Sent OFFER {Ip} to {Mac}", lease.Ip, mac);
@@ -177,15 +262,16 @@ public sealed class DhcpServerEngine
 
     private async Task HandleRequestAsync(DhcpPacket req, PhysicalAddress mac)
     {
-        var requestedIp = req.GetRequestedIp();
+        var requestedIp = DetermineRequestedIp(req);
         var serverIdOpt = req.GetServerIdentifier();
+        TimeSpan leaseTime = GetRequestedLeaseTime(req);
 
         _logger.LogTrace("DHCP REQUEST from {Mac} for {Ip}", mac, requestedIp);
 
         if (serverIdOpt is not null && !serverIdOpt.Equals(_serverId))
         {
             var nak = DhcpPacketCodec.BuildNak(req, _serverId);
-            await _transport.SendAsync(nak, nak.Length, ReplyEndpoint())
+            await _transport.SendAsync(nak, nak.Length, DetermineReplyEndpoint(req))
                             .ConfigureAwait(false);
 
             _metrics.NakSent(new DhcpNakEvent(
@@ -198,15 +284,31 @@ public sealed class DhcpServerEngine
             return;
         }
 
-        var lease = await _leaseEngine.AllocateWithArpCheck(
+        if (requestedIp is not null && !_pool.Contains(requestedIp))
+        {
+            var nak = DhcpPacketCodec.BuildNak(req, _serverId);
+            await _transport.SendAsync(nak, nak.Length, DetermineReplyEndpoint(req))
+                            .ConfigureAwait(false);
+
+            _metrics.NakSent(new DhcpNakEvent(
+                Timestamp: DateTime.UtcNow,
+                Mac: mac,
+                RequestedIp: requestedIp,
+                Reason: "Requested IP outside subnet pool"));
+
+            _logger.LogWarning("Sent NAK to {Mac} (requested IP {ReqIp} invalid for subnet)", mac, requestedIp);
+            return;
+        }
+
+        var lease = await _leaseEngine.AllocateWithArpCheckAsync(
             mac,
-            TimeSpan.FromHours(1),
+            leaseTime,
             _arp).ConfigureAwait(false);
 
         if (requestedIp is not null && !requestedIp.Equals(lease.Ip))
         {
             var nak = DhcpPacketCodec.BuildNak(req, _serverId);
-            await _transport.SendAsync(nak, nak.Length, ReplyEndpoint())
+            await _transport.SendAsync(nak, nak.Length, DetermineReplyEndpoint(req))
                             .ConfigureAwait(false);
 
             _metrics.NakSent(new DhcpNakEvent(
@@ -228,9 +330,10 @@ public sealed class DhcpServerEngine
             _router,
             _dns,
             _ntp,
-            TimeSpan.FromHours(1));
+            leaseTime,
+            _subnetMask);
 
-        await _transport.SendAsync(ack, ack.Length, ReplyEndpoint())
+        await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
 
         _metrics.LeaseAllocated(new DhcpLeaseAllocatedEvent(
@@ -240,15 +343,15 @@ public sealed class DhcpServerEngine
             ClientName: req.GetHostName() ?? req.GetFqdn(),
             ServerId: _serverId,
             LeaseStart: DateTime.UtcNow,
-            LeaseExpiry: DateTime.UtcNow.AddHours(1)));
+            LeaseExpiry: DateTime.UtcNow.Add(leaseTime)));
 
         _logger.LogTrace("Sent ACK {Ip} to {Mac}", lease.Ip, mac);
     }
 
-    private void HandleRelease(DhcpPacket req, PhysicalAddress mac)
+    private async Task HandleReleaseAsync(DhcpPacket req, PhysicalAddress mac)
     {
         _logger.LogTrace("DHCP RELEASE from {Mac}", mac);
-        _leaseEngine.Release(mac);
+        await _leaseEngine.ReleaseAsync(mac).ConfigureAwait(false);
 
         _metrics.LeaseReleased(new DhcpLeaseReleasedEvent(
             Timestamp: DateTime.UtcNow,
@@ -257,15 +360,15 @@ public sealed class DhcpServerEngine
             ClientName: req.GetHostName() ?? req.GetFqdn()));
     }
 
-    private void HandleDecline(DhcpPacket req, PhysicalAddress mac)
+    private async Task HandleDeclineAsync(DhcpPacket req, PhysicalAddress mac)
     {
-        var requestedIp = req.GetRequestedIp();
+        var requestedIp = DetermineRequestedIp(req);
         _logger.LogWarning("DHCP DECLINE from {Mac} for {Ip}", mac, requestedIp);
 
-        _leaseEngine.Release(mac);
+        await _leaseEngine.ReleaseAsync(mac).ConfigureAwait(false);
 
         if (requestedIp is not null)
-            _leaseEngine.Decline(requestedIp);
+            await _leaseEngine.DeclineAsync(requestedIp).ConfigureAwait(false);
 
         _metrics.NakSent(new DhcpNakEvent(
             Timestamp: DateTime.UtcNow,
@@ -283,12 +386,12 @@ public sealed class DhcpServerEngine
             _serverId,
             _router,
             _dns,
-            _ntp);
+            _ntp,
+            _subnetMask);
 
-        await _transport.SendAsync(ack, ack.Length, ReplyEndpoint())
+        await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
 
         _logger.LogTrace("Sent INFORM-ACK to client {Ip}", req.Ciaddr);
     }
 }
-

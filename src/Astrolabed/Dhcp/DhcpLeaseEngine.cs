@@ -1,5 +1,8 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Astrolabed.Dhcp;
 
@@ -7,6 +10,8 @@ public sealed class DhcpLeaseEngine
 {
     private readonly IDhcpLeaseStore _store;
     private readonly CidrPoolAllocator _pool;
+    private readonly SemaphoreSlim _allocationLock = new(1, 1);
+    private readonly ConcurrentDictionary<IPAddress, byte> _pendingAllocations = new();
 
     public DhcpLeaseEngine(IDhcpLeaseStore store, CidrPoolAllocator pool)
     {
@@ -14,96 +19,147 @@ public sealed class DhcpLeaseEngine
         _pool = pool;
     }
 
-    // ------------------------------------------------------------
-    // GET EXISTING LEASE
-    // ------------------------------------------------------------
-    public DhcpLease? GetLease(PhysicalAddress mac)
+    public DhcpLease? GetActiveLease(PhysicalAddress mac)
     {
         return _store.GetActiveLeases().FirstOrDefault(l => l.Mac.Equals(mac));
     }
 
-    // ------------------------------------------------------------
-    // BASIC ALLOCATION
-    // ------------------------------------------------------------
-    public DhcpLease Allocate(PhysicalAddress mac, TimeSpan leaseTime)
+    public DhcpLease? GetAnyLease(PhysicalAddress mac)
     {
-        var existing = GetLease(mac);
-        if (existing != null)
-        {
-            existing.ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime);
-            _store.Save(existing);
-            return existing;
-        }
-
-        var ip = _pool.Allocate(_store.GetActiveLeases().Select(l => l.Ip));
-        if (ip == null)
-            throw new Exception("DHCP pool exhausted");
-
-        var lease = new DhcpLease
-        {
-            Mac = mac,
-            Ip = ip,
-            ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
-        };
-
-        _store.Save(lease);
-        return lease;
+        return _store.GetActiveLeases().FirstOrDefault(l => l.Mac.Equals(mac));
     }
 
-    // ------------------------------------------------------------
-    // ADVANCED ALLOCATION WITH ARP CHECK
-    // ------------------------------------------------------------
-    public async Task<DhcpLease> AllocateWithArpCheck(
+    public async Task<DhcpLease> AllocateAsync(PhysicalAddress mac, TimeSpan leaseTime)
+    {
+        await _allocationLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var existing = GetActiveLease(mac);
+            if (existing != null)
+            {
+                existing.ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime);
+                await _store.SaveAsync(existing).ConfigureAwait(false);
+                return existing;
+            }
+
+            var activeAndPending = _store.GetActiveLeases()
+                .Select(l => l.Ip)
+                .Concat(_pendingAllocations.Keys);
+
+            var ip = _pool.Allocate(activeAndPending);
+            if (ip == null)
+                throw new InvalidOperationException("DHCP pool exhausted");
+
+            var lease = new DhcpLease
+            {
+                Mac = mac,
+                Ip = ip,
+                ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
+            };
+
+            await _store.SaveAsync(lease).ConfigureAwait(false);
+            return lease;
+        }
+        finally
+        {
+            _allocationLock.Release();
+        }
+    }
+
+    public async Task<DhcpLease> AllocateWithArpCheckAsync(
         PhysicalAddress mac,
         TimeSpan leaseTime,
         ArpConflictDetector arp)
     {
-        var existing = GetLease(mac);
-        if (existing != null)
+        List<IPAddress> candidates = new();
+        HashSet<IPAddress> badIps;
+
+        await _allocationLock.WaitAsync().ConfigureAwait(false);
+        try
         {
-            existing.ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime);
-            _store.Save(existing);
-            return existing;
+            var existing = GetActiveLease(mac);
+            if (existing != null)
+            {
+                existing.ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime);
+                await _store.SaveAsync(existing).ConfigureAwait(false);
+                return existing;
+            }
+
+            var previousLease = GetAnyLease(mac);
+            if (previousLease != null && !_pendingAllocations.ContainsKey(previousLease.Ip))
+            {
+                candidates.Add(previousLease.Ip);
+            }
+
+            var used = _store.GetActiveLeases().Select(l => l.Ip).Concat(_pendingAllocations.Keys);
+            candidates.AddRange(_pool.AllocationSequence(used));
+
+            badIps = _store.GetBadIps().ToHashSet();
+        }
+        finally
+        {
+            _allocationLock.Release();
         }
 
-        var used = _store.GetActiveLeases().Select(l => l.Ip);
-
-        foreach (var candidate in _pool.AllocationSequence(used))
+        foreach (var candidate in candidates)
         {
-            if (_store.GetBadIps().Contains(candidate))
+            if (badIps.Contains(candidate))
                 continue;
 
-            bool conflict = await arp.HasConflictAsync(candidate, TimeSpan.FromMilliseconds(500));
-            if (!conflict)
-            {
-                var lease = new DhcpLease
-                {
-                    Mac = mac,
-                    Ip = candidate,
-                    ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
-                };
+            if (!_pendingAllocations.TryAdd(candidate, 0))
+                continue;
 
-                _store.Save(lease);
-                return lease;
+            try
+            {
+                bool conflict = await arp.HasConflictAsync(candidate, TimeSpan.FromMilliseconds(500)).ConfigureAwait(false);
+
+                await _allocationLock.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    var existingDuringProbe = GetActiveLease(mac);
+                    if (existingDuringProbe != null)
+                    {
+                        existingDuringProbe.ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime);
+                        await _store.SaveAsync(existingDuringProbe).ConfigureAwait(false);
+                        return existingDuringProbe;
+                    }
+
+                    if (!conflict)
+                    {
+                        var lease = new DhcpLease
+                        {
+                            Mac = mac,
+                            Ip = candidate,
+                            ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
+                        };
+
+                        await _store.SaveAsync(lease).ConfigureAwait(false);
+                        return lease;
+                    }
+
+                    await _store.AddBadIpAsync(candidate).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _allocationLock.Release();
+                }
+            }
+            finally
+            {
+                _pendingAllocations.TryRemove(candidate, out _);
             }
         }
 
-        throw new Exception("DHCP pool exhausted (no conflict-free IPs)");
+        throw new InvalidOperationException("DHCP pool exhausted (no conflict-free IPs)");
     }
 
-    // ------------------------------------------------------------
-    // RELEASE LEASE
-    // ------------------------------------------------------------
-    public void Release(PhysicalAddress mac)
+    public async Task ReleaseAsync(PhysicalAddress mac)
     {
-        _store.Remove(mac);
+        await _store.RemoveAsync(mac).ConfigureAwait(false);
     }
 
-    // ------------------------------------------------------------
-    // DECLINE (QUARANTINE IP)
-    // ------------------------------------------------------------
-    public void Decline(IPAddress ip)
+    public async Task DeclineAsync(IPAddress ip)
     {
-        _store.AddBadIp(ip);
+        await _store.AddBadIpAsync(ip).ConfigureAwait(false);
     }
 }

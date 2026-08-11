@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 
@@ -5,62 +6,48 @@ namespace Astrolabed.Dhcp;
 
 public sealed class InMemoryDhcpLeaseStore : IDhcpLeaseStore
 {
-    private readonly Dictionary<PhysicalAddress, DhcpLease> _leases = new();
-    private readonly HashSet<IPAddress> _badIps = new();
+    private readonly ConcurrentDictionary<PhysicalAddress, DhcpLease> _leases = new();
+    private readonly ConcurrentDictionary<IPAddress, byte> _badIps = new();
 
-    // ------------------------------------------------------------
-    // LOAD (no-op for in-memory)
-    // ------------------------------------------------------------
     public Task LoadAsync()
     {
         return Task.CompletedTask;
     }
 
-    // ------------------------------------------------------------
-    // SAVE (no-op for in-memory)
-    // ------------------------------------------------------------
     public Task SaveAsync()
     {
         return Task.CompletedTask;
     }
 
-    // ------------------------------------------------------------
-    // ACTIVE LEASES
-    // ------------------------------------------------------------
     public IEnumerable<DhcpLease> GetActiveLeases()
     {
         var now = DateTimeOffset.UtcNow;
-        return _leases.Values.Where(l => l.ExpiresAt > now);
+        return _leases.Values.Where(l => l.ExpiresAt > now).ToList();
     }
 
-    // ------------------------------------------------------------
-    // SAVE / UPDATE LEASE
-    // ------------------------------------------------------------
-    public void Save(DhcpLease lease)
+    public Task SaveAsync(DhcpLease lease)
     {
         _leases[lease.Mac] = lease;
+        return Task.CompletedTask;
     }
 
-    // ------------------------------------------------------------
-    // REMOVE LEASE
-    // ------------------------------------------------------------
-    public void Remove(PhysicalAddress mac)
+    public Task RemoveAsync(PhysicalAddress mac)
     {
-        _leases.Remove(mac);
+        _leases.TryRemove(mac, out _);
+        return Task.CompletedTask;
     }
 
-    // ------------------------------------------------------------
-    // BAD IPs
-    // ------------------------------------------------------------
-    public IEnumerable<IPAddress> GetBadIps() => _badIps;
+    public IEnumerable<IPAddress> GetBadIps() => _badIps.Keys.ToList();
 
-    public void AddBadIp(IPAddress ip)
+    public Task AddBadIpAsync(IPAddress ip)
     {
-        _badIps.Add(ip);
+        _badIps[ip] = 0;
+        return Task.CompletedTask;
     }
 
-    public void RemoveBadIp(IPAddress ip)
+    public Task RemoveBadIpAsync(IPAddress ip)
     {
-        _badIps.Remove(ip);
+        _badIps.TryRemove(ip, out _);
+        return Task.CompletedTask;
     }
 }
