@@ -21,6 +21,18 @@ public class ApplicationRestartManager : IApplicationRestartManager
 
     public void RequestRestart(string[]? arguments = null)
     {
+        var startInfo = CreateRestartStartInfo(arguments);
+
+        _lifetime.ApplicationStopped.Register(() =>
+        {
+            Process.Start(startInfo);
+        });
+
+        _lifetime.StopApplication();
+    }
+
+    public static ProcessStartInfo CreateRestartStartInfo(string[]? arguments = null)
+    {
         string? processPath = Environment.ProcessPath;
         if (string.IsNullOrEmpty(processPath))
         {
@@ -49,12 +61,6 @@ public class ApplicationRestartManager : IApplicationRestartManager
             }
         }
 
-        _lifetime.ApplicationStopped.Register(() =>
-        {
-            Process.Start(startInfo);
-        });
-
-        // Initiates host teardown asynchronously across all hosted services
-        _lifetime.StopApplication();
+        return startInfo;
     }
 }

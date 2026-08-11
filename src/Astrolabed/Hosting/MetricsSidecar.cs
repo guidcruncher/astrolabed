@@ -4,9 +4,12 @@ using Astrolabed.Metrics;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Hosting;
 
@@ -14,7 +17,7 @@ public static class MetricsSidecar
 {
     public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args)
     {
-        var logger = mainHost.Services.GetRequiredService<ILogger<Program>>();
+        var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(MetricsSidecar));
 
         if (serverOptions.Metrics.StorageEngine != "prometheus")
         {
@@ -28,6 +31,9 @@ public static class MetricsSidecar
             serverOptions.Metrics.ListenPort,
             serverOptions.Metrics.Location);
 
+        var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
+        var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
+
         var metricsHost = Host.CreateDefaultBuilder(args)
             .ConfigureLogging(logging =>
             {
@@ -35,13 +41,24 @@ public static class MetricsSidecar
                 logging.AddConsole();
                 logging.SetMinimumLevel(LogLevel.Information);
             })
+            .ConfigureServices(services =>
+            {
+                services.AddSingleton(mainConfig);
+                services.Configure<ServerOptions>(mainConfig);
+                services.AddSingleton(sp => mainHost.Services.GetRequiredService<MetricsRegistry>());
+            })
             .ConfigureWebHostDefaults(web =>
             {
                 web.UseKestrel(options =>
                 {
-                    options.Listen(
-                        IPAddress.Parse(serverOptions.Metrics.ListenAddress),
-                        serverOptions.Metrics.ListenPort);
+                    if (IPAddress.TryParse(serverOptions.Metrics.ListenAddress, out var ip))
+                    {
+                        options.Listen(ip, serverOptions.Metrics.ListenPort);
+                    }
+                    else
+                    {
+                        options.ListenAnyIP(serverOptions.Metrics.ListenPort);
+                    }
 
                     logger.LogInformation(
                         "Kestrel bound to {Address}:{Port}",
@@ -57,7 +74,7 @@ public static class MetricsSidecar
                     {
                         endpoints.MapGet(serverOptions.Metrics.Location, async context =>
                         {
-                            var registry = mainHost.Services.GetRequiredService<MetricsRegistry>();
+                            var registry = context.RequestServices.GetRequiredService<MetricsRegistry>();
                             var text = registry.RenderPrometheus();
 
                             context.Response.ContentType = "text/plain; version=0.0.4";
@@ -73,7 +90,13 @@ public static class MetricsSidecar
             })
             .Build();
 
-        _ = metricsHost.RunAsync();
+        _ = metricsHost.RunAsync(lifetime.ApplicationStopping).ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception is not null)
+            {
+                logger.LogError(t.Exception, "Metrics sidecar encountered an error during execution.");
+            }
+        });
 
         logger.LogInformation("Metrics sidecar started successfully.");
     }

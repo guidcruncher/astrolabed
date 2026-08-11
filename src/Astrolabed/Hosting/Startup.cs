@@ -1,11 +1,14 @@
+using System;
+using System.Collections.Generic;
+
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 
 namespace Astrolabed.Hosting;
 
 public static class Startup
 {
-
-    public static string[] arguments { get; set; } = [];
+    public static string[] Arguments { get; private set; } = Array.Empty<string>();
 
     public static IHost BuildHost(string[] args)
     {
@@ -22,7 +25,7 @@ https://guidcruncher.github.io/astrolabed/
 
 """);
 
-        Startup.arguments = args;
+        Arguments = args;
         var cmd = new ConfigurationBuilder()
               .AddCommandLine(args, new Dictionary<string, string>
               {
@@ -34,7 +37,6 @@ https://guidcruncher.github.io/astrolabed/
               })
               .Build();
 
-        var host = HostBuilderFactory.Build(args, cmd);
-        return host;
+        return HostBuilderFactory.Build(args, cmd);
     }
 }

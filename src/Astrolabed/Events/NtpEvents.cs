@@ -3,7 +3,7 @@ namespace Astrolabed.Events;
 public sealed record NtpSyncEvent(
     DateTimeOffset Timestamp,
     string Server,
-    string ClientName, 
+    string ClientName,
     string ClientIp,
     TimeSpan Offset,
     TimeSpan Delay,
