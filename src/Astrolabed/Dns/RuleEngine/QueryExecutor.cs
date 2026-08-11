@@ -17,14 +17,16 @@ internal sealed partial class QueryExecutor
     private readonly DnsCache _cache;
     private readonly ILogger _logger;
     private readonly ConcurrentDictionary<string, CircuitState> _circuits = new();
+    private readonly TimeSpan _perUpstreamTimeout;
 
-    private static readonly TimeSpan DefaultPerUpstreamTimeout = TimeSpan.FromMilliseconds(1500);
     private static readonly long CircuitBreakerDurationMs = 30_000; // 30 seconds
 
-    public QueryExecutor(DnsCache cache, ILogger logger)
+    public QueryExecutor(DnsCache cache, DnsForwarderOptions options, ILogger logger)
     {
         _cache = cache;
         _logger = logger;
+        int timeoutMs = options.UpstreamTimeoutMs > 0 ? options.UpstreamTimeoutMs : 1500;
+        _perUpstreamTimeout = TimeSpan.FromMilliseconds(timeoutMs);
     }
 
     public async Task<byte[]?> ExecuteAsync(
@@ -49,7 +51,7 @@ internal sealed partial class QueryExecutor
             try
             {
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                timeoutCts.CancelAfter(DefaultPerUpstreamTimeout);
+                timeoutCts.CancelAfter(_perUpstreamTimeout);
 
                 if (!string.IsNullOrEmpty(context.RequestId))
                 {
@@ -152,3 +154,4 @@ internal sealed partial class QueryExecutor
     [LoggerMessage(EventId = 6, Level = LogLevel.Warning, Message = "Request {RequestId}: Skipping unhealthy upstream {Upstream} (Circuit Open)")]
     private static partial void LogCircuitOpen(ILogger logger, string requestId, string upstream);
 }
+

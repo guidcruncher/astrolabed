@@ -50,7 +50,7 @@ public sealed class RuleEngine : IDisposable
         _matcher = new RuleMatcher(_compiler, logger);
         _chainBuilder = new ResolverChainBuilder(options, _compiler.DefaultClient, _compiler.FallbackResolvers, clientFactory, logger);
         _blockBuilder = new BlockResponseBuilder(options);
-        _executor = new QueryExecutor(Cache, logger);
+        _executor = new QueryExecutor(Cache, options, logger);
 
         if (options.Resolvers != null)
         {

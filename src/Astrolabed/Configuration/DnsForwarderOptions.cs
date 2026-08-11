@@ -14,6 +14,8 @@ public sealed class DnsForwarderOptions
 
     public BlockResponseOptions BlockResponse { get; set; } = new();
 
+    public int UpstreamTimeoutMs { get; set; } = 1500;
+
 }
 
 public sealed class ListenOptions

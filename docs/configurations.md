@@ -15,6 +15,7 @@ Comprehensive example for local/dev running.
       "Address": "127.0.0.1",
       "Port": 1053
     },
+    "UpstreamTimeoutMs": 1500,
     "DefaultResolvers": [
       {
         "Name": "Cloudflare",
@@ -123,6 +124,7 @@ Example tuned for running inside Docker (paths reference `/app/blocklists` for m
       "Address": "0.0.0.0",
       "Port": 53
     },
+    "UpstreamTimeoutMs": 1500,
     "DefaultResolvers": [
       {
         "Name": "Cloudflare",

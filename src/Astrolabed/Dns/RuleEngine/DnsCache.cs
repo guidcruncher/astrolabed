@@ -84,6 +84,13 @@ public sealed class DnsCache : IDisposable
             return;
         }
 
+        // Water Torture Guard: Prevent caching single-use NXDOMAIN responses unless they carry a valid positive TTL
+        int rcode = response[3] & 0x0F;
+        if (rcode == 3 && ttl.TotalSeconds < 5)
+        {
+            return;
+        }
+
         if (_entries.Count >= _maxCapacity)
         {
             TriggerEviction();
@@ -117,7 +124,7 @@ public sealed class DnsCache : IDisposable
             try
             {
                 await _evictionSignal.Reader.ReadAsync(ct).ConfigureAwait(false);
-                PerformSweep();
+                PerformSweep(ct);
             }
             catch (OperationCanceledException)
             {
@@ -130,13 +137,15 @@ public sealed class DnsCache : IDisposable
         }
     }
 
-    private void PerformSweep()
+    private void PerformSweep(CancellationToken ct)
     {
         var now = DateTime.UtcNow;
 
         // Pass 1: Remove expired
         foreach (var kvp in _entries)
         {
+            if (ct.IsCancellationRequested) break;
+
             if (kvp.Value.Expires <= now)
             {
                 if (_entries.TryRemove(kvp.Key, out var removed))
@@ -147,12 +156,12 @@ public sealed class DnsCache : IDisposable
         }
 
         // Pass 2: Over capacity reduction
-        if (_entries.Count >= _maxCapacity)
+        if (!ct.IsCancellationRequested && _entries.Count >= _maxCapacity)
         {
             int toRemove = _entries.Count - _maxCapacity + 1;
             foreach (var kvp in _entries)
             {
-                if (toRemove <= 0) break;
+                if (toRemove <= 0 || ct.IsCancellationRequested) break;
 
                 if (_entries.TryRemove(kvp.Key, out var removed))
                 {
