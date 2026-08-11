@@ -1,22 +1,20 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Astrolabed.Dhcp;
 
-public sealed class DhcpLeaseEngine
+public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
 {
     private readonly IDhcpLeaseStore _store;
-    private readonly CidrPoolAllocator _pool;
+    private readonly ICidrPoolAllocator _pool;
     private readonly SemaphoreSlim _allocationLock = new(1, 1);
     private readonly ConcurrentDictionary<IPAddress, byte> _pendingAllocations = new();
 
-    public DhcpLeaseEngine(IDhcpLeaseStore store, CidrPoolAllocator pool)
+    public DhcpLeaseEngine(IDhcpLeaseStore store, ICidrPoolAllocator pool)
     {
-        _store = store;
-        _pool = pool;
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _pool = pool ?? throw new ArgumentNullException(nameof(pool));
     }
 
     public DhcpLease? GetActiveLease(PhysicalAddress mac)
@@ -69,7 +67,7 @@ public sealed class DhcpLeaseEngine
     public async Task<DhcpLease> AllocateWithArpCheckAsync(
         PhysicalAddress mac,
         TimeSpan leaseTime,
-        ArpConflictDetector arp)
+        IArpConflictDetector arp)
     {
         List<IPAddress> candidates = new();
         HashSet<IPAddress> badIps;

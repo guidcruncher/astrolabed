@@ -1,17 +1,14 @@
+using System.Net.Sockets;
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
-
 using Astrolabed.Events;
-
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp;
 
-public sealed class DhcpServerEngine
+public sealed class DhcpServerEngine : IDhcpServerEngine
 {
     private readonly ILogger<DhcpServerEngine> _logger;
     private readonly DhcpOptions _config;
@@ -19,9 +16,9 @@ public sealed class DhcpServerEngine
     private readonly IUdpTransport _transport;
     private readonly IDhcpMetrics _metrics;
 
-    private readonly DhcpLeaseEngine _leaseEngine;
-    private readonly CidrPoolAllocator _pool;
-    private readonly ArpConflictDetector _arp;
+    private readonly IDhcpLeaseEngine _leaseEngine;
+    private readonly ICidrPoolAllocator _pool;
+    private readonly IArpConflictDetector _arp;
 
     private readonly IPAddress _serverId;
     private readonly IPAddress _router;
@@ -36,33 +33,34 @@ public sealed class DhcpServerEngine
 
     public DhcpServerEngine(
         ILogger<DhcpServerEngine> logger,
-        DhcpOptions config,
+        IOptions<DhcpOptions> configOptions,
         IDhcpLeaseStore store,
         IUdpTransport transport,
         IDhcpMetrics metrics,
+        IDhcpLeaseEngine leaseEngine,
+        ICidrPoolAllocator pool,
+        IArpConflictDetector arp,
         bool testMode = false)
     {
-        _logger = logger;
-        _config = config;
-        _store = store;
-        _transport = transport;
-        _metrics = metrics;
-
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _config = configOptions?.Value ?? throw new ArgumentNullException(nameof(configOptions));
+        _store = store ?? throw new ArgumentNullException(nameof(store));
+        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
+        _leaseEngine = leaseEngine ?? throw new ArgumentNullException(nameof(leaseEngine));
+        _pool = pool ?? throw new ArgumentNullException(nameof(pool));
+        _arp = arp ?? throw new ArgumentNullException(nameof(arp));
         _testMode = testMode;
 
-        _pool = new CidrPoolAllocator(config.PoolCidr);
-        _leaseEngine = new DhcpLeaseEngine(store, _pool);
-        _arp = new ArpConflictDetector(IPAddress.Parse(config.ListenAddress));
-
-        _serverId = IPAddress.Parse(config.ServerIdentifier);
-        _router = IPAddress.Parse(config.Router);
-        _dns = IPAddress.Parse(config.DnsServer);
-        _subnetMask = ParseSubnetMaskFromCidr(config.PoolCidr);
+        _serverId = IPAddress.Parse(_config.ServerIdentifier);
+        _router = IPAddress.Parse(_config.Router);
+        _dns = IPAddress.Parse(_config.DnsServer);
+        _subnetMask = ParseSubnetMaskFromCidr(_config.PoolCidr);
         _defaultLeaseTime = TimeSpan.FromHours(1);
         _maxLeaseTime = TimeSpan.FromDays(7);
 
-        if (!string.IsNullOrWhiteSpace(config.NtpServer))
-            _ntp = IPAddress.Parse(config.NtpServer);
+        if (!string.IsNullOrWhiteSpace(_config.NtpServer))
+            _ntp = IPAddress.Parse(_config.NtpServer);
         else
             _ntp = null;
     }

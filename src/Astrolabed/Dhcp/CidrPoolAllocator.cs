@@ -1,13 +1,19 @@
 using System.Net;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp;
 
-public sealed class CidrPoolAllocator
+public sealed class CidrPoolAllocator : ICidrPoolAllocator
 {
     private readonly IPAddress _network;
     private readonly IPAddress _netmask;
     private readonly uint _first;
     private readonly uint _last;
+
+    public CidrPoolAllocator(IOptions<DhcpOptions> options) 
+        : this(options.Value.PoolCidr)
+    {
+    }
 
     public CidrPoolAllocator(string cidr)
     {
