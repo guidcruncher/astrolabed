@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Astrolabed.Dhcp;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -28,10 +29,25 @@ public class ServerEngineTests
             DnsServer = "1.1.1.1"
         };
 
+        var configOptions = Options.Create(opts);
+        var pool = new CidrPoolAllocator(configOptions);
+        var leaseEngine = new DhcpLeaseEngine(store, pool);
+        var arp = new ArpConflictDetector(configOptions);
+
         var logger = NullLogger<DhcpServerEngine>.Instance;
         var fakeUdp = new FakeUdpClient();
         var metrics = new FakeDhcpMetrics();
-        var engine = new DhcpServerEngine(logger, opts, store, fakeUdp, metrics, testMode: true);
+
+        var engine = new DhcpServerEngine(
+            logger,
+            configOptions,
+            store,
+            fakeUdp,
+            metrics,
+            leaseEngine,
+            pool,
+            arp,
+            testMode: true);
 
         var discoverBytes = PacketFactory.DiscoverBytes();
         await fakeUdp.InjectReceive(discoverBytes);

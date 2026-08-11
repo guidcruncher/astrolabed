@@ -1,7 +1,10 @@
 using System;
 
+using Astrolabed.Events;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 namespace Astrolabed.Ntp.Bootstrap;
 
@@ -15,6 +18,8 @@ public static class NtpServerServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(config);
 
         var ntpSection = config.GetSection("Ntp");
+        services.Configure<NtpServerOptions>(ntpSection);
+
         var ntpOptions = ntpSection.Get<NtpServerOptions>() ?? new NtpServerOptions();
 
         if (!ntpOptions.Enabled)
@@ -22,18 +27,21 @@ public static class NtpServerServiceCollectionExtensions
             return services;
         }
 
-        services.Configure<NtpServerOptions>(ntpSection);
-
-        if (ntpOptions.Upstream.Enabled)
+        // Register core time source based on configuration
+        if (ntpOptions.Upstream?.Enabled == true)
         {
-            services.AddSingleton<INtpTimeSource, UpstreamNtpTimeSource>();
+            services.TryAddSingleton<INtpTimeSource, UpstreamNtpTimeSource>();
         }
         else
         {
-            services.AddSingleton<INtpTimeSource, SystemTimeSource>();
+            services.TryAddSingleton<INtpTimeSource, SystemTimeSource>();
         }
 
-        services.AddSingleton<INtpRequestHandler, NtpRequestHandler>();
+        // Register missing dependencies required by NtpServerService
+        services.TryAddSingleton<INtpMetrics, NtpMetrics>();
+        services.TryAddSingleton<INtpRequestHandler, NtpRequestHandler>();
+
+        // Register hosted services
         services.AddHostedService<NtpRuntimeLoader>();
         services.AddHostedService<NtpServerService>();
 

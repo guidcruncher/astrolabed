@@ -1,44 +1,54 @@
 using System.Net;
 
-using Astrolabed;
-using Astrolabed.Dhcp;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp.Bootstrap;
 
 public static class DhcpServiceCollectionExtensions
 {
-    public static IServiceCollection AddDhcpServer(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddDhcpServer(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
-        var server = config.Get<ServerOptions>() ?? new ServerOptions();
-        var dhcp = server.Dhcp;
+        services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
+        return services.AddDhcpServices();
+    }
 
-        if (!dhcp.Enabled)
-            return services;
+    public static IServiceCollection AddDhcpServer(
+        this IServiceCollection services,
+        Action<DhcpOptions> configureOptions)
+    {
+        services.Configure(configureOptions);
+        return services.AddDhcpServices();
+    }
 
-        if (!IPAddress.TryParse(dhcp.ListenAddress, out _))
-        {
-            return services;
-        }
+    private static IServiceCollection AddDhcpServices(this IServiceCollection services)
+    {
+        services.AddSingleton<ICidrPoolAllocator, CidrPoolAllocator>();
+        services.AddSingleton<IArpConflictDetector, ArpConflictDetector>();
+        services.AddSingleton<IDhcpLeaseEngine, DhcpLeaseEngine>();
 
-        services.AddSingleton<DhcpOptions>(dhcp);
+        services.AddSingleton<DhcpServerEngine>();
+        services.AddSingleton<IDhcpServerEngine>(sp => sp.GetRequiredService<DhcpServerEngine>());
 
         services.AddSingleton<IDhcpLeaseStore>(sp =>
-            new JsonDhcpLeaseStore(dhcp.LeaseStorePath));
+        {
+            var options = sp.GetRequiredService<IOptions<DhcpOptions>>().Value;
+            return new JsonDhcpLeaseStore(options.LeaseStorePath);
+        });
 
         services.AddSingleton<IUdpTransport>(sp =>
         {
-            var opts = sp.GetRequiredService<ServerOptions>();
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<UdpTransport>>();
+            var options = sp.GetRequiredService<IOptions<DhcpOptions>>().Value;
+            var logger = sp.GetRequiredService<ILogger<UdpTransport>>();
             return new UdpTransport(
-                IPAddress.Parse(opts.Dhcp.ListenAddress),
-                opts.Dhcp.ListenPort, logger);
+                IPAddress.Parse(options.ListenAddress),
+                options.ListenPort,
+                logger);
         });
-
-        services.AddSingleton<DhcpLeaseEngine>();
-        services.AddSingleton<DhcpServerEngine>();
 
         services.AddHostedService<DhcpHostedService>();
 

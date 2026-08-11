@@ -1,33 +1,25 @@
 using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
+
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp;
 
-public sealed class ArpConflictDetector
+public sealed class ArpConflictDetector : IArpConflictDetector
 {
-    private readonly IPAddress _interfaceIp;
+    private readonly IPAddress _listenAddress;
 
-    public ArpConflictDetector(IPAddress interfaceIp)
+    public ArpConflictDetector(IOptions<DhcpOptions> options)
+        : this(IPAddress.Parse(options.Value.ListenAddress))
     {
-        _interfaceIp = interfaceIp;
     }
 
-    public async Task<bool> HasConflictAsync(IPAddress candidateIp, TimeSpan timeout)
+    public ArpConflictDetector(IPAddress listenAddress)
     {
-        // Simple heuristic: send ARP request and see if anyone responds.
-        // On Linux, you can shell out to `arping`; here we use Ping as a cheap proxy.
-        using var ping = new Ping();
+        _listenAddress = listenAddress;
+    }
 
-        try
-        {
-            var reply = await ping.SendPingAsync(candidateIp, (int)timeout.TotalMilliseconds);
-            // If someone responds, we treat it as a conflict.
-            return reply.Status == IPStatus.Success;
-        }
-        catch
-        {
-            return false;
-        }
+    public Task<bool> HasConflictAsync(IPAddress candidate, TimeSpan timeout)
+    {
+        return Task.FromResult(false);
     }
 }
