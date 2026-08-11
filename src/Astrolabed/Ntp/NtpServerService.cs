@@ -4,7 +4,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Astrolabed.Events;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -91,6 +93,10 @@ public sealed class NtpServerService : BackgroundService
             {
                 break;
             }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error receiving UDP packet");
@@ -104,7 +110,10 @@ public sealed class NtpServerService : BackgroundService
     {
         try
         {
-            var response = await _handler.HandleAsync(result, _udp!, ct).ConfigureAwait(false);
+            var client = _udp;
+            if (client is null) return;
+
+            var response = await _handler.HandleAsync(result, client, ct).ConfigureAwait(false);
 
             _metrics.Sync(new NtpSyncEvent(
                 Timestamp: DateTime.UtcNow,
@@ -113,13 +122,17 @@ public sealed class NtpServerService : BackgroundService
                 Offset: response.Offset,
                 Success: response.Success));
 
-            if (response.Bytes is { Length: > 0 } && _udp is not null)
+            if (response.Bytes is { Length: > 0 })
             {
-                await _udp.SendAsync(
+                await client.SendAsync(
                     response.Bytes,
                     response.Bytes.Length,
                     result.RemoteEndPoint).ConfigureAwait(false);
             }
+        }
+        catch (ObjectDisposedException)
+        {
+            // Socket was closed during application shutdown
         }
         catch (Exception ex)
         {

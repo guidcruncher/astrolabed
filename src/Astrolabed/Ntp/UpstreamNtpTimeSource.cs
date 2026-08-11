@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -133,6 +134,8 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 
         Random.Shared.Shuffle(ipAddresses);
 
+        using var udp = new UdpClient();
+
         foreach (var selectedIp in ipAddresses)
         {
             if (ct.IsCancellationRequested) break;
@@ -141,8 +144,6 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             {
                 using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
-
-                using var udp = new UdpClient();
 
                 var endpoint = new IPEndPoint(selectedIp, 123);
                 var request = new byte[48];

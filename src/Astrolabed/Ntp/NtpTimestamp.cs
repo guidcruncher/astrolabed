@@ -8,6 +8,7 @@ public static class NtpTimestamp
     private static readonly DateTime Era0Epoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private const long TicksPerSecond = TimeSpan.TicksPerSecond;
     private const long SecondsPerEra = 0x100000000L; // 2^32 seconds (~136 years)
+    private const double SecondsPerEraDouble = 4294967296.0; // 2^32
 
     public static void WriteTimestamp(Span<byte> destination, DateTime utc)
     {
@@ -77,7 +78,8 @@ public static class NtpTimestamp
             candidateSeconds += SecondsPerEra;
         }
 
-        long ticks = (candidateSeconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
+        long fractionTicks = (long)Math.Round((double)fraction * TicksPerSecond / SecondsPerEraDouble);
+        long ticks = (candidateSeconds * TicksPerSecond) + fractionTicks;
 
         return Era0Epoch.AddTicks(ticks);
     }
