@@ -6,6 +6,7 @@ IMAGE_NAME ?= guidcruncher/astrolabed
 
 NTP_HOST ?= 127.0.0.1
 NTP_PORT ?= 1123
+DHCP_IFACE ?= eth0
 
 export QUERY_NTP
 define QUERY_NTP
@@ -25,7 +26,27 @@ except Exception as e:
     print(f'Query failed: {e}')
 endef
 
-.PHONY: all build clean run dev test restore publish metrics benchmark format format-json dig docs mkdocs-install ntp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
+export QUERY_DHCP
+define QUERY_DHCP
+from scapy.all import *
+
+ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+ip = IP(src="0.0.0.0", dst="255.255.255.255")
+udp = UDP(sport=68, dport=67)
+bootp = BOOTP(chaddr=RandString(6))
+dhcp = DHCP(options=[("message-type", "discover"), "end"])
+
+packet = ether / ip / udp / bootp / dhcp
+
+reply = srp1(packet, iface="$(DHCP_IFACE)", timeout=5)
+
+if reply:
+    reply.show()
+else:
+    print("No DHCP response received.")
+endef
+
+.PHONY: all build clean run dev test restore publish metrics benchmark format format-json dig docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
 
 all: restore build
 
@@ -35,6 +56,9 @@ dig:
 
 ntp:
 	@python3 -c "$$QUERY_NTP"
+
+dhcp:
+	@sudo python3 -c "$$QUERY_DHCP"
 
 mkdocs-install:
 	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin
