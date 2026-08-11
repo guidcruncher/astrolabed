@@ -284,7 +284,7 @@ public sealed class DhcpServerEngine
             return;
         }
 
-        if (requestedIp is not null && !_pool.Contains(requestedIp))
+        if (requestedIp is not null && !_pool.IsInPool(requestedIp))
         {
             var nak = DhcpPacketCodec.BuildNak(req, _serverId);
             await _transport.SendAsync(nak, nak.Length, DetermineReplyEndpoint(req))
