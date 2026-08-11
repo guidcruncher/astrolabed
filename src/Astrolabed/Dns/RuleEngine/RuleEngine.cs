@@ -1,4 +1,4 @@
-using System.Buffers.Binary;
+using System;
 using System.Collections.Generic;
 using System.Net.Http;
 using System.Threading;
@@ -6,13 +6,12 @@ using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
-using Astrolabed.Utils;
 
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.RuleEngine;
 
-public sealed class RuleEngine
+public sealed class RuleEngine : IDisposable
 {
     private readonly ILogger<RuleEngine> _logger;
     private readonly DnsForwarderOptions _options;
@@ -22,6 +21,7 @@ public sealed class RuleEngine
     private readonly ResolverChainBuilder _chainBuilder;
     private readonly QueryExecutor _executor;
     private readonly BlockResponseBuilder _blockBuilder;
+    private bool _disposed;
 
     private sealed class SimpleHttpClientFactory : IHttpClientFactory
     {
@@ -41,14 +41,16 @@ public sealed class RuleEngine
         _options = options;
         _logger = logger;
 
-        Cache = new DnsCache(options.Caching.MaxEntries,
-             TimeSpan.FromMinutes(options.Caching.CleanupIntervalMinutes));
+        int maxEntries = options.Caching?.MaxEntries > 0 ? options.Caching.MaxEntries : 10000;
+        int cleanupIntervalMinutes = options.Caching?.CleanupIntervalMinutes > 0 ? options.Caching.CleanupIntervalMinutes : 1;
+
+        Cache = new DnsCache(maxEntries, TimeSpan.FromMinutes(cleanupIntervalMinutes));
 
         _compiler = new RuleCompiler(options, logger, clientFactory);
         _matcher = new RuleMatcher(_compiler, logger);
         _chainBuilder = new ResolverChainBuilder(options, _compiler.DefaultClient, _compiler.FallbackResolvers, clientFactory, logger);
         _blockBuilder = new BlockResponseBuilder(options);
-        _executor = new QueryExecutor(Cache, logger);
+        _executor = new QueryExecutor(Cache, options, logger);
 
         if (options.Resolvers != null)
         {
@@ -78,32 +80,21 @@ public sealed class RuleEngine
         _compiler.BuildAutomata();
     }
 
-    public Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, CancellationToken ct)
+    public Task<byte[]> QueryAsync(in DnsRequestContext context, CancellationToken ct)
     {
-        var match = Match(domain, requestId);
-        return QueryAsync(domain, request, requestId, match, ct);
+        var match = Match(context.Domain, context.RequestId);
+        return QueryAsync(context, match, ct);
     }
 
-    public async Task<byte[]> QueryAsync(string domain, byte[] request, string? requestId, RuleResult match, CancellationToken ct)
+    public async Task<byte[]> QueryAsync(DnsRequestContext context, RuleResult match, CancellationToken ct)
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
 
-        ushort qType = (ushort)DnsType.A;
-        ushort qClass = 1;
-
-        var message = DnsMessage.TryParse(request);
-        if (message?.Questions.Count > 0)
-        {
-            qType = (ushort)message.Questions[0].Type;
-            qClass = message.Questions[0].Class;
-        }
-
-        // Pass 'request' buffer here to allow the cache to clone ID, RD flag, and apply 0x20 matching
-        if (Cache.TryGet(domain, request, qType, qClass, out var cached) && cached != null)
+        if (Cache.TryGet(context, out var cached) && cached != null)
         {
             if (isDebug)
             {
-                _logger.LogDebug("Request {RequestId}: Cache HIT for {Domain}", requestId, domain);
+                _logger.LogDebug("Request {RequestId}: Cache HIT for {Domain}", context.RequestId, context.Domain);
             }
 
             return cached;
@@ -111,7 +102,7 @@ public sealed class RuleEngine
 
         if (isDebug)
         {
-            _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", requestId, domain);
+            _logger.LogDebug("Request {RequestId}: Cache MISS for {Domain}", context.RequestId, context.Domain);
         }
 
         if (match.Block)
@@ -119,22 +110,22 @@ public sealed class RuleEngine
             if (isDebug)
             {
                 _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
-                    requestId, domain, _options.BlockResponse.Mode);
+                    context.RequestId, context.Domain, _options.BlockResponse.Mode);
             }
 
-            return _blockBuilder.BuildBlockResponse(request);
+            return _blockBuilder.BuildBlockResponse(context.RawRequest);
         }
 
-        var upstreams = _chainBuilder.BuildChain(match, domain, requestId);
+        var upstreams = _chainBuilder.BuildChain(match, context.Domain, context.RequestId);
 
-        var response = await _executor.ExecuteAsync(upstreams, domain, request, requestId, ct).ConfigureAwait(false);
+        var response = await _executor.ExecuteAsync(upstreams, context, ct).ConfigureAwait(false);
 
         if (response == null)
         {
             _logger.LogError("Request {RequestId}: All upstreams failed for {Domain}, returning SERVFAIL",
-                requestId, domain);
+                context.RequestId, context.Domain);
 
-            return BlockResponseBuilder.BuildServfail(request);
+            return BlockResponseBuilder.BuildServfail(context.RawRequest);
         }
 
         return response;
@@ -149,5 +140,16 @@ public sealed class RuleEngine
     {
         _compiler.AddRules(rules, block);
         _compiler.BuildAutomata();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        Cache.Dispose();
     }
 }

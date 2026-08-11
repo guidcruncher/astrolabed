@@ -55,9 +55,10 @@ public class BlockResponseTests
     [Fact]
     public async Task Block_NXDOMAIN()
     {
-        var engine = CreateEngine("NXDOMAIN");
-        var match = engine.Match("adsdomain.com", "id");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
+        using var engine = CreateEngine("NXDOMAIN");
+        var context = new DnsRequestContext(BuildQuery("adsdomain.com"), "id");
+        var match = engine.Match(context.Domain, context.RequestId);
+        var resp = await engine.QueryAsync(context, match, CancellationToken.None);
 
         Assert.Equal(3, resp[3] & 0x0F);
     }
@@ -65,9 +66,10 @@ public class BlockResponseTests
     [Fact]
     public async Task Block_SERVFAIL()
     {
-        var engine = CreateEngine("SERVFAIL");
-        var match = engine.Match("adsdomain.com", "id");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
+        using var engine = CreateEngine("SERVFAIL");
+        var context = new DnsRequestContext(BuildQuery("adsdomain.com"), "id");
+        var match = engine.Match(context.Domain, context.RequestId);
+        var resp = await engine.QueryAsync(context, match, CancellationToken.None);
 
         Assert.Equal(2, resp[3] & 0x0F);
     }
@@ -75,9 +77,10 @@ public class BlockResponseTests
     [Fact]
     public async Task Block_REFUSED()
     {
-        var engine = CreateEngine("REFUSED");
-        var match = engine.Match("adsdomain.com", "id");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
+        using var engine = CreateEngine("REFUSED");
+        var context = new DnsRequestContext(BuildQuery("adsdomain.com"), "id");
+        var match = engine.Match(context.Domain, context.RequestId);
+        var resp = await engine.QueryAsync(context, match, CancellationToken.None);
 
         Assert.Equal(5, resp[3] & 0x0F);
     }
@@ -85,9 +88,10 @@ public class BlockResponseTests
     [Fact]
     public async Task Block_STATIC_IP()
     {
-        var engine = CreateEngine("STATIC_IP", "10.0.0.5");
-        var match = engine.Match("adsdomain.com", "id");
-        var resp = await engine.QueryAsync("adsdomain.com", BuildQuery("adsdomain.com"), "id", match, CancellationToken.None);
+        using var engine = CreateEngine("STATIC_IP", "10.0.0.5");
+        var context = new DnsRequestContext(BuildQuery("adsdomain.com"), "id");
+        var match = engine.Match(context.Domain, context.RequestId);
+        var resp = await engine.QueryAsync(context, match, CancellationToken.None);
 
         Assert.Contains((byte)10, resp);
         Assert.Contains((byte)0, resp);

@@ -1,8 +1,11 @@
 using System;
 using System.Buffers;
-using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Threading;
+using System.Threading.Channels;
+using System.Threading.Tasks;
+
+using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -11,19 +14,30 @@ public sealed class DnsCache : IDisposable
     private readonly ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
     private readonly int _maxCapacity;
     private readonly Timer _cleanupTimer;
+    private readonly Channel<byte> _evictionSignal = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+    {
+        FullMode = BoundedChannelFullMode.DropOldest
+    });
+    private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
 
     public DnsCache(int maxCapacity = 10000, TimeSpan? cleanupInterval = null)
     {
         _maxCapacity = maxCapacity;
         var interval = cleanupInterval ?? TimeSpan.FromMinutes(1);
-        _cleanupTimer = new Timer(SweepExpiredEntries, null, interval, interval);
+        _cleanupTimer = new Timer(_ => TriggerEviction(), null, interval, interval);
+
+        Task.Factory.StartNew(
+            () => ProcessEvictionsAsync(_cts.Token),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
     }
 
-    public bool TryGet(string domain, byte[] request, ushort type, ushort classCode, out byte[]? response)
+    public bool TryGet(in DnsRequestContext context, out byte[]? response)
     {
         response = null;
-        var key = new DnsCacheKey(domain, type, classCode);
+        var key = new DnsCacheKey(context.Domain, context.QType, context.QClass);
 
         if (_entries.TryGetValue(key, out var entry))
         {
@@ -33,22 +47,21 @@ public sealed class DnsCache : IDisposable
 
                 if (!entry.TryCopyTo(copy))
                 {
-                    return false; // Entry was disposed concurrently
+                    return false;
                 }
 
-                // 1. Patch DNS Transaction ID (Bytes 0-1)
-                copy[0] = request[0];
-                copy[1] = request[1];
+                // 1. Patch DNS Transaction ID
+                copy[0] = context.RawRequest[0];
+                copy[1] = context.RawRequest[1];
 
-                // 2. Patch RD (Recursion Desired) bit (Byte 2, Bit 0)
-                // Preserves all other cached flags (QR, Opcode, AA, TC) but matches client's RD preference
-                copy[2] = (byte)((copy[2] & 0xFE) | (request[2] & 0x01));
+                // 2. Patch RD flag
+                copy[2] = (byte)((copy[2] & 0xFE) | (context.RawRequest[2] & 0x01));
 
                 // 3. Patch Question section for 0x20 case matching
-                int qLen = GetQuestionLength(request);
+                int qLen = GetQuestionLength(context.RawRequest);
                 if (qLen > 0 && 12 + qLen <= copy.Length)
                 {
-                    Buffer.BlockCopy(request, 12, copy, 12, qLen);
+                    Buffer.BlockCopy(context.RawRequest, 12, copy, 12, qLen);
                 }
 
                 response = copy;
@@ -64,16 +77,26 @@ public sealed class DnsCache : IDisposable
         return false;
     }
 
-    public void Store(string domain, ushort type, byte[] response, TimeSpan ttl, ushort classCode = 1)
+    public void Store(in DnsRequestContext context, byte[] response, TimeSpan ttl)
     {
         if (response == null || response.Length < 12 || ttl <= TimeSpan.Zero)
         {
             return;
         }
 
-        EnsureCapacity();
+        // Water Torture Guard: Prevent caching single-use NXDOMAIN responses unless they carry a valid positive TTL
+        int rcode = response[3] & 0x0F;
+        if (rcode == 3 && ttl.TotalSeconds < 5)
+        {
+            return;
+        }
 
-        var key = new DnsCacheKey(domain, type, classCode);
+        if (_entries.Count >= _maxCapacity)
+        {
+            TriggerEviction();
+        }
+
+        var key = new DnsCacheKey(context.Domain, context.QType, context.QClass);
         var expires = DateTime.UtcNow + ttl;
         var buf = ArrayPool<byte>.Shared.Rent(response.Length);
         Buffer.BlockCopy(response, 0, buf, 0, response.Length);
@@ -84,25 +107,61 @@ public sealed class DnsCache : IDisposable
             newEntry,
             (_, existing) =>
             {
-                existing.Dispose(); // Thread-safe disposal of old buffer
+                existing.Dispose();
                 return newEntry;
             });
     }
 
-    private void EnsureCapacity()
+    private void TriggerEviction()
     {
-        if (_entries.Count < _maxCapacity) return;
+        _evictionSignal.Writer.TryWrite(0);
+    }
 
-        // Pass 1: Remove all expired items
-        SweepExpiredEntries(null);
+    private async Task ProcessEvictionsAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            try
+            {
+                await _evictionSignal.Reader.ReadAsync(ct).ConfigureAwait(false);
+                PerformSweep(ct);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch
+            {
+                // Suppress background maintenance errors
+            }
+        }
+    }
 
-        // Pass 2: If still at capacity, drop oldest items
-        if (_entries.Count >= _maxCapacity)
+    private void PerformSweep(CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+
+        // Pass 1: Remove expired
+        foreach (var kvp in _entries)
+        {
+            if (ct.IsCancellationRequested) break;
+
+            if (kvp.Value.Expires <= now)
+            {
+                if (_entries.TryRemove(kvp.Key, out var removed))
+                {
+                    removed.Dispose();
+                }
+            }
+        }
+
+        // Pass 2: Over capacity reduction
+        if (!ct.IsCancellationRequested && _entries.Count >= _maxCapacity)
         {
             int toRemove = _entries.Count - _maxCapacity + 1;
             foreach (var kvp in _entries)
             {
-                if (toRemove <= 0) break;
+                if (toRemove <= 0 || ct.IsCancellationRequested) break;
 
                 if (_entries.TryRemove(kvp.Key, out var removed))
                 {
@@ -113,25 +172,13 @@ public sealed class DnsCache : IDisposable
         }
     }
 
-    private void SweepExpiredEntries(object? state)
-    {
-        var now = DateTime.UtcNow;
-        foreach (var kvp in _entries)
-        {
-            if (kvp.Value.Expires <= now)
-            {
-                if (_entries.TryRemove(kvp.Key, out var removed))
-                {
-                    removed.Dispose();
-                }
-            }
-        }
-    }
-
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+
+        _cts.Cancel();
+        _cts.Dispose();
         _cleanupTimer.Dispose();
 
         foreach (var kvp in _entries)
@@ -152,12 +199,12 @@ public sealed class DnsCache : IDisposable
             byte len = buffer[offset];
             if (len == 0)
             {
-                offset += 5; // +1 for 0-byte, +4 for QTYPE & QCLASS
+                offset += 5;
                 break;
             }
-            if (len >= 192) // Compression pointer
+            if (len >= 192)
             {
-                offset += 6; // +2 for pointer, +4 for QTYPE & QCLASS
+                offset += 6;
                 break;
             }
             offset += len + 1;
@@ -171,7 +218,7 @@ public sealed class DnsCache : IDisposable
         public ushort Type { get; }
         public ushort Class { get; }
 
-        public DnsCacheKey(string domain, ushort type, ushort classCode = 1)
+        public DnsCacheKey(string domain, ushort type, ushort classCode)
         {
             Domain = domain?.ToLowerInvariant() ?? string.Empty;
             Type = type;
@@ -202,7 +249,6 @@ public sealed class DnsCache : IDisposable
 
         public void Dispose()
         {
-            // Ensures the rented buffer is returned exactly once, preventing leaks/double-returns during race conditions
             var buf = Interlocked.Exchange(ref _buffer, null);
             if (buf != null)
             {

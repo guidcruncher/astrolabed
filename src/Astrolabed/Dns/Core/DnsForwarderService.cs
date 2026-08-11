@@ -1,12 +1,10 @@
 using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Astrolabed.Dns.Core;
 using Astrolabed.Events;
 
 using Microsoft.Extensions.Logging;
@@ -17,22 +15,16 @@ public sealed class DnsForwarderService
 {
     private readonly ILogger<DnsForwarderService> _logger;
     private readonly DnsForwarderOptions _options;
-    private readonly IDnsClient _defaultClient;
     private readonly RuleEngine.RuleEngine _ruleEngine;
-    private readonly IDnsMetrics _metrics;
 
     public DnsForwarderService(
         ILogger<DnsForwarderService> logger,
         DnsForwarderOptions options,
-        IDnsClient defaultClient,
-        RuleEngine.RuleEngine ruleEngine,
-        IDnsMetrics metrics)
+        RuleEngine.RuleEngine ruleEngine)
     {
         _logger = logger;
         _options = options;
-        _defaultClient = defaultClient;
         _ruleEngine = ruleEngine;
-        _metrics = metrics;
     }
 
     public async Task<PooledBuffer?> ProcessAsync(
@@ -40,44 +32,33 @@ public sealed class DnsForwarderService
         IPEndPoint remote,
         CancellationToken ct)
     {
+        if (request == null || request.Length < 12)
+        {
+            return null;
+        }
+
         string requestId = _logger.IsEnabled(LogLevel.Debug)
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        if (!string.IsNullOrEmpty(requestId))
-        {
-            _logger.LogDebug(
-                "Request {RequestId}: Received DNS request from {Remote} ({Length} bytes)",
-                requestId,
-                remote,
-                request.Length);
-        }
+        var context = new DnsRequestContext(request, requestId);
 
-        var message = DnsParser.Parse(request);
-        var q = message.Questions.FirstOrDefault();
-
-        if (q is null)
+        if (string.IsNullOrEmpty(context.Domain))
         {
             if (!string.IsNullOrEmpty(requestId))
             {
-                _logger.LogWarning(
-                    "Request {RequestId}: Received DNS message with no questions from {Remote}",
-                    requestId,
-                    remote);
+                _logger.LogWarning("Request {RequestId}: Received DNS message with no questions from {Remote}", requestId, remote);
             }
             return null;
         }
 
-        string domain = q.Name ?? string.Empty;
-
-        var response = await _ruleEngine.QueryAsync(domain, request, requestId, ct);
+        var response = await _ruleEngine.QueryAsync(context, ct);
 
         if (response is null || response.Length == 0)
         {
             return null;
         }
 
-        // Apply TCP Truncation fallback if payload exceeds UDP boundaries
         response = ApplyTruncationIfNeeded(response, request);
 
         return new PooledBuffer(response, response.Length, fromPool: false);
@@ -85,18 +66,13 @@ public sealed class DnsForwarderService
 
     private static byte[] ApplyTruncationIfNeeded(byte[] response, byte[] request)
     {
-        // Check for EDNS0 (Additional Records Count > 0)
-        int arCount = request.Length >= 12 ? BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(10, 2)) : 0;
-
-        // 512 is standard UDP limit. 1232 is the modern DNS Flag Day safe maximum for EDNS0.
-        int maxPayloadSize = arCount > 0 ? 1232 : 512;
+        int maxPayloadSize = ExtractEdns0PayloadSize(request);
 
         if (response.Length <= maxPayloadSize)
         {
             return response;
         }
 
-        // Truncate response: 12 bytes header + Question section
         int offset = 12;
         while (offset < response.Length)
         {
@@ -106,17 +82,66 @@ public sealed class DnsForwarderService
             offset += len + 1;
         }
 
-        if (offset > response.Length) offset = 12; // Fallback for malformed response
+        if (offset > response.Length) offset = 12;
 
         var truncated = new byte[offset];
         Buffer.BlockCopy(response, 0, truncated, 0, offset);
 
-        // Set TC (Truncated) bit - Byte 2, Bit 1 (0x02)
-        truncated[2] |= 0x02;
-
-        // Clear ANCOUNT, NSCOUNT, ARCOUNT to 0 (Bytes 6 through 11)
-        truncated.AsSpan(6, 6).Clear();
+        truncated[2] |= 0x02; // Set TC bit
+        truncated.AsSpan(6, 6).Clear(); // Clear section counts
 
         return truncated;
+    }
+
+    private static int ExtractEdns0PayloadSize(byte[] request)
+    {
+        if (request.Length < 12) return 512;
+
+        ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(4, 2));
+        ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(10, 2));
+
+        if (arCount == 0) return 512;
+
+        int offset = 12;
+
+        // Skip Question Section
+        for (int i = 0; i < qdCount; i++)
+        {
+            offset = SkipDomainName(request, offset);
+            if (offset < 0 || offset + 4 > request.Length) return 512;
+            offset += 4; // Type + Class
+        }
+
+        // Search Additional Section specifically for OPT Record (TYPE 41)
+        for (int i = 0; i < arCount; i++)
+        {
+            offset = SkipDomainName(request, offset);
+            if (offset < 0 || offset + 10 > request.Length) return 512;
+
+            ushort type = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset, 2));
+            ushort udpSize = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset + 2, 2));
+            ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(offset + 8, 2));
+
+            if (type == 41) // OPT record
+            {
+                return Math.Max(512, (int)udpSize);
+            }
+
+            offset += 10 + rdLength;
+        }
+
+        return 512;
+    }
+
+    private static int SkipDomainName(byte[] buffer, int offset)
+    {
+        while (offset < buffer.Length)
+        {
+            byte len = buffer[offset];
+            if (len == 0) return offset + 1;
+            if ((len & 0xC0) == 0xC0) return offset + 2; // Pointer
+            offset += len + 1;
+        }
+        return -1;
     }
 }
