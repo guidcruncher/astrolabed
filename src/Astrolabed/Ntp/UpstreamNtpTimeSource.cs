@@ -131,7 +131,6 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             return;
         }
 
-        // Shuffle address array for random load distribution
         Random.Shared.Shuffle(ipAddresses);
 
         foreach (var selectedIp in ipAddresses)
@@ -140,22 +139,25 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 
             try
             {
+                using var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                timeoutCts.CancelAfter(TimeSpan.FromSeconds(3));
+
                 using var udp = new UdpClient();
-                udp.Client.ReceiveTimeout = 3000;
 
                 var endpoint = new IPEndPoint(selectedIp, 123);
                 var request = new byte[48];
                 request[0] = 0b_00100011; // LI=0, VN=4, Mode=3 (client)
 
                 var t1 = DateTime.UtcNow;
+                NtpTimestamp.WriteTimestamp(request.AsSpan(40, 8), t1);
+
                 await udp.SendAsync(request, request.Length, endpoint).ConfigureAwait(false);
 
-                var response = await udp.ReceiveAsync(ct).ConfigureAwait(false);
+                var response = await udp.ReceiveAsync(timeoutCts.Token).ConfigureAwait(false);
                 var t4 = DateTime.UtcNow;
 
                 ParseResponse(response.Buffer, t1, t4, selectedIp);
 
-                // Exit on successful response from any address
                 return;
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)

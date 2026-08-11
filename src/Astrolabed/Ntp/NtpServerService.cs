@@ -75,6 +75,11 @@ public sealed class NtpServerService : BackgroundService
                 _ = task.ContinueWith(
                     t =>
                     {
+                        if (t.IsFaulted && t.Exception is not null)
+                        {
+                            _logger.LogError(t.Exception, "Unhandled exception processing NTP request task.");
+                        }
+
                         _activeTasks.TryRemove(t, out _);
                         _concurrencySemaphore.Release();
                     },

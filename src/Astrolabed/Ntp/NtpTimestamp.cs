@@ -59,16 +59,25 @@ public static class NtpTimestamp
         uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
         uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
 
-        long eraOffsetSeconds = 0;
+        // Dynamic Era pivoting relative to current system time
+        long currentSystemSeconds = (DateTime.UtcNow - Era0Epoch).Ticks / TicksPerSecond;
+        long currentEra = currentSystemSeconds / SecondsPerEra;
+        long eraBaseSeconds = currentEra * SecondsPerEra;
 
-        // If high bit is 0, timestamp is in Era 1 (post-Feb 2036).
-        if ((seconds & 0x80000000) == 0)
+        long candidateSeconds = eraBaseSeconds + seconds;
+
+        // Pivot boundary check: if candidate is > 68 years in the future, it belongs to previous era
+        if (candidateSeconds - currentSystemSeconds > (SecondsPerEra / 2))
         {
-            eraOffsetSeconds = SecondsPerEra;
+            candidateSeconds -= SecondsPerEra;
+        }
+        // If candidate is > 68 years in the past, it belongs to next era
+        else if (currentSystemSeconds - candidateSeconds > (SecondsPerEra / 2))
+        {
+            candidateSeconds += SecondsPerEra;
         }
 
-        long totalSeconds = seconds + eraOffsetSeconds;
-        long ticks = (totalSeconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
+        long ticks = (candidateSeconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
 
         return Era0Epoch.AddTicks(ticks);
     }
