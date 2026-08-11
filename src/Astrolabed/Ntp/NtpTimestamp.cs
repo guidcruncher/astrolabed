@@ -1,7 +1,11 @@
 using System;
 using System.Buffers.Binary;
+using System.Net;
+using System.Net.Sockets;
+using System.Security.Cryptography;
 
 namespace Astrolabed.Ntp;
+
 
 public static class NtpTimestamp
 {
@@ -29,7 +33,6 @@ public static class NtpTimestamp
         var seconds = (uint)(ticks / TicksPerSecond);
         var remainingTicks = ticks % TicksPerSecond;
 
-        // Scale 100-ns ticks (10,000,000/s) across 32-bit fraction range (2^32)
         var fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
 
         BinaryPrimitives.WriteUInt32BigEndian(destination[..4], seconds);

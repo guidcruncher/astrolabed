@@ -47,8 +47,8 @@ public sealed class NtpPacket
         NtpPacket request,
         DateTime receiveUtc,
         DateTime transmitUtc,
-        int stratum,
-        uint referenceId)
+        int stratum = 2,
+        uint referenceId = 0x4C4F434C)
     {
         Span<byte> rxBuf = stackalloc byte[8];
         Span<byte> txBuf = stackalloc byte[8];
@@ -94,4 +94,3 @@ public sealed class NtpPacket
         return buffer;
     }
 }
-

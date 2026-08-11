@@ -16,6 +16,7 @@ public sealed class SystemTimeSource : INtpTimeSource
             UtcNow: now,
             Offset: TimeSpan.Zero,
             Stratum: 1,
-            ReferenceUtc: now));
+            ReferenceUtc: now,
+            ReferenceId: 0x47505300)); // "GPS\0"
     }
 }

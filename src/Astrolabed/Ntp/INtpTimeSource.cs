@@ -13,12 +13,3 @@ public interface INtpTimeSource
     Task<NtpTimeResult> GetTimeAsync(CancellationToken ct);
 }
 
-/// <summary>
-/// Result from an NTP time source.
-/// </summary>
-public sealed record NtpTimeResult(
-    DateTime UtcNow,
-    TimeSpan Offset,
-    int Stratum,
-    DateTime ReferenceUtc);
-

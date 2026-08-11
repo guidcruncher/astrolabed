@@ -3,8 +3,6 @@ using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Astrolabed.Ntp;
 
@@ -22,14 +20,12 @@ public static class NtpReferenceId
 
         if (upstreamIp.AddressFamily == AddressFamily.InterNetwork)
         {
-            // IPv4: Write raw 4 octets in Big-Endian format
             byte[] bytes = upstreamIp.GetAddressBytes();
             return BinaryPrimitives.ReadUInt32BigEndian(bytes);
         }
 
         if (upstreamIp.AddressFamily == AddressFamily.InterNetworkV6)
         {
-            // IPv6: First 4 bytes of MD5 hash per RFC 5905
             byte[] bytes = upstreamIp.GetAddressBytes();
             byte[] hash = MD5.HashData(bytes);
             return BinaryPrimitives.ReadUInt32BigEndian(hash.AsSpan(0, 4));
