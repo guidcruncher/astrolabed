@@ -34,6 +34,13 @@ build:
 format:
 	dotnet format ${SOLUTION}
 
+format-json:
+	@for f in ./src/Astrolabed/*.json; do \
+		[ -f "$$f" ] || continue; \
+		echo "$$f"; \
+		tmp=$$(mktemp) && { jq '.' "$$f" > "$$tmp" && mv "$$tmp" "$$f" || rm -f "$$tmp"; }; \
+	done
+
 run:
 	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
 
