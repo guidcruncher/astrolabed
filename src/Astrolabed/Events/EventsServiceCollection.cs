@@ -1,7 +1,5 @@
-using Astrolabed;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
-using Astrolabed.Events;
 using Astrolabed.Exporters;
 using Astrolabed.Metrics;
 using Astrolabed.Ntp;
@@ -18,28 +16,29 @@ public static class EventsServiceCollection
         var server = config.Get<ServerOptions>() ?? new ServerOptions();
         var metrics = server.Metrics;
 
-        // Make MetricOptions injectable
+        // Inject options
         services.AddSingleton<MetricOptions>(metrics);
 
-        // Shared EventBus
+        // Core EventBus and Dispatcher Host
         services.AddSingleton<EventBus>();
+        services.AddHostedService<EventDispatcherService>();
 
-        // Metrics registry (required for Prometheus)
+        // Metrics registry
         services.AddSingleton<MetricsRegistry>();
 
-        // Metrics facades (DNS/DHCP/NTP → registry)
+        // Metric facades
         services.AddSingleton<IDhcpMetrics, DhcpMetrics>();
         services.AddSingleton<IDnsMetrics, DnsMetrics>();
         services.AddSingleton<INtpMetrics, NtpMetrics>();
 
-        // Exporters
+        // Exporters configuration
         if (!metrics.Enabled)
         {
             services.AddHostedService<NullEventExporter>();
             return services;
         }
 
-        switch (metrics.StorageEngine)
+        switch (metrics.StorageEngine?.ToLowerInvariant())
         {
             case "json":
                 services.AddHostedService<JsonEventExporter>();

@@ -116,8 +116,10 @@ public sealed class NtpServerService : BackgroundService
             var response = await _handler.HandleAsync(result, client, ct).ConfigureAwait(false);
 
             _metrics.Sync(new NtpSyncEvent(
+		Server: "",
+		Delay: TimeSpan.FromMinutes(0),
                 Timestamp: DateTime.UtcNow,
-                ClientIp: result.RemoteEndPoint.Address,
+                ClientIp: result.RemoteEndPoint.Address.ToString(),
                 ClientName: null,
                 Offset: response.Offset,
                 Success: response.Success));
@@ -142,8 +144,10 @@ public sealed class NtpServerService : BackgroundService
                 result.RemoteEndPoint);
 
             _metrics.Sync(new NtpSyncEvent(
+		Server: "",
+		Delay: TimeSpan.FromMinutes(0),
                 Timestamp: DateTime.UtcNow,
-                ClientIp: result.RemoteEndPoint.Address,
+                ClientIp: result.RemoteEndPoint.Address.ToString(),
                 ClientName: null,
                 Offset: TimeSpan.Zero,
                 Success: false));

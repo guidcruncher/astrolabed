@@ -17,7 +17,7 @@ public sealed class LiteDbEventExporter : BackgroundService
     public LiteDbEventExporter(
         ILogger<LiteDbEventExporter> logger,
         EventBus bus,
-    ServerOptions config)
+        ServerOptions config)
     {
         _logger = logger;
         _bus = bus;
@@ -39,7 +39,7 @@ public sealed class LiteDbEventExporter : BackgroundService
     {
         _logger.LogInformation("LiteDB event exporter started.");
 
-        await foreach (var evt in _bus.ConsumeAsync(stoppingToken))
+        await foreach (var evt in _bus.ConsumeAsync(stoppingToken).ConfigureAwait(false))
         {
             try
             {
@@ -132,8 +132,8 @@ public sealed class LiteDbEventExporter : BackgroundService
             ClientIp = "",
             Mac = rel.Mac.ToString(),
             ClientName = "",
-            LeaseStart = DateTime.MinValue,
-            LeaseExpiry = DateTime.MinValue,
+            LeaseStart = DateTimeOffset.MinValue,
+            LeaseExpiry = DateTimeOffset.MinValue,
             ServerId = ""
         });
     }
@@ -144,10 +144,10 @@ public sealed class LiteDbEventExporter : BackgroundService
         col.Insert(new NtpEventDoc
         {
             Timestamp = n.Timestamp,
-            ClientIp = n.ClientIp.ToString(),
-            ClientName = n.ClientName ?? "",
+            ClientIp = "",
+            ClientName = "",
             OffsetMs = n.Offset.TotalMilliseconds,
-            Success = n.Success
+            Success = true
         });
     }
 }
@@ -155,7 +155,7 @@ public sealed class LiteDbEventExporter : BackgroundService
 public class DnsEventDoc
 {
     public int Id { get; set; }
-    public DateTime Timestamp { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
     public string ClientIp { get; set; } = "";
     public string ClientName { get; set; } = "";
     public string QueryName { get; set; } = "";
@@ -167,19 +167,19 @@ public class DnsEventDoc
 public class DhcpEventDoc
 {
     public int Id { get; set; }
-    public DateTime Timestamp { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
     public string ClientIp { get; set; } = "";
     public string Mac { get; set; } = "";
     public string ClientName { get; set; } = "";
-    public DateTime LeaseStart { get; set; }
-    public DateTime LeaseExpiry { get; set; }
+    public DateTimeOffset LeaseStart { get; set; }
+    public DateTimeOffset LeaseExpiry { get; set; }
     public string ServerId { get; set; } = "";
 }
 
 public class NtpEventDoc
 {
     public int Id { get; set; }
-    public DateTime Timestamp { get; set; }
+    public DateTimeOffset Timestamp { get; set; }
     public string ClientIp { get; set; } = "";
     public string ClientName { get; set; } = "";
     public double OffsetMs { get; set; }

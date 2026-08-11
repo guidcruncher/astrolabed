@@ -1,3 +1,3 @@
 namespace Astrolabed.Events;
 
-public abstract record EventRecord(DateTime Timestamp);
+public abstract record EventRecord(DateTimeOffset Timestamp);

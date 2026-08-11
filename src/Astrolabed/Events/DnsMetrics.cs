@@ -20,4 +20,10 @@ public sealed class DnsMetrics : IDnsMetrics
 
     public void RecordDnsLatency(double seconds)
         => _bus.Publish(new DnsLatencyEvent(seconds));
+
+    public void RecordUpstreamLatency(DnsUpstreamLatencyEvent evt)
+        => _bus.Publish(evt);
+
+    public void RecordRequestResponseLog(DnsRequestResponseLogEvent evt)
+        => _bus.Publish(evt);
 }
