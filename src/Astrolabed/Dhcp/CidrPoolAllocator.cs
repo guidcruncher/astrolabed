@@ -1,4 +1,5 @@
 using System.Net;
+
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp;
@@ -10,7 +11,7 @@ public sealed class CidrPoolAllocator : ICidrPoolAllocator
     private readonly uint _first;
     private readonly uint _last;
 
-    public CidrPoolAllocator(IOptions<DhcpOptions> options) 
+    public CidrPoolAllocator(IOptions<DhcpOptions> options)
         : this(options.Value.PoolCidr)
     {
     }

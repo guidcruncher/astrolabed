@@ -1,8 +1,10 @@
-using System.Net.Sockets;
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
+
 using Astrolabed.Events;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
