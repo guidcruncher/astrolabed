@@ -1,9 +1,9 @@
 using System;
-using System.Buffers.Binary;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -11,9 +11,6 @@ namespace Astrolabed.Ntp;
 
 public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
 {
-    private static readonly DateTime NtpEpoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-    private const long TicksPerSecond = TimeSpan.TicksPerSecond;
-
     private readonly ILogger<UpstreamNtpTimeSource> _logger;
     private readonly UpstreamNtpOptions _options;
 
@@ -110,7 +107,6 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         udp.Client.ReceiveTimeout = 3000;
 
         var ipAddresses = await System.Net.Dns.GetHostAddressesAsync(server, ct).ConfigureAwait(false);
-
         if (ipAddresses.Length == 0)
         {
             _logger.LogWarning("DNS lookup returned no IP addresses for server {Server}", server);
@@ -118,7 +114,9 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         }
 
         var endpoint = new IPEndPoint(ipAddresses[0], 123);
-        var request = BuildClientRequest();
+        var request = new byte[48];
+        request[0] = 0b_00100011; // LI=0, VN=4, Mode=3 (client)
+
         var t1 = DateTime.UtcNow;
 
         await udp.SendAsync(request, request.Length, endpoint).ConfigureAwait(false);
@@ -129,13 +127,6 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         ParseResponse(response.Buffer, t1, t4);
     }
 
-    private static byte[] BuildClientRequest()
-    {
-        var buffer = new byte[48];
-        buffer[0] = 0b_00100011; // LI=0, VN=4, Mode=3 (client)
-        return buffer;
-    }
-
     private void ParseResponse(byte[] buffer, DateTime t1, DateTime t4)
     {
         if (buffer.Length < 48)
@@ -143,8 +134,8 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
             throw new ArgumentException("Upstream NTP response must be at least 48 bytes.");
         }
 
-        var t2 = ReadTimestamp(buffer.AsSpan(32, 8));
-        var t3 = ReadTimestamp(buffer.AsSpan(40, 8));
+        var t2 = NtpTimestamp.ReadTimestamp(buffer.AsSpan(32, 8));
+        var t3 = NtpTimestamp.ReadTimestamp(buffer.AsSpan(40, 8));
 
         var offset = ((t2 - t1) + (t3 - t4)) / 2;
         var delay = (t4 - t1) - (t3 - t2);
@@ -159,15 +150,6 @@ public sealed class UpstreamNtpTimeSource : INtpTimeSource, IAsyncDisposable
         _logger.LogDebug(
             "Upstream NTP sync: offset={Offset} delay={Delay} stratum={Stratum}",
             offset, delay, buffer[1]);
-    }
-
-    private static DateTime ReadTimestamp(ReadOnlySpan<byte> buffer)
-    {
-        uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
-        uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
-
-        long ticks = (seconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
-        return NtpEpoch.AddTicks(ticks);
     }
 
     public async ValueTask DisposeAsync()

@@ -1,6 +1,5 @@
-using Astrolabed;
-using Astrolabed.Ntp;
-using Astrolabed.Ntp.Bootstrap;
+using System;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -35,11 +34,9 @@ public static class NtpServerServiceCollectionExtensions
         }
 
         services.AddSingleton<INtpRequestHandler, NtpRequestHandler>();
-
         services.AddHostedService<NtpRuntimeLoader>();
         services.AddHostedService<NtpServerService>();
 
         return services;
     }
 }
-

@@ -5,8 +5,8 @@ namespace Astrolabed.Ntp;
 
 public static class NtpTimestamp
 {
-    private static readonly DateTime Epoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-    private const long TicksPerSecond = TimeSpan.TicksPerSecond; // 10,000,000
+    private static readonly DateTime NtpEpoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+    private const long TicksPerSecond = TimeSpan.TicksPerSecond;
 
     public static void WriteTimestamp(Span<byte> destination, DateTime utc)
     {
@@ -20,8 +20,7 @@ public static class NtpTimestamp
             utc = utc.ToUniversalTime();
         }
 
-        var ticks = (utc - Epoch).Ticks;
-
+        var ticks = (utc - NtpEpoch).Ticks;
         if (ticks < 0)
         {
             ticks = 0;
@@ -30,7 +29,7 @@ public static class NtpTimestamp
         var seconds = (uint)(ticks / TicksPerSecond);
         var remainingTicks = ticks % TicksPerSecond;
 
-        // Scale 100-ns ticks (10,000,000 per sec) across 32-bit fraction range (2^32)
+        // Scale 100-ns ticks (10,000,000/s) across 32-bit fraction range (2^32)
         var fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
 
         BinaryPrimitives.WriteUInt32BigEndian(destination[..4], seconds);
@@ -43,9 +42,23 @@ public static class NtpTimestamp
 
         if (offset < 0 || offset + 8 > buffer.Length)
         {
-            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside the bounds of the buffer.");
+            throw new ArgumentOutOfRangeException(nameof(offset), "Offset is outside buffer bounds.");
         }
 
         WriteTimestamp(buffer.AsSpan(offset, 8), utc);
+    }
+
+    public static DateTime ReadTimestamp(ReadOnlySpan<byte> buffer)
+    {
+        if (buffer.Length < 8)
+        {
+            throw new ArgumentException("Buffer must be at least 8 bytes.", nameof(buffer));
+        }
+
+        uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
+        uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
+
+        long ticks = (seconds * TicksPerSecond) + ((fraction * TicksPerSecond) >> 32);
+        return NtpEpoch.AddTicks(ticks);
     }
 }

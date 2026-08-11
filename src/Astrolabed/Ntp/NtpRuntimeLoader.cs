@@ -1,8 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Astrolabed;
-using Astrolabed.Ntp;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -37,12 +36,9 @@ public sealed class NtpRuntimeLoader : IHostedService
 
         _logger.LogInformation("NTP Runtime Loader starting.");
 
-        // Warm-up reference timestamp
         var result = await _timeSource.GetTimeAsync(cancellationToken);
-        var refUtc = result.ReferenceUtc;
-        _logger.LogInformation("Reference time initialized: {RefUtc}", refUtc);
+        _logger.LogInformation("Reference time initialized: {RefUtc}", result.ReferenceUtc);
 
-        // Load upstream sync or GPS discipline
         await Task.Delay(10, cancellationToken);
 
         _logger.LogInformation("NTP Runtime Loader completed.");

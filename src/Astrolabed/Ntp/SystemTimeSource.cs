@@ -15,7 +15,7 @@ public sealed class SystemTimeSource : INtpTimeSource
         return Task.FromResult(new NtpTimeResult(
             UtcNow: now,
             Offset: TimeSpan.Zero,
-            Stratum: 1, // Stratum 1 = Primary reference (local system clock)
+            Stratum: 1,
             ReferenceUtc: now));
     }
 }

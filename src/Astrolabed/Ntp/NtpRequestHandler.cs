@@ -2,6 +2,7 @@ using System;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Ntp;
@@ -33,14 +34,19 @@ public sealed class NtpRequestHandler : INtpRequestHandler
             var upstream = await _timeSource.GetTimeAsync(ct);
             var transmitUtc = DateTime.UtcNow;
 
-            // Apply upstream offset correction if present
             var correctedReceiveUtc = receiveUtc + upstream.Offset;
             var correctedTransmitUtc = transmitUtc + upstream.Offset;
+
+            // Retrieve ReferenceId from the time source if available, or default to LOCL (0x4C4F434C)
+            uint referenceId = (_timeSource as SlewedUpstreamNtpTimeSource)?.GetCurrentReferenceId()
+                ?? 0x4C4F434C;
 
             var responsePacket = NtpPacket.BuildResponse(
                 request,
                 correctedReceiveUtc,
-                correctedTransmitUtc);
+                correctedTransmitUtc,
+                upstream.Stratum,
+                referenceId);
 
             var bytes = responsePacket.ToBytes();
 
@@ -51,7 +57,8 @@ public sealed class NtpRequestHandler : INtpRequestHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
+            _logger.LogError(
+                ex,
                 "Failed to process NTP request from {Remote}",
                 result.RemoteEndPoint);
 
@@ -61,4 +68,5 @@ public sealed class NtpRequestHandler : INtpRequestHandler
                 Bytes: Array.Empty<byte>());
         }
     }
+
 }

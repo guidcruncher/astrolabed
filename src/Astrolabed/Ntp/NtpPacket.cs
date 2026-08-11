@@ -5,14 +5,12 @@ namespace Astrolabed.Ntp;
 
 public sealed class NtpPacket
 {
-    private const uint NtpEpochOffsetSeconds = 2_208_988_800U;
-
     public byte LeapIndicator { get; set; }
     public byte Version { get; set; } = 4;
-    public byte Mode { get; set; } = 4; // 4 = Server
-    public byte Stratum { get; set; } = 2; // 2 = Secondary reference
+    public byte Mode { get; set; } = 4;
+    public byte Stratum { get; set; } = 2;
     public byte Poll { get; set; } = 6;
-    public sbyte Precision { get; set; } = -20; // ~1 microsecond precision
+    public sbyte Precision { get; set; } = -20;
 
     public uint ReferenceId { get; set; }
 
@@ -45,26 +43,34 @@ public sealed class NtpPacket
         };
     }
 
-    public static NtpPacket BuildResponse(NtpPacket request, DateTime receiveUtc, DateTime transmitUtc)
+    public static NtpPacket BuildResponse(
+        NtpPacket request,
+        DateTime receiveUtc,
+        DateTime transmitUtc,
+        int stratum,
+        uint referenceId)
     {
-        var (rxSec, rxFrac) = ToNtpTimestamp(receiveUtc);
-        var (txSec, txFrac) = ToNtpTimestamp(transmitUtc);
+        Span<byte> rxBuf = stackalloc byte[8];
+        Span<byte> txBuf = stackalloc byte[8];
+
+        NtpTimestamp.WriteTimestamp(rxBuf, receiveUtc);
+        NtpTimestamp.WriteTimestamp(txBuf, transmitUtc);
 
         return new NtpPacket
         {
             LeapIndicator = 0,
             Version = request.Version > 0 ? request.Version : (byte)4,
             Mode = 4,
-            Stratum = 2,
+            Stratum = (byte)stratum,
             Poll = request.Poll,
             Precision = -20,
-            ReferenceId = 0x4C4F434C, // "LOCL" (Uncalibrated local clock)
+            ReferenceId = referenceId,
             OriginateTimestampSeconds = request.TransmitTimestampSeconds,
             OriginateTimestampFraction = request.TransmitTimestampFraction,
-            ReceiveTimestampSeconds = rxSec,
-            ReceiveTimestampFraction = rxFrac,
-            TransmitTimestampSeconds = txSec,
-            TransmitTimestampFraction = txFrac
+            ReceiveTimestampSeconds = BinaryPrimitives.ReadUInt32BigEndian(rxBuf[..4]),
+            ReceiveTimestampFraction = BinaryPrimitives.ReadUInt32BigEndian(rxBuf.Slice(4, 4)),
+            TransmitTimestampSeconds = BinaryPrimitives.ReadUInt32BigEndian(txBuf[..4]),
+            TransmitTimestampFraction = BinaryPrimitives.ReadUInt32BigEndian(txBuf.Slice(4, 4))
         };
     }
 
@@ -86,15 +92,6 @@ public sealed class NtpPacket
         BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(44, 4), TransmitTimestampFraction);
 
         return buffer;
-    }
-
-    private static (uint Seconds, uint Fraction) ToNtpTimestamp(DateTime utcDateTime)
-    {
-        var totalSeconds = (utcDateTime - DateTime.UnixEpoch).TotalSeconds + NtpEpochOffsetSeconds;
-        var seconds = (uint)Math.Floor(totalSeconds);
-        var fraction = (uint)((totalSeconds - seconds) * 4_294_967_296.0);
-
-        return (seconds, fraction);
     }
 }
 
