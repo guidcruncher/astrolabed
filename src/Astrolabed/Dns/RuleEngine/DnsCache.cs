@@ -20,7 +20,7 @@ public sealed class DnsCache : IDisposable
         _cleanupTimer = new Timer(SweepExpiredEntries, null, interval, interval);
     }
 
-    public bool TryGet(string domain, ushort type, ushort transactionId, out byte[]? response, ushort classCode = 1)
+    public bool TryGet(string domain, byte[] request, ushort type, ushort classCode, out byte[]? response)
     {
         response = null;
         var key = new DnsCacheKey(domain, type, classCode);
@@ -30,10 +30,26 @@ public sealed class DnsCache : IDisposable
             if (DateTime.UtcNow < entry.Expires)
             {
                 var copy = GC.AllocateUninitializedArray<byte>(entry.Length);
-                Buffer.BlockCopy(entry.Buffer, 0, copy, 0, entry.Length);
 
-                // Patch DNS Transaction ID (first 2 bytes)
-                BinaryPrimitives.WriteUInt16BigEndian(copy.AsSpan(0, 2), transactionId);
+                if (!entry.TryCopyTo(copy))
+                {
+                    return false; // Entry was disposed concurrently
+                }
+
+                // 1. Patch DNS Transaction ID (Bytes 0-1)
+                copy[0] = request[0];
+                copy[1] = request[1];
+
+                // 2. Patch RD (Recursion Desired) bit (Byte 2, Bit 0)
+                // Preserves all other cached flags (QR, Opcode, AA, TC) but matches client's RD preference
+                copy[2] = (byte)((copy[2] & 0xFE) | (request[2] & 0x01));
+
+                // 3. Patch Question section for 0x20 case matching
+                int qLen = GetQuestionLength(request);
+                if (qLen > 0 && 12 + qLen <= copy.Length)
+                {
+                    Buffer.BlockCopy(request, 12, copy, 12, qLen);
+                }
 
                 response = copy;
                 return true;
@@ -41,7 +57,7 @@ public sealed class DnsCache : IDisposable
 
             if (_entries.TryRemove(key, out var removed))
             {
-                ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                removed.Dispose();
             }
         }
 
@@ -68,35 +84,29 @@ public sealed class DnsCache : IDisposable
             newEntry,
             (_, existing) =>
             {
-                ArrayPool<byte>.Shared.Return(existing.Buffer, clearArray: true);
+                existing.Dispose(); // Thread-safe disposal of old buffer
                 return newEntry;
             });
     }
 
     private void EnsureCapacity()
     {
-        if (_entries.Count < _maxCapacity)
-        {
-            return;
-        }
+        if (_entries.Count < _maxCapacity) return;
 
         // Pass 1: Remove all expired items
         SweepExpiredEntries(null);
 
-        // Pass 2: If still at capacity, drop oldest items until room is made
+        // Pass 2: If still at capacity, drop oldest items
         if (_entries.Count >= _maxCapacity)
         {
             int toRemove = _entries.Count - _maxCapacity + 1;
             foreach (var kvp in _entries)
             {
-                if (toRemove <= 0)
-                {
-                    break;
-                }
+                if (toRemove <= 0) break;
 
                 if (_entries.TryRemove(kvp.Key, out var removed))
                 {
-                    ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                    removed.Dispose();
                     toRemove--;
                 }
             }
@@ -112,7 +122,7 @@ public sealed class DnsCache : IDisposable
             {
                 if (_entries.TryRemove(kvp.Key, out var removed))
                 {
-                    ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                    removed.Dispose();
                 }
             }
         }
@@ -120,11 +130,7 @@ public sealed class DnsCache : IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         _disposed = true;
         _cleanupTimer.Dispose();
 
@@ -132,9 +138,31 @@ public sealed class DnsCache : IDisposable
         {
             if (_entries.TryRemove(kvp.Key, out var removed))
             {
-                ArrayPool<byte>.Shared.Return(removed.Buffer, clearArray: true);
+                removed.Dispose();
             }
         }
+    }
+
+    private static int GetQuestionLength(byte[] buffer)
+    {
+        if (buffer.Length < 12) return 0;
+        int offset = 12;
+        while (offset < buffer.Length)
+        {
+            byte len = buffer[offset];
+            if (len == 0)
+            {
+                offset += 5; // +1 for 0-byte, +4 for QTYPE & QCLASS
+                break;
+            }
+            if (len >= 192) // Compression pointer
+            {
+                offset += 6; // +2 for pointer, +4 for QTYPE & QCLASS
+                break;
+            }
+            offset += len + 1;
+        }
+        return offset <= buffer.Length ? offset - 12 : 0;
     }
 
     public readonly record struct DnsCacheKey
@@ -151,17 +179,35 @@ public sealed class DnsCache : IDisposable
         }
     }
 
-    private sealed class CacheEntry
+    private sealed class CacheEntry : IDisposable
     {
-        public byte[] Buffer { get; }
+        private byte[]? _buffer;
         public int Length { get; }
         public DateTime Expires { get; }
 
         public CacheEntry(byte[] buffer, int length, DateTime expires)
         {
-            Buffer = buffer;
+            _buffer = buffer;
             Length = length;
             Expires = expires;
+        }
+
+        public bool TryCopyTo(byte[] destination)
+        {
+            var buf = Volatile.Read(ref _buffer);
+            if (buf == null) return false;
+            Buffer.BlockCopy(buf, 0, destination, 0, Length);
+            return true;
+        }
+
+        public void Dispose()
+        {
+            // Ensures the rented buffer is returned exactly once, preventing leaks/double-returns during race conditions
+            var buf = Interlocked.Exchange(ref _buffer, null);
+            if (buf != null)
+            {
+                ArrayPool<byte>.Shared.Return(buf, clearArray: true);
+            }
         }
     }
 }

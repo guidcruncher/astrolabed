@@ -1,5 +1,8 @@
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
@@ -35,11 +38,11 @@ public sealed class RuleEngine
 
     public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger, IDnsClientFactory clientFactory)
     {
-        Cache = new DnsCache(options.Caching.MaxEntries,
-    TimeSpan.FromMinutes(options.Caching.CleanupIntervalMinutes));
-
         _options = options;
         _logger = logger;
+
+        Cache = new DnsCache(options.Caching.MaxEntries,
+             TimeSpan.FromMinutes(options.Caching.CleanupIntervalMinutes));
 
         _compiler = new RuleCompiler(options, logger, clientFactory);
         _matcher = new RuleMatcher(_compiler, logger);
@@ -85,7 +88,6 @@ public sealed class RuleEngine
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
 
-        ushort transactionId = request.Length >= 2 ? BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(0, 2)) : (ushort)0;
         ushort qType = (ushort)DnsType.A;
         ushort qClass = 1;
 
@@ -96,7 +98,8 @@ public sealed class RuleEngine
             qClass = message.Questions[0].Class;
         }
 
-        if (Cache.TryGet(domain, qType, transactionId, out var cached, qClass) && cached != null)
+        // Pass 'request' buffer here to allow the cache to clone ID, RD flag, and apply 0x20 matching
+        if (Cache.TryGet(domain, request, qType, qClass, out var cached) && cached != null)
         {
             if (isDebug)
             {
