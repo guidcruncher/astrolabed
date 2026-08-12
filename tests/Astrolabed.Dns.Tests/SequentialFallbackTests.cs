@@ -68,15 +68,13 @@ public sealed class SequentialFallbackTests
     }
 
     [Fact]
-    public void Match_Should_Return_All_DefaultResolvers()
+    public void Match_Should_Return_default_DefaultResolver()
     {
         var engine = CreateEngine();
 
         var result = engine.Match("anything.test", "-");
 
-        Assert.Equal(3, result.Upstreams.Count);
-        Assert.Equal("primary", result.Upstreams[0].Name);
-        Assert.Equal("secondary", result.Upstreams[1].Name);
-        Assert.Equal("tertiary", result.Upstreams[2].Name);
+        Assert.Single(result.Upstreams);
+        Assert.Equal("default", result.Upstreams[0].Name);
     }
 }
