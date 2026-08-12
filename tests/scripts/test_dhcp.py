@@ -8,12 +8,21 @@ def mac_to_bytes(mac_str: str) -> bytes:
     return bytes.fromhex(mac_str.replace(":", "").replace("-", ""))
 
 
+def parse_ip_list(data: bytes) -> list[str]:
+    ips = []
+    for i in range(0, len(data), 4):
+        if i + 4 <= len(data):
+            ips.append(socket.inet_ntoa(data[i : i + 4]))
+    return ips
+
+
 def build_dhcp_packet(
     mac_bytes: bytes,
     xid: int,
     msg_type: int,
     requested_ip: str | None = None,
     server_ip: str | None = None,
+    hostname: str | None = None,
     broadcast: bool = False,
 ) -> bytes:
     # Header: op=1 (BOOTREQUEST), htype=1 (Ethernet), hlen=6, hops=0
@@ -39,6 +48,12 @@ def build_dhcp_packet(
     # Option 53: DHCP Message Type (1 = Discover, 3 = Request)
     options.extend([53, 1, msg_type])
 
+    if hostname:
+        # Option 12: Host Name
+        hostname_bytes = hostname.encode("utf-8")
+        options.extend([12, len(hostname_bytes)])
+        options.extend(hostname_bytes)
+
     if requested_ip:
         # Option 50: Requested IP Address
         options.extend([50, 4])
@@ -49,8 +64,8 @@ def build_dhcp_packet(
         options.extend([54, 4])
         options.extend(socket.inet_aton(server_ip))
 
-    # Option 55: Parameter Request List (Subnet Mask, Router, DNS)
-    options.extend([55, 3, 1, 3, 6])
+    # Option 55: Parameter Request List (1: Subnet Mask, 3: Router, 6: DNS, 42: NTP)
+    options.extend([55, 4, 1, 3, 6, 42])
 
     # Option 255: End
     options.append(255)
@@ -92,11 +107,21 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
     if 54 in parsed_options and len(parsed_options[54]) == 4:
         server_id = socket.inet_ntoa(parsed_options[54])
 
+    dns_servers = []
+    if 6 in parsed_options:
+        dns_servers = parse_ip_list(parsed_options[6])
+
+    ntp_servers = []
+    if 42 in parsed_options:
+        ntp_servers = parse_ip_list(parsed_options[42])
+
     return {
         "xid": xid,
         "yiaddr": yiaddr,
         "msg_type": msg_type,
         "server_id": server_id,
+        "dns_servers": dns_servers,
+        "ntp_servers": ntp_servers,
     }
 
 
@@ -105,6 +130,7 @@ def test_dhcp_server(
     target_port: int = 1067,
     client_port: int = 68,
     mac_address: str = "00:11:22:33:44:55",
+    hostname: str = "test-client",
     timeout: float = 5.0,
 ) -> dict:
     mac_bytes = mac_to_bytes(mac_address)
@@ -120,15 +146,21 @@ def test_dhcp_server(
     use_broadcast = target_host == "255.255.255.255"
 
     try:
-        # Step 1: Send targeted DHCPDISCOVER
+        # Step 1: Send targeted DHCPDISCOVER with Hostname
         discover_packet = build_dhcp_packet(
-            mac_bytes, xid, msg_type=1, broadcast=use_broadcast
+            mac_bytes,
+            xid,
+            msg_type=1,
+            hostname=hostname,
+            broadcast=use_broadcast,
         )
         sock.sendto(discover_packet, (target_host, target_port))
 
         # Step 2: Receive DHCPOFFER
         offered_ip = None
         server_id = None
+        offer_dns = []
+        offer_ntp = []
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -139,18 +171,21 @@ def test_dhcp_server(
             if parsed and parsed["xid"] == xid and parsed["msg_type"] == 2:
                 offered_ip = parsed["yiaddr"]
                 server_id = parsed["server_id"] or target_host
+                offer_dns = parsed["dns_servers"]
+                offer_ntp = parsed["ntp_servers"]
                 break
 
         if not offered_ip:
             raise TimeoutError(f"No DHCPOFFER received from {target_host}:{target_port}")
 
-        # Step 3: Send targeted DHCPREQUEST
+        # Step 3: Send targeted DHCPREQUEST with Hostname
         request_packet = build_dhcp_packet(
             mac_bytes,
             xid,
             msg_type=3,
             requested_ip=offered_ip,
             server_ip=server_id,
+            hostname=hostname,
             broadcast=use_broadcast,
         )
         sock.sendto(request_packet, (target_host, target_port))
@@ -167,6 +202,8 @@ def test_dhcp_server(
                         "status": "SUCCESS",
                         "leased_ip": parsed["yiaddr"],
                         "server_id": server_id,
+                        "dns_servers": parsed["dns_servers"] or offer_dns,
+                        "ntp_servers": parsed["ntp_servers"] or offer_ntp,
                         "response_from_host": addr[0],
                         "response_from_port": addr[1],
                     }
@@ -183,6 +220,7 @@ if __name__ == "__main__":
     TARGET_SERVER_IP = "127.0.0.1"
     TARGET_SERVER_PORT = 1067
     CLIENT_LISTEN_PORT = 68
+    CLIENT_HOSTNAME = "test-client"
 
     print(f"Testing DHCP server at {TARGET_SERVER_IP}:{TARGET_SERVER_PORT}...")
     try:
@@ -191,11 +229,14 @@ if __name__ == "__main__":
             target_port=TARGET_SERVER_PORT,
             client_port=CLIENT_LISTEN_PORT,
             mac_address="00:11:22:33:44:55",
+            hostname=CLIENT_HOSTNAME,
             timeout=5.0,
         )
         print("DHCP Lease Test Successful:")
         print(f"  Leased IP:          {result['leased_ip']}")
         print(f"  Server ID Option:   {result['server_id']}")
+        print(f"  DNS Servers:        {', '.join(result['dns_servers']) if result['dns_servers'] else 'None returned'}")
+        print(f"  NTP Servers:        {', '.join(result['ntp_servers']) if result['ntp_servers'] else 'None returned'}")
         print(f"  Responded From:     {result['response_from_host']}:{result['response_from_port']}")
     except Exception as err:
         print(f"DHCP Lease Test Failed: {err}")
