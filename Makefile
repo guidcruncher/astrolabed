@@ -16,7 +16,7 @@ ntp:
 	@python3 ./tests/scripts/test_ntp.py
 
 dhcp:
-	@sudo python3 ./tests/scripts/test_dhcp.py
+	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68
 
 mkdocs-install:
 	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin

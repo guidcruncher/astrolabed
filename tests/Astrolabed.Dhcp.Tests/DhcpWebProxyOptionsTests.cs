@@ -44,10 +44,10 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
-            null,
-        webproxy,
+            subnetMask,
             TimeSpan.FromHours(1),
-            subnetMask);
+            null,
+            webproxy);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
@@ -70,10 +70,8 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
-            null,
-        null,
-            TimeSpan.FromHours(1),
-            subnetMask);
+            subnetMask,
+            TimeSpan.FromHours(1));
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
@@ -96,10 +94,10 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
-            null,
-        webproxy,
+            subnetMask,
             TimeSpan.FromHours(1),
-            subnetMask);
+            null,
+            webproxy);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
@@ -124,9 +122,9 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
+            subnetMask,
             null,
-        webproxy,
-            subnetMask);
+            webproxy);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
@@ -149,8 +147,6 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
-            null,
-        null,
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);

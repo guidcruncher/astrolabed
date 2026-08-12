@@ -1,7 +1,37 @@
+import argparse
 import os
 import socket
 import struct
 import time
+
+DHCP_MSG_TYPES = {
+    1: "DHCPDISCOVER",
+    2: "DHCPOFFER",
+    3: "DHCPREQUEST",
+    4: "DHCPDECLINE",
+    5: "DHCPACK",
+    6: "DHCPNAK",
+    7: "DHCPRELEASE",
+    8: "DHCPINFORM",
+}
+
+DHCP_OPTION_DEFINITIONS = {
+    1: ("Subnet Mask", "ip"),
+    3: ("Router", "ip_list"),
+    6: ("Domain Name Server", "ip_list"),
+    12: ("Host Name", "string"),
+    15: ("Domain Name", "string"),
+    28: ("Broadcast Address", "ip"),
+    42: ("NTP Server", "ip_list"),
+    50: ("Requested IP Address", "ip"),
+    51: ("IP Address Lease Time", "uint32_seconds"),
+    53: ("DHCP Message Type", "msg_type"),
+    54: ("DHCP Server Identifier", "ip"),
+    58: ("Renewal Time (T1)", "uint32_seconds"),
+    59: ("Rebinding Time (T2)", "uint32_seconds"),
+    81: ("Client FQDN", "string"),
+    252: ("WPAD URL", "string"),
+}
 
 
 def mac_to_bytes(mac_str: str) -> bytes:
@@ -16,6 +46,36 @@ def parse_ip_list(data: bytes) -> list[str]:
     return ips
 
 
+def decode_option(opt_code: int, data: bytes) -> tuple[str, str]:
+    name, opt_type = DHCP_OPTION_DEFINITIONS.get(
+        opt_code, ("Unknown Option", "unknown")
+    )
+
+    if opt_type == "ip" and len(data) == 4:
+        return name, socket.inet_ntoa(data)
+    elif opt_type == "ip_list":
+        ips = parse_ip_list(data)
+        if ips:
+            return name, ", ".join(ips)
+    elif opt_type == "string":
+        return name, data.decode("utf-8", errors="ignore").rstrip("\x00")
+    elif opt_type == "uint32_seconds" and len(data) == 4:
+        sec = struct.unpack("!I", data)[0]
+        return name, f"{sec} seconds"
+    elif opt_type == "msg_type" and len(data) == 1:
+        val = data[0]
+        return name, DHCP_MSG_TYPES.get(val, f"Unknown ({val})")
+
+    try:
+        text = data.decode("ascii")
+        if text.isprintable() and len(text) > 0:
+            return name, text
+    except Exception:
+        pass
+
+    return name, f"0x{data.hex()}"
+
+
 def build_dhcp_packet(
     mac_bytes: bytes,
     xid: int,
@@ -25,49 +85,31 @@ def build_dhcp_packet(
     hostname: str | None = None,
     broadcast: bool = False,
 ) -> bytes:
-    # Header: op=1 (BOOTREQUEST), htype=1 (Ethernet), hlen=6, hops=0
-    # Set flags to 0x8000 for broadcast, or 0x0000 for unicast response
     flags = 0x8000 if broadcast else 0x0000
     header = struct.pack("!BBBBIHH", 1, 1, 6, 0, xid, 0, flags)
-
-    # ciaddr, yiaddr, siaddr, giaddr (4 bytes each)
     ips = b"\x00" * 16
-
-    # Client hardware address (16 bytes total including padding)
     chaddr = mac_bytes.ljust(16, b"\x00")
-
-    # sname (64 bytes) and file (128 bytes)
     zero_fields = b"\x00" * 192
-
-    # Magic Cookie (4 bytes)
     magic_cookie = b"\x63\x82\x53\x63"
 
-    # DHCP Options
     options = bytearray()
-
-    # Option 53: DHCP Message Type (1 = Discover, 3 = Request)
     options.extend([53, 1, msg_type])
 
     if hostname:
-        # Option 12: Host Name
         hostname_bytes = hostname.encode("utf-8")
         options.extend([12, len(hostname_bytes)])
         options.extend(hostname_bytes)
 
     if requested_ip:
-        # Option 50: Requested IP Address
         options.extend([50, 4])
         options.extend(socket.inet_aton(requested_ip))
 
     if server_ip:
-        # Option 54: Server Identifier
         options.extend([54, 4])
         options.extend(socket.inet_aton(server_ip))
 
-    # Option 55: Parameter Request List (1: Subnet Mask, 3: Router, 6: DNS, 42: NTP, 252: WPAD)
+    # Parameter Request List: Subnet Mask, Router, DNS, NTP, WPAD
     options.extend([55, 5, 1, 3, 6, 42, 252])
-
-    # Option 255: End
     options.append(255)
 
     return header + ips + chaddr + zero_fields + magic_cookie + bytes(options)
@@ -80,53 +122,42 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
     xid = struct.unpack("!I", data[4:8])[0]
     yiaddr = socket.inet_ntoa(data[16:20])
 
-    # Parse options starting after 240-byte standard BOOTP header
-    options = data[240:]
-    parsed_options = {}
+    options_data = data[240:]
+    parsed_options = []
     i = 0
 
-    while i < len(options):
-        opt = options[i]
-        if opt == 255:  # End option
+    while i < len(options_data):
+        opt = options_data[i]
+        if opt == 255:
             break
-        if opt == 0:  # Pad option
+        if opt == 0:
             i += 1
             continue
 
-        if i + 1 >= len(options):
+        if i + 1 >= len(options_data):
             break
 
-        length = options[i + 1]
-        val = options[i + 2 : i + 2 + length]
-        parsed_options[opt] = val
+        length = options_data[i + 1]
+        val = bytes(options_data[i + 2 : i + 2 + length])
+        name, formatted_val = decode_option(opt, val)
+
+        parsed_options.append(
+            {
+                "code": opt,
+                "name": name,
+                "value": formatted_val,
+                "raw": val,
+            }
+        )
         i += 2 + length
 
-    msg_type = parsed_options.get(53, b"\x00")[0]
-
-    server_id = None
-    if 54 in parsed_options and len(parsed_options[54]) == 4:
-        server_id = socket.inet_ntoa(parsed_options[54])
-
-    dns_servers = []
-    if 6 in parsed_options:
-        dns_servers = parse_ip_list(parsed_options[6])
-
-    ntp_servers = []
-    if 42 in parsed_options:
-        ntp_servers = parse_ip_list(parsed_options[42])
-
-    wpad_url = None
-    if 252 in parsed_options:
-        wpad_url = parsed_options[252].decode("utf-8", errors="ignore").rstrip("\x00")
+    msg_type = next((o["raw"][0] for o in parsed_options if o["code"] == 53 and o["raw"]), 0)
 
     return {
         "xid": xid,
         "yiaddr": yiaddr,
         "msg_type": msg_type,
-        "server_id": server_id,
-        "dns_servers": dns_servers,
-        "ntp_servers": ntp_servers,
-        "wpad_url": wpad_url,
+        "options": parsed_options,
     }
 
 
@@ -151,7 +182,6 @@ def test_dhcp_server(
     use_broadcast = target_host == "255.255.255.255"
 
     try:
-        # Step 1: Send targeted DHCPDISCOVER with Hostname
         discover_packet = build_dhcp_packet(
             mac_bytes,
             xid,
@@ -161,31 +191,25 @@ def test_dhcp_server(
         )
         sock.sendto(discover_packet, (target_host, target_port))
 
-        # Step 2: Receive DHCPOFFER
         offered_ip = None
         server_id = None
-        offer_dns = []
-        offer_ntp = []
-        offer_wpad = None
+        offer_options = []
         start_time = time.time()
 
         while time.time() - start_time < timeout:
             data, addr = sock.recvfrom(1024)
             parsed = parse_dhcp_packet(data)
 
-            # msg_type 2 = DHCPOFFER
             if parsed and parsed["xid"] == xid and parsed["msg_type"] == 2:
                 offered_ip = parsed["yiaddr"]
-                server_id = parsed["server_id"] or target_host
-                offer_dns = parsed["dns_servers"]
-                offer_ntp = parsed["ntp_servers"]
-                offer_wpad = parsed["wpad_url"]
+                offer_options = parsed["options"]
+                server_id_opt = next((o["value"] for o in offer_options if o["code"] == 54), None)
+                server_id = server_id_opt or target_host
                 break
 
         if not offered_ip:
             raise TimeoutError(f"No DHCPOFFER received from {target_host}:{target_port}")
 
-        # Step 3: Send targeted DHCPREQUEST with Hostname
         request_packet = build_dhcp_packet(
             mac_bytes,
             xid,
@@ -197,25 +221,22 @@ def test_dhcp_server(
         )
         sock.sendto(request_packet, (target_host, target_port))
 
-        # Step 4: Receive DHCPACK
         start_time = time.time()
         while time.time() - start_time < timeout:
             data, addr = sock.recvfrom(1024)
             parsed = parse_dhcp_packet(data)
 
             if parsed and parsed["xid"] == xid:
-                if parsed["msg_type"] == 5:  # DHCPACK
+                if parsed["msg_type"] == 5:
                     return {
                         "status": "SUCCESS",
                         "leased_ip": parsed["yiaddr"],
-                        "server_id": server_id,
-                        "dns_servers": parsed["dns_servers"] or offer_dns,
-                        "ntp_servers": parsed["ntp_servers"] or offer_ntp,
-                        "wpad_url": parsed["wpad_url"] or offer_wpad,
+                        "offer_options": offer_options,
+                        "ack_options": parsed["options"],
                         "response_from_host": addr[0],
                         "response_from_port": addr[1],
                     }
-                elif parsed["msg_type"] == 6:  # DHCPNAK
+                elif parsed["msg_type"] == 6:
                     raise RuntimeError(f"Received DHCPNAK from {addr[0]}:{addr[1]}")
 
         raise TimeoutError(f"No DHCPACK received from {target_host}:{target_port}")
@@ -225,27 +246,51 @@ def test_dhcp_server(
 
 
 if __name__ == "__main__":
-    TARGET_SERVER_IP = "127.0.0.1"
-    TARGET_SERVER_PORT = 1067
-    CLIENT_LISTEN_PORT = 68
-    CLIENT_HOSTNAME = "test-client"
+    parser = argparse.ArgumentParser(description="Test DHCP server lease workflow.")
+    parser.add_argument(
+        "--server-port", "-p", type=int, default=1067, help="Target DHCP server port (default: 1067)"
+    )
+    parser.add_argument(
+        "--client-port", "-c", type=int, default=68, help="Client UDP listening port (default: 68)"
+    )
+    parser.add_argument(
+        "--server-ip", "-s", type=str, default="127.0.0.1", help="Target DHCP server IP (default: 127.0.0.1)"
+    )
+    parser.add_argument(
+        "--mac", "-m", type=str, default="00:11:22:33:44:55", help="Client MAC address (default: 00:11:22:33:44:55)"
+    )
+    parser.add_argument(
+        "--hostname", "-H", type=str, default="test-client", help="Client hostname (default: test-client)"
+    )
+    parser.add_argument(
+        "--timeout", "-t", type=float, default=5.0, help="Response timeout in seconds (default: 5.0)"
+    )
 
-    print(f"Testing DHCP server at {TARGET_SERVER_IP}:{TARGET_SERVER_PORT}...")
+    args = parser.parse_args()
+
+    print(
+        f"Testing DHCP server at {args.server_ip}:{args.server_port} (Listening on client port {args.client_port})..."
+    )
     try:
         result = test_dhcp_server(
-            target_host=TARGET_SERVER_IP,
-            target_port=TARGET_SERVER_PORT,
-            client_port=CLIENT_LISTEN_PORT,
-            mac_address="00:11:22:33:44:55",
-            hostname=CLIENT_HOSTNAME,
-            timeout=5.0,
+            target_host=args.server_ip,
+            target_port=args.server_port,
+            client_port=args.client_port,
+            mac_address=args.mac,
+            hostname=args.hostname,
+            timeout=args.timeout,
         )
-        print("DHCP Lease Test Successful:")
-        print(f"  Leased IP:          {result['leased_ip']}")
-        print(f"  Server ID Option:   {result['server_id']}")
-        print(f"  DNS Servers:        {', '.join(result['dns_servers']) if result['dns_servers'] else 'None returned'}")
-        print(f"  NTP Servers:        {', '.join(result['ntp_servers']) if result['ntp_servers'] else 'None returned'}")
-        print(f"  WPAD URL (Opt 252): {result['wpad_url'] if result['wpad_url'] else 'None returned'}")
-        print(f"  Responded From:     {result['response_from_host']}:{result['response_from_port']}")
+        print("\nDHCP Lease Test Successful:")
+        print(f"  Leased IP:      {result['leased_ip']}")
+        print(f"  Responded From: {result['response_from_host']}:{result['response_from_port']}")
+
+        print("\nDHCPOFFER Options:")
+        for opt in result["offer_options"]:
+            print(f"  Option {opt['code']:<3} ({opt['name']}): {opt['value']}")
+
+        print("\nDHCPACK Options:")
+        for opt in result["ack_options"]:
+            print(f"  Option {opt['code']:<3} ({opt['name']}): {opt['value']}")
+
     except Exception as err:
-        print(f"DHCP Lease Test Failed: {err}")
+        print(f"\nDHCP Lease Test Failed: {err}")

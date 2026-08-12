@@ -20,10 +20,8 @@ public class DhcpOptionsEdgeCasesTests
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("1.1.1.1"),
-            null,
-        null,
-            TimeSpan.FromHours(1),
-            IPAddress.Parse("255.255.255.248"));
+            IPAddress.Parse("255.255.255.248"),
+            TimeSpan.FromHours(1));
 
         var list = offer.ToList();
         int endIndex = list.LastIndexOf(255);
