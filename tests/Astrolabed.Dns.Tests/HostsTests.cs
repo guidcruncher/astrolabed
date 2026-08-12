@@ -1,13 +1,14 @@
+using System.Collections.Generic;
+using System.IO;
 using System.Net;
-using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
-using Astrolabed.Dns;
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.RuleEngine;
 
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -19,7 +20,6 @@ public class HostsTests
     {
         var opts = new DnsForwarderOptions
         {
-            // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =
             {
                 new UpstreamResolverOptions
@@ -31,12 +31,19 @@ public class HostsTests
                     Block = false
                 }
             },
-
             Resolvers = new List<UpstreamResolverOptions>()
         };
 
-        var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
-        return new RuleEngine.RuleEngine(opts, logger);
+        var wrappedOpts = Options.Create(opts);
+        var logger = NullLogger<RuleEngine.RuleEngine>.Instance;
+        var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
+
+        return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory);
+    }
+
+    private static HostsFileSource CreateHostsSource(params string[] files)
+    {
+        return new HostsFileSource(files, NullLogger<HostsFileSource>.Instance);
     }
 
     [Fact]
@@ -52,7 +59,7 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        var source = new HostsFileSource(new[] { tmp });
+        var source = CreateHostsSource(tmp);
 
         await engine.AddHostsAsync(source);
 
@@ -76,7 +83,7 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        var source = new HostsFileSource(new[] { tmp });
+        var source = CreateHostsSource(tmp);
 
         await engine.AddHostsAsync(source);
 
@@ -97,7 +104,7 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        await engine.AddHostsAsync(new HostsFileSource(new[] { tmp }));
+        await engine.AddHostsAsync(CreateHostsSource(tmp));
 
         var result = engine.Match("foo.example.com", "suffix");
 
@@ -116,7 +123,7 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        await engine.AddHostsAsync(new HostsFileSource(new[] { tmp }));
+        await engine.AddHostsAsync(CreateHostsSource(tmp));
 
         var result = engine.Match("example.domain", "prefix");
 
@@ -135,7 +142,7 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        await engine.AddHostsAsync(new HostsFileSource(new[] { tmp }));
+        await engine.AddHostsAsync(CreateHostsSource(tmp));
 
         var result = engine.Match("superadsdomain.com", "substring");
 
@@ -156,18 +163,22 @@ public class HostsTests
         });
 
         var engine = CreateEngine();
-        await engine.AddHostsAsync(new HostsFileSource(new[] { tmp }));
+        await engine.AddHostsAsync(CreateHostsSource(tmp));
 
-        // foo.example.com matches all three, but longest core = "example.com"
         var result = engine.Match("foo.example.com", "specificity");
 
         var client = Assert.IsType<StaticDnsClient>(result.Upstreams[0].Client);
         Assert.Equal("hosts", result.Upstreams[0].Name);
 
-        // Extract IP from StaticDnsClient via reflection
         var ipField = typeof(StaticDnsClient).GetField("_ip", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var ip = (IPAddress)ipField!.GetValue(client)!;
 
         Assert.Equal(IPAddress.Parse("10.0.0.10"), ip);
     }
+
+    private class HttpClientFactoryStub : System.Net.Http.IHttpClientFactory
+    {
+        public System.Net.Http.HttpClient CreateClient(string name) => new System.Net.Http.HttpClient();
+    }
 }
+

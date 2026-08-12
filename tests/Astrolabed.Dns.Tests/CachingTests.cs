@@ -1,5 +1,8 @@
-using Astrolabed.Dns;
+using System;
+using System.Net;
+
 using Astrolabed.Dns.Core;
+using Astrolabed.Dns.RuleEngine;
 
 using Xunit;
 
@@ -7,53 +10,29 @@ namespace Astrolabed.Dns.Tests;
 
 public class CachingTests
 {
-    private sealed class FakeDnsClient : IDnsClient
-    {
-        public int Calls = 0;
-        public byte[] Response;
-
-        public FakeDnsClient(byte[] response)
-        {
-            Response = response;
-        }
-
-        public Task<byte[]> QueryAsync(byte[] request, CancellationToken ct)
-        {
-            Calls++;
-            return Task.FromResult(Response);
-        }
-    }
-
     [Fact]
-    public async Task Cache_Returns_Cached_Response()
+    public void Cache_Returns_Cached_Response()
     {
-        // Fake DNS response with TTL = 60
         byte[] response =
         {
-            0x12, 0x34, 0x81, 0x80, // header
-            0x00, 0x01, 0x00, 0x01, // QD=1 AN=1
-            0x00, 0x00, 0x00, 0x00, // NS AR
+            0x12, 0x34, 0x81, 0x80,
+            0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00,
 
-            // Question: example.com
             0x07, (byte)'e',(byte)'x',(byte)'a',(byte)'m',(byte)'p',(byte)'l',(byte)'e',
             0x03, (byte)'c',(byte)'o',(byte)'m',
             0x00,
             0x00, 0x01,
             0x00, 0x01,
 
-            // Answer: TTL = 60
-            0xC0, 0x0C,             // pointer to name
-            0x00, 0x01,             // type A
-            0x00, 0x01,             // class IN
-            0x00, 0x00, 0x00, 0x3C, // TTL = 60
-            0x00, 0x04,             // RDLENGTH
-            0x7F, 0x00, 0x00, 0x01  // 127.0.0.1
+            0xC0, 0x0C,
+            0x00, 0x01,
+            0x00, 0x01,
+            0x00, 0x00, 0x00, 0x3C,
+            0x00, 0x04,
+            0x7F, 0x00, 0x00, 0x01
         };
 
-        var fake = new FakeDnsClient(response);
-        var cache = new CachingDnsClientDecorator(fake, 100);
-
-        // Minimal query for example.com
         byte[] query =
         {
             0x12, 0x34, 0x01, 0x00,
@@ -67,9 +46,15 @@ public class CachingTests
             0x00, 0x01
         };
 
-        await cache.QueryAsync(query, default);
-        await cache.QueryAsync(query, default);
+        var cache = new DnsCache(100);
+        var context = new DnsRequestContext(query, "req-123");
 
-        Assert.Equal(1, fake.Calls); // second call was cached
+        cache.Store(context, response, TimeSpan.FromMinutes(1));
+
+        bool hit = cache.TryGet(context, out var cachedResponse);
+
+        Assert.True(hit);
+        Assert.NotNull(cachedResponse);
+        Assert.Equal(response.Length, cachedResponse.Length);
     }
 }

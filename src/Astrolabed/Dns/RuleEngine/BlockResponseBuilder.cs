@@ -95,13 +95,13 @@ internal sealed class BlockResponseBuilder
 
         string qType = msg.QuestionType;
 
-        if ((string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1") && 
+        if ((string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1") &&
             ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
         {
             return BuildIpAnswer(rawRequest, msg, ip);
         }
 
-        if ((string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28") && 
+        if ((string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28") &&
             ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
         {
             return BuildIpAnswer(rawRequest, msg, ip);

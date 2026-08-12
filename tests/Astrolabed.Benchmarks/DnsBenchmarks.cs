@@ -1,5 +1,6 @@
 using System;
 using System.Net;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
@@ -15,6 +16,11 @@ namespace Astrolabed.Dns.Benchmarks;
 
 public class DnsBenchmarks
 {
+    private class HttpClientFactoryStub : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new HttpClient();
+    }
+
     private byte[] _query = Array.Empty<byte>();
     private Astrolabed.Dns.RuleEngine.RuleEngine _engine = default!;
     private DnsCache _cache = default!;
@@ -97,10 +103,12 @@ public class DnsBenchmarks
 
         var wrappedOptions = Options.Create(options);
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
-        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger);
+        var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
+
+        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory);
 
         _cache = new DnsCache(options.Caching.MaxEntries);
-        _context = new DnsRequestContext("example.com", 1, 1, IPAddress.Loopback, _query);
+        _context = new DnsRequestContext(_query, "benchmark-id");
 
         // Warm cache
         _cache.Store(_context, _sampleResponse, TimeSpan.FromMinutes(5));

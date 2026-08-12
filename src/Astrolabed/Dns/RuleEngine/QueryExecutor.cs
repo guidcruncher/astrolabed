@@ -21,7 +21,7 @@ internal sealed class QueryExecutor
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(options);
-        
+
         _cache = cache;
         _options = options.Value;
         _logger = logger;
