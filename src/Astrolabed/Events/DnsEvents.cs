@@ -1,0 +1,28 @@
+using System.Net;
+
+namespace Astrolabed.Events;
+
+public sealed record DnsQueryEvent(
+    DateTimeOffset Timestamp,
+    IPAddress ClientIp,
+    string? ClientName,
+    string QueryName,
+    string QueryType)
+    : EventRecord(Timestamp);
+
+public sealed record DnsResponseEvent(
+    DateTimeOffset Timestamp,
+    IPAddress ClientIp,
+    string? ClientName,
+    string QueryName,
+    string QueryType,
+    string Status,
+    IPAddress? ResponseIp)
+    : EventRecord(Timestamp);
+
+public sealed record DnsUpstreamLatencyEvent(
+    DateTimeOffset Timestamp,
+    string UpstreamName,
+    TimeSpan Duration,
+    bool Success)
+    : EventRecord(Timestamp);
