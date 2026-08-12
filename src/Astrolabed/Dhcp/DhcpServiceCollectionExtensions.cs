@@ -50,6 +50,7 @@ public static class DhcpServiceCollectionExtensions
                 logger);
         });
 
+	services.AddSingleton<IDhcpRuntimeLoader, DhcpRuntimeLoader>();
         services.AddHostedService<DhcpHostedService>();
 
         return services;
