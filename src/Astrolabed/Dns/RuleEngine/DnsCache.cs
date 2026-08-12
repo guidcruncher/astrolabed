@@ -98,7 +98,7 @@ public sealed class DnsCache : IDisposable
 
         var key = new DnsCacheKey(context.Domain, context.QType, context.QClass);
         var expires = DateTime.UtcNow + ttl;
-        
+
         var buf = ArrayPool<byte>.Shared.Rent(response.Length);
         CacheEntry? newEntry = null;
 

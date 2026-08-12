@@ -1,10 +1,10 @@
 using System;
 
+using Astrolabed.Events;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-
-using Astrolabed.Events;
 
 namespace Astrolabed.Ntp.Bootstrap;
 
