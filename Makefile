@@ -9,8 +9,8 @@ IMAGE_NAME ?= guidcruncher/astrolabed
 all: restore build
 
 dig:
-	dig itv.com @127.0.0.1 -p 1053
-	dig +tcp google.com @127.0.0.1 -p 1053
+	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
+	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
 
 ntp:
 	@python3 ./tests/scripts/test_ntp.py
