@@ -21,6 +21,7 @@ DHCP_OPTION_DEFINITIONS = {
     6: ("Domain Name Server", "ip_list"),
     12: ("Host Name", "string"),
     15: ("Domain Name", "string"),
+    26: ("Interface MTU", "uint16"),
     28: ("Broadcast Address", "ip"),
     42: ("NTP Server", "ip_list"),
     50: ("Requested IP Address", "ip"),
@@ -29,6 +30,8 @@ DHCP_OPTION_DEFINITIONS = {
     54: ("DHCP Server Identifier", "ip"),
     58: ("Renewal Time (T1)", "uint32_seconds"),
     59: ("Rebinding Time (T2)", "uint32_seconds"),
+    66: ("TFTP Server Name", "string"),
+    67: ("Bootfile Name", "string"),
     81: ("Client FQDN", "string"),
     252: ("WPAD URL", "string"),
 }
@@ -59,6 +62,9 @@ def decode_option(opt_code: int, data: bytes) -> tuple[str, str]:
             return name, ", ".join(ips)
     elif opt_type == "string":
         return name, data.decode("utf-8", errors="ignore").rstrip("\x00")
+    elif opt_type == "uint16" and len(data) == 2:
+        val = struct.unpack("!H", data)[0]
+        return name, str(val)
     elif opt_type == "uint32_seconds" and len(data) == 4:
         sec = struct.unpack("!I", data)[0]
         return name, f"{sec} seconds"
@@ -108,8 +114,11 @@ def build_dhcp_packet(
         options.extend([54, 4])
         options.extend(socket.inet_aton(server_ip))
 
-    # Parameter Request List: Subnet Mask, Router, DNS, NTP, WPAD
-    options.extend([55, 5, 1, 3, 6, 42, 252])
+    # Parameter Request List (Option 55):
+    # Subnet Mask(1), Router(3), DNS(6), Domain Name(15), MTU(26), NTP(42), TFTP Server(66), Bootfile(67), WPAD(252)
+    requested_options = [1, 3, 6, 15, 26, 42, 66, 67, 252]
+    options.extend([55, len(requested_options)])
+    options.extend(requested_options)
     options.append(255)
 
     return header + ips + chaddr + zero_fields + magic_cookie + bytes(options)

@@ -31,6 +31,10 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
     private readonly IPAddress _router;
     private readonly IPAddress _dns;
     private readonly IPAddress? _ntp;
+    private readonly string? _domainName;
+    private readonly ushort? _interfaceMtu;
+    private readonly string? _tftpServerName;
+    private readonly string? _bootfileName;
     private readonly string? _webproxy;
     private readonly IPAddress _subnetMask;
     private readonly TimeSpan _defaultLeaseTime;
@@ -73,11 +77,25 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         _router = IPAddress.Parse(_config.Router);
         _dns = IPAddress.Parse(_config.DnsServer);
         _subnetMask = ParseSubnetMaskFromCidr(_config.PoolCidr);
-        _defaultLeaseTime = TimeSpan.FromHours(1);
+        _defaultLeaseTime = TimeSpan.FromHours(_config.LeaseHours > 0 ? _config.LeaseHours : 1);
         _maxLeaseTime = TimeSpan.FromDays(7);
 
         _ntp = !string.IsNullOrWhiteSpace(_config.NtpServer)
             ? IPAddress.Parse(_config.NtpServer)
+            : null;
+
+        _domainName = !string.IsNullOrWhiteSpace(_config.DomainName)
+            ? _config.DomainName
+            : null;
+
+        _interfaceMtu = _config.InterfaceMtu;
+
+        _tftpServerName = !string.IsNullOrWhiteSpace(_config.TftpServerName)
+            ? _config.TftpServerName
+            : null;
+
+        _bootfileName = !string.IsNullOrWhiteSpace(_config.BootfileName)
+            ? _config.BootfileName
             : null;
 
         _webproxy = !string.IsNullOrWhiteSpace(_config.WebProxyServerUrl)
@@ -202,7 +220,6 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
                 continue;
             }
 
-            // RFC 2131: Only process incoming BOOTREQUEST (1) packets
             if (req.Op != 1)
             {
                 _logger.LogTrace("Ignoring non-BOOTREQUEST packet opcode ({Op}) from {Endpoint}", req.Op, result.RemoteEndPoint);
@@ -285,6 +302,10 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _subnetMask,
             leaseTime,
             _ntp,
+            _domainName,
+            _interfaceMtu,
+            _tftpServerName,
+            _bootfileName,
             _webproxy);
 
         await _transport.SendAsync(offer, offer.Length, DetermineReplyEndpoint(req))
@@ -365,6 +386,10 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _subnetMask,
             leaseTime,
             _ntp,
+            _domainName,
+            _interfaceMtu,
+            _tftpServerName,
+            _bootfileName,
             _webproxy);
 
         await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))
@@ -424,6 +449,8 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _dns,
             _subnetMask,
             _ntp,
+            _domainName,
+            _interfaceMtu,
             _webproxy);
 
         await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))

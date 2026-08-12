@@ -43,6 +43,25 @@ public sealed class DhcpOptions
     //
     public string NtpServer { get; set; } = "";
 
+    //
+    // Domain Name option (15)
+    //
+    public string DomainName { get; set; } = "";
+
+    //
+    // Interface MTU option (26)
+    //
+    public ushort? InterfaceMtu { get; set; }
+
+    //
+    // TFTP Server Name option (66) / PXE Boot
+    //
+    public string TftpServerName { get; set; } = "";
+
+    //
+    // Bootfile Name option (67) / PXE Boot
+    //
+    public string BootfileName { get; set; } = "";
 
     //
     // Web Proxy Auto-discovery option (252)

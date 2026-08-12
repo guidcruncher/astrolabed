@@ -88,6 +88,10 @@ public static class DhcpPacketCodec
         IPAddress subnetMask,
         TimeSpan lease,
         IPAddress? ntp = null,
+        string? domainName = null,
+        ushort? interfaceMtu = null,
+        string? tftpServerName = null,
+        string? bootfileName = null,
         string? webproxy = null)
     {
         return BuildResponse(
@@ -100,6 +104,10 @@ public static class DhcpPacketCodec
             subnetMask,
             lease,
             ntp,
+            domainName,
+            interfaceMtu,
+            tftpServerName,
+            bootfileName,
             webproxy);
     }
 
@@ -112,6 +120,10 @@ public static class DhcpPacketCodec
         IPAddress subnetMask,
         TimeSpan lease,
         IPAddress? ntp = null,
+        string? domainName = null,
+        ushort? interfaceMtu = null,
+        string? tftpServerName = null,
+        string? bootfileName = null,
         string? webproxy = null)
     {
         return BuildResponse(
@@ -124,6 +136,10 @@ public static class DhcpPacketCodec
             subnetMask,
             lease,
             ntp,
+            domainName,
+            interfaceMtu,
+            tftpServerName,
+            bootfileName,
             webproxy);
     }
 
@@ -134,10 +150,12 @@ public static class DhcpPacketCodec
         IPAddress dns,
         IPAddress subnetMask,
         IPAddress? ntp = null,
+        string? domainName = null,
+        ushort? interfaceMtu = null,
         string? webproxy = null)
     {
         var writer = new ArrayBufferWriter<byte>(512);
-        WriteHeader(writer, inform, 2, inform.Ciaddr, IPAddress.Any, serverId);
+        WriteHeader(writer, inform, 2, inform.Ciaddr, IPAddress.Any, serverId, null, null);
 
         // Option 53: Message Type
         WriteOptionHeader(writer, 53, 1);
@@ -156,13 +174,27 @@ public static class DhcpPacketCodec
         // Option 6: DNS Server
         WriteOptionIp(writer, 6, dns);
 
+        if (!string.IsNullOrWhiteSpace(domainName))
+        {
+            // Option 15: Domain Name
+            WriteOptionString(writer, 15, domainName);
+        }
+
+        if (interfaceMtu.HasValue)
+        {
+            // Option 26: Interface MTU
+            WriteOptionUInt16(writer, 26, interfaceMtu.Value);
+        }
+
         if (ntp is not null)
         {
+            // Option 42: NTP Server
             WriteOptionIp(writer, 42, ntp);
         }
 
-        if (webproxy is not null)
+        if (!string.IsNullOrWhiteSpace(webproxy))
         {
+            // Option 252: WPAD URL
             WriteOptionString(writer, 252, webproxy);
         }
 
@@ -175,7 +207,7 @@ public static class DhcpPacketCodec
     public static byte[] BuildNak(DhcpPacket request, IPAddress serverId)
     {
         var writer = new ArrayBufferWriter<byte>(300);
-        WriteHeader(writer, request, 2, request.Ciaddr, IPAddress.Any, serverId);
+        WriteHeader(writer, request, 2, request.Ciaddr, IPAddress.Any, serverId, null, null);
 
         // Option 53: Message Type
         WriteOptionHeader(writer, 53, 1);
@@ -201,10 +233,14 @@ public static class DhcpPacketCodec
         IPAddress subnetMask,
         TimeSpan lease,
         IPAddress? ntp = null,
+        string? domainName = null,
+        ushort? interfaceMtu = null,
+        string? tftpServerName = null,
+        string? bootfileName = null,
         string? webproxy = null)
     {
         var writer = new ArrayBufferWriter<byte>(512);
-        WriteHeader(writer, req, 2, req.Ciaddr, yiaddr, serverId);
+        WriteHeader(writer, req, 2, req.Ciaddr, yiaddr, serverId, tftpServerName, bootfileName);
 
         // Option 53: Message Type
         WriteOptionHeader(writer, 53, 1);
@@ -215,9 +251,14 @@ public static class DhcpPacketCodec
         WriteOptionIp(writer, 54, serverId);
 
         // Option 51: IP Address Lease Time
-        WriteOptionHeader(writer, 51, 4);
-        BinaryPrimitives.WriteUInt32BigEndian(writer.GetSpan(4), (uint)lease.TotalSeconds);
-        writer.Advance(4);
+        uint leaseSeconds = (uint)lease.TotalSeconds;
+        WriteOptionUInt32(writer, 51, leaseSeconds);
+
+        // Option 58: Renewal (T1) Time (50% of lease duration)
+        WriteOptionUInt32(writer, 58, (uint)(leaseSeconds * 0.50));
+
+        // Option 59: Rebinding (T2) Time (87.5% of lease duration)
+        WriteOptionUInt32(writer, 59, (uint)(leaseSeconds * 0.875));
 
         // Option 1: Subnet Mask
         WriteOptionIp(writer, 1, subnetMask);
@@ -228,13 +269,39 @@ public static class DhcpPacketCodec
         // Option 6: DNS Server
         WriteOptionIp(writer, 6, dns);
 
+        if (!string.IsNullOrWhiteSpace(domainName))
+        {
+            // Option 15: Domain Name
+            WriteOptionString(writer, 15, domainName);
+        }
+
+        if (interfaceMtu.HasValue)
+        {
+            // Option 26: Interface MTU
+            WriteOptionUInt16(writer, 26, interfaceMtu.Value);
+        }
+
         if (ntp is not null)
         {
+            // Option 42: NTP Server
             WriteOptionIp(writer, 42, ntp);
         }
 
-        if (webproxy is not null)
+        if (!string.IsNullOrWhiteSpace(tftpServerName))
         {
+            // Option 66: TFTP Server Name
+            WriteOptionString(writer, 66, tftpServerName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(bootfileName))
+        {
+            // Option 67: Bootfile Name
+            WriteOptionString(writer, 67, bootfileName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(webproxy))
+        {
+            // Option 252: WPAD URL
             WriteOptionString(writer, 252, webproxy);
         }
 
@@ -250,7 +317,9 @@ public static class DhcpPacketCodec
         byte op,
         IPAddress ciaddr,
         IPAddress yiaddr,
-        IPAddress serverId)
+        IPAddress serverId,
+        string? sname,
+        string? file)
     {
         Span<byte> span = writer.GetSpan(236);
 
@@ -272,7 +341,16 @@ public static class DhcpPacketCodec
         req.Chaddr.AsSpan(0, Math.Min(req.Chaddr.Length, 16)).CopyTo(span[28..]);
 
         span[44..108].Clear();  // sname (64 bytes)
+        if (!string.IsNullOrEmpty(sname))
+        {
+            Encoding.ASCII.GetBytes(sname.AsSpan(0, Math.Min(sname.Length, 63)), span[44..108]);
+        }
+
         span[108..236].Clear(); // file (128 bytes)
+        if (!string.IsNullOrEmpty(file))
+        {
+            Encoding.ASCII.GetBytes(file.AsSpan(0, Math.Min(file.Length, 127)), span[108..236]);
+        }
 
         writer.Advance(236);
 
@@ -297,6 +375,22 @@ public static class DhcpPacketCodec
         writer.Advance(4);
     }
 
+    private static void WriteOptionUInt16(IBufferWriter<byte> writer, byte code, ushort value)
+    {
+        WriteOptionHeader(writer, code, 2);
+        Span<byte> span = writer.GetSpan(2);
+        BinaryPrimitives.WriteUInt16BigEndian(span, value);
+        writer.Advance(2);
+    }
+
+    private static void WriteOptionUInt32(IBufferWriter<byte> writer, byte code, uint value)
+    {
+        WriteOptionHeader(writer, code, 4);
+        Span<byte> span = writer.GetSpan(4);
+        BinaryPrimitives.WriteUInt32BigEndian(span, value);
+        writer.Advance(4);
+    }
+
     private static void WriteOptionString(IBufferWriter<byte> writer, byte code, string value)
     {
         int byteCount = Encoding.UTF8.GetByteCount(value);
@@ -308,4 +402,3 @@ public static class DhcpPacketCodec
         writer.Advance(length);
     }
 }
-
