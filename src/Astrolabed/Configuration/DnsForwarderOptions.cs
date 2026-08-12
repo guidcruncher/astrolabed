@@ -16,6 +16,8 @@ public sealed class DnsForwarderOptions
 
     public int UpstreamTimeoutMs { get; set; } = 1500;
 
+    public ConditionalForwarderOptions ConditionalForwarding { get; set; } = new();
+
 }
 
 public sealed class ListenOptions

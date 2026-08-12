@@ -1,3 +1,4 @@
+using Astrolabed.Dns.ConditionalForwarding;
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.RuleEngine;
@@ -46,6 +47,8 @@ public static class DnsServiceCollectionExtensions
         // DNS Infrastructure Clients
         services.AddSingleton<StaticDnsClient>();
         services.AddSingleton<IDnsClientFactory, DefaultDnsClientFactory>();
+
+        services.AddSingleton<IConditionalDnsForwarder, ConditionalDnsForwarder>();
 
         // Register default IDnsClient using IOptions
         services.AddSingleton<IDnsClient>(sp =>
