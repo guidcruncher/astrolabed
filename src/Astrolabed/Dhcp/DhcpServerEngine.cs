@@ -2,9 +2,9 @@ using System.Buffers.Binary;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
-
+using System.Text;
 using Astrolabed.Events;
-
+using Astrolabed.Utilities;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -71,7 +71,6 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _webproxy = _config.WebProxyServerUrl;
         else
             _webproxy = null;
-
     }
 
     private static IPAddress ParseSubnetMaskFromCidr(string? cidr)
@@ -134,11 +133,11 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         var fqdnOpt = req.Options.FirstOrDefault(o => o.Code == 81);
 
         string? host = hostOpt != null
-            ? System.Text.Encoding.ASCII.GetString(hostOpt.Data)
+            ? Encoding.ASCII.GetString(hostOpt.Data)
             : null;
 
         string? fqdn = fqdnOpt != null
-            ? System.Text.Encoding.ASCII.GetString(fqdnOpt.Data)
+            ? Encoding.ASCII.GetString(fqdnOpt.Data)
             : null;
 
         if (!string.IsNullOrEmpty(fqdn))
@@ -257,10 +256,10 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _serverId,
             _router,
             _dns,
-            _ntp,
-        _webproxy,
+            _subnetMask,
             leaseTime,
-            _subnetMask);
+            _ntp,
+            _webproxy);
 
         await _transport.SendAsync(offer, offer.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
@@ -337,10 +336,10 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _serverId,
             _router,
             _dns,
-            _ntp,
-            _webproxy,
+            _subnetMask,
             leaseTime,
-            _subnetMask);
+            _ntp,
+            _webproxy);
 
         await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
@@ -395,9 +394,9 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _serverId,
             _router,
             _dns,
+            _subnetMask,
             _ntp,
-            _webproxy,
-            _subnetMask);
+            _webproxy);
 
         await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))
                         .ConfigureAwait(false);
