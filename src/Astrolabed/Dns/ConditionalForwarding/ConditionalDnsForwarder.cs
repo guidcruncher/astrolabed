@@ -23,6 +23,17 @@ public class ConditionalDnsForwarder : IConditionalDnsForwarder
         _logger = logger;
     }
 
+    public static bool IsLocalhost(string queryName)
+    {
+        var normalizedName = queryName.TrimEnd('.').ToLowerInvariant();
+        if (normalizedName == "1.0.0.127.in-addr.arpa")
+        {
+            return true;
+        }
+
+        return false;
+    }
+
     public bool ShouldForwardToLocalDhcp(string queryName, ushort queryType)
     {
         var opts = _options.CurrentValue.ConditionalForwarding;
@@ -32,6 +43,11 @@ public class ConditionalDnsForwarder : IConditionalDnsForwarder
         }
 
         var normalizedName = queryName.TrimEnd('.').ToLowerInvariant();
+
+        if (normalizedName == "1.0.0.127.in-addr.arpa")
+        {
+            return false;
+        }
 
         // 1. Check for PTR reverse lookup requests matching local IP ranges (.in-addr.arpa)
         if (queryType == 12 && normalizedName.EndsWith("in-addr.arpa", StringComparison.OrdinalIgnoreCase))

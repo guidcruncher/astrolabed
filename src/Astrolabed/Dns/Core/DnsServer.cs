@@ -420,6 +420,11 @@ public sealed class DnsServer : BackgroundService
             string ptrQueryName = FormatPtrDomain(clientIp);
             const ushort ptrQueryType = 12; // PTR record type
 
+            if (ConditionalDnsForwarder.IsLocalhost(ptrQueryName))
+            {
+                return "localhost";
+            }
+
             if (!_conditionalForwarder.ShouldForwardToLocalDhcp(ptrQueryName, ptrQueryType))
             {
                 return null;
