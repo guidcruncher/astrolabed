@@ -7,7 +7,7 @@ namespace Astrolabed.Dns.Core;
 
 public static class DnsParser
 {
-    private const int MaxPointerJumps = 128;
+    private const int MaxPointerJumps = 12;
 
     public static DnsMessage Parse(byte[] buffer)
     {
@@ -15,7 +15,7 @@ public static class DnsParser
 
         if (buffer.Length < 12)
         {
-            throw new InvalidOperationException("DNS message too short");
+            throw new InvalidOperationException("DNS message buffer too short for header parsing.");
         }
 
         var msg = new DnsMessage();
@@ -28,7 +28,7 @@ public static class DnsParser
         offset += 2;
 
         msg.IsResponse = (flags & 0x8000) != 0;
-        msg.ResponseCode = ((flags & 0x000F)).ToString();
+        msg.ResponseCode = (flags & 0x000F).ToString();
 
         ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
         offset += 2;
@@ -44,6 +44,11 @@ public static class DnsParser
         {
             var (name, newOffset) = ReadName(buffer, offset);
             offset = newOffset;
+
+            if (offset + 4 > buffer.Length)
+            {
+                throw new InvalidOperationException("Truncated question section entry.");
+            }
 
             ushort rawType = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
@@ -77,6 +82,11 @@ public static class DnsParser
             var (name, newOffset) = ReadName(buffer, offset);
             offset = newOffset;
 
+            if (offset + 10 > buffer.Length)
+            {
+                throw new InvalidOperationException("Truncated resource record header.");
+            }
+
             ushort rawType = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
             offset += 2;
             ushort cls = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
@@ -88,7 +98,7 @@ public static class DnsParser
 
             if (offset + rdLength > buffer.Length)
             {
-                throw new InvalidOperationException("RDATA length exceeds buffer bounds");
+                throw new InvalidOperationException("RDATA length exceeds buffer bounds.");
             }
 
             byte[] rdata = buffer.AsSpan(offset, rdLength).ToArray();
@@ -109,69 +119,87 @@ public static class DnsParser
 
     private static (string name, int offset) ReadName(byte[] buffer, int offset)
     {
-        var labels = new List<string>();
+        var sb = new StringBuilder(64);
+        int currentOffset = offset;
         int originalOffset = offset;
         bool jumped = false;
-        int jumpOffset = -1;
         int jumpsCount = 0;
 
         while (true)
         {
-            if (offset >= buffer.Length)
+            if (currentOffset >= buffer.Length)
             {
-                throw new InvalidOperationException("Name exceeds buffer bounds");
+                throw new InvalidOperationException("Name offset exceeds buffer bounds.");
             }
 
-            byte len = buffer[offset++];
+            byte len = buffer[currentOffset++];
 
             if (len == 0)
             {
+                if (!jumped)
+                {
+                    offset = currentOffset;
+                }
                 break;
             }
 
             // Compression pointer check (top 2 bits set: 0xC0)
             if ((len & 0xC0) == 0xC0)
             {
-                if (offset >= buffer.Length)
+                if (currentOffset >= buffer.Length)
                 {
-                    throw new InvalidOperationException("Pointer exceeds buffer bounds");
+                    throw new InvalidOperationException("Compression pointer offset exceeds buffer bounds.");
                 }
 
                 if (++jumpsCount > MaxPointerJumps)
                 {
-                    throw new InvalidOperationException("Circular pointer loop detected in DNS compression header");
+                    throw new InvalidOperationException("Circular or excessive pointer jumps detected in DNS header.");
                 }
 
-                byte b2 = buffer[offset++];
+                byte b2 = buffer[currentOffset];
                 int pointer = ((len & 0x3F) << 8) | b2;
+
+                if (pointer >= originalOffset && jumped)
+                {
+                    throw new InvalidOperationException("Invalid forward or cyclic compression pointer detected.");
+                }
 
                 if (!jumped)
                 {
-                    jumpOffset = offset;
+                    offset = currentOffset + 1;
                     jumped = true;
                 }
 
-                offset = pointer;
+                currentOffset = pointer;
                 continue;
             }
 
-            if (offset + len > buffer.Length)
+            // Handle invalid label format flags
+            if ((len & 0xC0) != 0)
             {
-                throw new InvalidOperationException("Label length exceeds buffer bounds");
+                throw new InvalidOperationException($"Unsupported DNS label prefix flag 0x{len:X2}.");
             }
 
-            string label = Encoding.ASCII.GetString(buffer, offset, len);
-            offset += len;
-            labels.Add(label);
+            if (currentOffset + len > buffer.Length)
+            {
+                throw new InvalidOperationException("Label length exceeds buffer bounds.");
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append('.');
+            }
+
+            sb.Append(Encoding.ASCII.GetString(buffer, currentOffset, len));
+            currentOffset += len;
+
+            if (!jumped)
+            {
+                offset = currentOffset;
+            }
         }
 
-        if (jumped && jumpOffset != -1)
-        {
-            offset = jumpOffset;
-        }
-
-        string name = string.Join(".", labels);
-        return (name, offset);
+        return (sb.ToString(), offset);
     }
 
     public static byte[] BuildBlockedResponse(DnsMessage request)
@@ -190,7 +218,7 @@ public static class DnsParser
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), request.Id);
         offset += 2;
 
-        ushort flags = 0x8003; // QR = 1 (response), RCODE = 3 (NXDOMAIN)
+        ushort flags = 0x8003; // QR = 1 (Response), RCODE = 3 (NXDOMAIN)
         BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset), flags);
         offset += 2;
 
@@ -224,14 +252,31 @@ public static class DnsParser
             return 1;
         }
 
-        var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
-        int len = 0;
-        foreach (var p in parts)
+        ReadOnlySpan<char> span = name.AsSpan().Trim('.');
+        if (span.IsEmpty)
         {
-            len += 1 + Encoding.ASCII.GetByteCount(p);
+            return 1;
         }
-        len += 1; // Null terminator
-        return len;
+
+        int length = 0;
+        int separatorIndex;
+
+        while ((separatorIndex = span.IndexOf('.')) != -1)
+        {
+            var label = span[..separatorIndex];
+            if (!label.IsEmpty)
+            {
+                length += 1 + Encoding.ASCII.GetByteCount(label);
+            }
+            span = span[(separatorIndex + 1)..];
+        }
+
+        if (!span.IsEmpty)
+        {
+            length += 1 + Encoding.ASCII.GetByteCount(span);
+        }
+
+        return length + 1; // Null terminator byte
     }
 
     private static int WriteNameWire(Span<byte> destination, string name)
@@ -242,14 +287,34 @@ public static class DnsParser
             return 1;
         }
 
-        int written = 0;
-        var parts = name.Split('.', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var p in parts)
+        ReadOnlySpan<char> span = name.AsSpan().Trim('.');
+        if (span.IsEmpty)
         {
-            int byteCount = Encoding.ASCII.GetByteCount(p);
+            destination[0] = 0;
+            return 1;
+        }
+
+        int written = 0;
+        int separatorIndex;
+
+        while ((separatorIndex = span.IndexOf('.')) != -1)
+        {
+            var label = span[..separatorIndex];
+            if (!label.IsEmpty)
+            {
+                int byteCount = Encoding.ASCII.GetByteCount(label);
+                destination[written++] = (byte)byteCount;
+                Encoding.ASCII.GetBytes(label, destination.Slice(written, byteCount));
+                written += byteCount;
+            }
+            span = span[(separatorIndex + 1)..];
+        }
+
+        if (!span.IsEmpty)
+        {
+            int byteCount = Encoding.ASCII.GetByteCount(span);
             destination[written++] = (byte)byteCount;
-            Encoding.ASCII.GetBytes(p, destination.Slice(written, byteCount));
+            Encoding.ASCII.GetBytes(span, destination.Slice(written, byteCount));
             written += byteCount;
         }
 

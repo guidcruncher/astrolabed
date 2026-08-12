@@ -5,6 +5,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Core;
 
@@ -17,12 +19,28 @@ public sealed class TcpDnsClient : IDnsClient
 
     private readonly IPEndPoint _endpoint;
     private readonly TimeSpan _timeout;
+    private readonly ILogger<TcpDnsClient>? _logger;
 
     public TcpDnsClient(IPEndPoint endpoint, TimeSpan? timeout = null)
     {
         ArgumentNullException.ThrowIfNull(endpoint);
         _endpoint = endpoint;
         _timeout = timeout ?? DefaultTimeout;
+        _logger = null;
+    }
+
+    public TcpDnsClient(
+        IPEndPoint endpoint,
+        IOptions<DnsForwarderOptions> options,
+        ILogger<TcpDnsClient> logger)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _endpoint = endpoint;
+        _timeout = TimeSpan.FromMilliseconds(options.Value.UpstreamTimeoutMs);
+        _logger = logger;
     }
 
     public async Task<byte[]> QueryAsync(byte[] request, CancellationToken ct)
@@ -43,14 +61,15 @@ public sealed class TcpDnsClient : IDnsClient
             await socket.ConnectAsync(_endpoint, token).ConfigureAwait(false);
 
             ushort requestLength = (ushort)request.Length;
-            byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(2 + request.Length);
+            int totalSendLength = 2 + request.Length;
+            byte[] sendBuffer = ArrayPool<byte>.Shared.Rent(totalSendLength);
 
             try
             {
                 BinaryPrimitives.WriteUInt16BigEndian(sendBuffer.AsSpan(0, 2), requestLength);
-                request.CopyTo(sendBuffer.AsSpan(2));
+                request.AsSpan().CopyTo(sendBuffer.AsSpan(2, request.Length));
 
-                await socket.SendAsync(sendBuffer.AsMemory(0, 2 + request.Length), SocketFlags.None, token).ConfigureAwait(false);
+                await socket.SendAsync(sendBuffer.AsMemory(0, totalSendLength), SocketFlags.None, token).ConfigureAwait(false);
             }
             finally
             {
@@ -72,6 +91,7 @@ public sealed class TcpDnsClient : IDnsClient
 
             if (responseLength < 12)
             {
+                _logger?.LogWarning("Received truncated DNS TCP response under 12-byte header size from {Endpoint}.", _endpoint);
                 return DnsResponseBuilder.BuildServfail(request);
             }
 
@@ -80,7 +100,7 @@ public sealed class TcpDnsClient : IDnsClient
             {
                 await ReadExactAsync(socket, payloadBuffer.AsMemory(0, responseLength), token).ConfigureAwait(false);
 
-                var response = GC.AllocateUninitializedArray<byte>(responseLength);
+                byte[] response = GC.AllocateUninitializedArray<byte>(responseLength);
                 payloadBuffer.AsSpan(0, responseLength).CopyTo(response);
                 return response;
             }
@@ -89,8 +109,14 @@ public sealed class TcpDnsClient : IDnsClient
                 ArrayPool<byte>.Shared.Return(payloadBuffer);
             }
         }
-        catch
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
+            _logger?.LogWarning("TCP DNS query to {Endpoint} timed out after {Timeout}ms.", _endpoint, _timeout.TotalMilliseconds);
+            return DnsResponseBuilder.BuildServfail(request);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to execute TCP DNS query to {Endpoint}.", _endpoint);
             return DnsResponseBuilder.BuildServfail(request);
         }
     }

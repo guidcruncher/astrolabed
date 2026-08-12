@@ -1,9 +1,13 @@
+using System;
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Channels;
+using System.Threading.Tasks;
 
 using Astrolabed.Events;
 
@@ -106,6 +110,8 @@ public sealed class DnsServer : BackgroundService
         while (!stoppingToken.IsCancellationRequested)
         {
             byte[] buffer = ArrayPool<byte>.Shared.Rent(BufferSize);
+            bool ownershipTransferred = false;
+
             try
             {
                 var result = await _udpSocket!.ReceiveFromAsync(
@@ -116,19 +122,34 @@ public sealed class DnsServer : BackgroundService
 
                 var packet = new PooledUdpPacket(buffer, result.ReceivedBytes, result.RemoteEndPoint);
 
-                if (!_channel!.Writer.TryWrite(packet))
+                try
                 {
-                    await _channel.Writer.WriteAsync(packet, stoppingToken).ConfigureAwait(false);
+                    if (!_channel!.Writer.TryWrite(packet))
+                    {
+                        await _channel.Writer.WriteAsync(packet, stoppingToken).ConfigureAwait(false);
+                    }
+                    ownershipTransferred = true;
+                }
+                catch
+                {
+                    packet.Dispose();
+                    throw;
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                if (!ownershipTransferred)
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
                 break;
             }
             catch (Exception ex)
             {
-                ArrayPool<byte>.Shared.Return(buffer);
+                if (!ownershipTransferred)
+                {
+                    ArrayPool<byte>.Shared.Return(buffer);
+                }
                 _logger.LogError(ex, "Error receiving UDP DNS packet");
             }
         }
@@ -304,17 +325,16 @@ public sealed class DnsServer : BackgroundService
         {
             while (reader.TryRead(out var packet))
             {
-                try
+                using (packet)
                 {
-                    await HandleUdpRequestAsync(packet, ct).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error handling UDP DNS request in worker");
-                }
-                finally
-                {
-                    ArrayPool<byte>.Shared.Return(packet.Buffer);
+                    try
+                    {
+                        await HandleUdpRequestAsync(packet, ct).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error handling UDP DNS request in worker");
+                    }
                 }
             }
         }
@@ -432,7 +452,7 @@ public sealed class DnsServer : BackgroundService
         return true;
     }
 
-    private readonly struct PooledUdpPacket
+    private readonly struct PooledUdpPacket : IDisposable
     {
         public byte[] Buffer { get; }
         public int Length { get; }
@@ -443,6 +463,14 @@ public sealed class DnsServer : BackgroundService
             Buffer = buffer;
             Length = length;
             RemoteEndPoint = remoteEndPoint;
+        }
+
+        public void Dispose()
+        {
+            if (Buffer is not null)
+            {
+                ArrayPool<byte>.Shared.Return(Buffer);
+            }
         }
     }
 }
