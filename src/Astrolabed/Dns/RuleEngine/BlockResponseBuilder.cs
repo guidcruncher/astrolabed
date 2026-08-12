@@ -1,123 +1,157 @@
 using System;
 using System.Buffers.Binary;
 using System.Net;
-using System.Net.Sockets;
 
 using Astrolabed.Dns.Core;
+
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.RuleEngine;
 
 internal sealed class BlockResponseBuilder
 {
     private readonly DnsForwarderOptions _options;
-    private readonly string _mode;
-    private readonly IPAddress? _staticIp;
-    private readonly byte[]? _staticIpBytes;
 
-    public BlockResponseBuilder(DnsForwarderOptions options)
+    public BlockResponseBuilder(IOptions<DnsForwarderOptions> options)
     {
-        _options = options;
-        _mode = options.BlockResponse.Mode?.ToUpperInvariant() ?? "NXDOMAIN";
-
-        if (IPAddress.TryParse(options.BlockResponse.StaticIp, out var ip))
-        {
-            _staticIp = ip;
-            _staticIpBytes = ip.GetAddressBytes();
-        }
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
     }
 
-    public byte[] BuildBlockResponse(byte[] request)
+    public byte[] BuildBlockResponse(byte[] rawRequest)
     {
-        return _mode switch
+        if (rawRequest == null || rawRequest.Length < 12)
         {
-            "NXDOMAIN" => BuildRcodeResponse(request, rcode: 3),
-            "SERVFAIL" => BuildRcodeResponse(request, rcode: 2),
-            "REFUSED" => BuildRcodeResponse(request, rcode: 5),
-            "STATIC_IP" => _staticIpBytes != null && _staticIp != null
-                ? BuildStaticIpResponse(request, _staticIp, _staticIpBytes)
-                : BuildRcodeResponse(request, rcode: 3),
-            _ => BuildRcodeResponse(request, rcode: 3)
+            return BuildServfail(rawRequest ?? Array.Empty<byte>());
+        }
+
+        string mode = _options.BlockResponse?.Mode ?? "NxDomain";
+
+        return mode.ToLowerInvariant() switch
+        {
+            "nxdomain" => BuildRcodeResponse(rawRequest, 3), // NXDOMAIN
+            "refused" => BuildRcodeResponse(rawRequest, 5),  // REFUSED
+            "zeroip" => BuildZeroIpResponse(rawRequest),
+            "customip" => BuildCustomIpResponse(rawRequest),
+            _ => BuildRcodeResponse(rawRequest, 3)
         };
     }
 
-    private static byte[] BuildRcodeResponse(byte[] req, int rcode)
+    public static byte[] BuildServfail(byte[] rawRequest)
     {
-        if (req.Length < 12)
-        {
-            return Array.Empty<byte>();
-        }
-
-        var resp = new byte[req.Length];
-        Buffer.BlockCopy(req, 0, resp, 0, req.Length);
-
-        // DNS Response Header Patching
-        resp[2] = 0x81;
-        resp[3] = (byte)(0x80 | (rcode & 0x0F));
-        resp[4] = 0x00; resp[5] = 0x01; // QDCOUNT = 1
-        resp[6] = 0x00; resp[7] = 0x00; // ANCOUNT = 0
-        resp[8] = 0x00; resp[9] = 0x00; // NSCOUNT = 0
-        resp[10] = 0x00; resp[11] = 0x00; // ARCOUNT = 0
-
-        return resp;
+        return BuildRcodeResponse(rawRequest, 2); // SERVFAIL
     }
 
-    private byte[] BuildStaticIpResponse(byte[] req, IPAddress ip, byte[] addrBytes)
+    private static byte[] BuildRcodeResponse(byte[] rawRequest, byte rcode)
     {
-        if (req.Length < 12)
+        byte[] response = new byte[rawRequest.Length];
+        Array.Copy(rawRequest, response, rawRequest.Length);
+
+        // Set QR bit = 1 (Response)
+        response[2] |= 0x80;
+
+        // Set RCODE in header lower 4 bits of byte 3
+        response[3] = (byte)((response[3] & 0xF0) | (rcode & 0x0F));
+
+        return response;
+    }
+
+    private byte[] BuildZeroIpResponse(byte[] rawRequest)
+    {
+        var msg = DnsMessage.TryParse(rawRequest);
+        if (msg == null)
         {
-            return Array.Empty<byte>();
+            return BuildRcodeResponse(rawRequest, 3);
         }
 
-        int recordLen = 12 + addrBytes.Length; // 2 (pointer) + 2 (type) + 2 (class) + 4 (ttl) + 2 (rdlen) + ip bytes
-        var resp = new byte[req.Length + recordLen];
+        string qType = msg.QuestionType;
 
-        Buffer.BlockCopy(req, 0, resp, 0, req.Length);
-
-        // DNS Response Header Patching
-        resp[2] = 0x81;
-        resp[3] = 0x80; // RCODE = 0 (NOERROR)
-        resp[4] = 0x00; resp[5] = 0x01; // QDCOUNT = 1
-        resp[6] = 0x00; resp[7] = 0x01; // ANCOUNT = 1
-        resp[8] = 0x00; resp[9] = 0x00; // NSCOUNT = 0
-        resp[10] = 0x00; resp[11] = 0x00; // ARCOUNT = 0
-
-        // Answer Section
-        int offset = req.Length;
-        resp[offset++] = 0xC0; // Name pointer
-        resp[offset++] = 0x0C;
-
-        // Type (A = 0x0001, AAAA = 0x001C)
-        if (ip.AddressFamily == AddressFamily.InterNetwork)
+        if (string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1")
         {
-            resp[offset++] = 0x00;
-            resp[offset++] = 0x01;
-        }
-        else
-        {
-            resp[offset++] = 0x00;
-            resp[offset++] = 0x1C;
+            return BuildIpAnswer(rawRequest, msg, IPAddress.Any);
         }
 
-        // Class (IN = 0x0001)
-        resp[offset++] = 0x00;
-        resp[offset++] = 0x01;
+        if (string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28")
+        {
+            return BuildIpAnswer(rawRequest, msg, IPAddress.IPv6Any);
+        }
 
-        // TTL
-        BinaryPrimitives.WriteInt32BigEndian(resp.AsSpan(offset, 4), _options.BlockResponse.Ttl);
+        return BuildRcodeResponse(rawRequest, 3);
+    }
+
+    private byte[] BuildCustomIpResponse(byte[] rawRequest)
+    {
+        var msg = DnsMessage.TryParse(rawRequest);
+        if (msg == null)
+        {
+            return BuildRcodeResponse(rawRequest, 3);
+        }
+
+        string customIp = _options.BlockResponse?.StaticIp ?? "0.0.0.0";
+        if (!IPAddress.TryParse(customIp, out var ip))
+        {
+            ip = IPAddress.Any;
+        }
+
+        string qType = msg.QuestionType;
+
+        if ((string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1") &&
+            ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+        {
+            return BuildIpAnswer(rawRequest, msg, ip);
+        }
+
+        if ((string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28") &&
+            ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)
+        {
+            return BuildIpAnswer(rawRequest, msg, ip);
+        }
+
+        return BuildRcodeResponse(rawRequest, 3);
+    }
+
+    private static byte[] BuildIpAnswer(byte[] rawRequest, DnsMessage msg, IPAddress ip)
+    {
+        byte[] ipBytes = ip.GetAddressBytes();
+        int answerLength = 2 + 2 + 2 + 4 + 2 + ipBytes.Length; // Pointer, Type, Class, TTL, RDataLen, RData
+        byte[] response = new byte[rawRequest.Length + answerLength];
+
+        Array.Copy(rawRequest, response, rawRequest.Length);
+
+        // Header: QR=1, RA=1, ANCOUNT=1
+        response[2] |= 0x80;
+        response[3] |= 0x80;
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(6, 2), 1);
+
+        int offset = rawRequest.Length;
+
+        // Compression pointer to Question Name (0xC00C)
+        response[offset++] = 0xC0;
+        response[offset++] = 0x0C;
+
+        // Type
+        ushort typeCode = string.Equals(msg.QuestionType, "AAAA", StringComparison.OrdinalIgnoreCase) || msg.QuestionType == "28"
+            ? (ushort)28
+            : (ushort)1;
+
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(offset, 2), typeCode);
+        offset += 2;
+
+        // Class IN (1)
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(offset, 2), 1);
+        offset += 2;
+
+        // TTL (60s)
+        BinaryPrimitives.WriteUInt32BigEndian(response.AsSpan(offset, 4), 60);
         offset += 4;
 
-        // Data Length
-        resp[offset++] = 0x00;
-        resp[offset++] = (byte)addrBytes.Length;
+        // RData Length
+        BinaryPrimitives.WriteUInt16BigEndian(response.AsSpan(offset, 2), (ushort)ipBytes.Length);
+        offset += 2;
 
-        // Address Bytes
-        Buffer.BlockCopy(addrBytes, 0, resp, offset, addrBytes.Length);
+        // RData
+        ipBytes.CopyTo(response, offset);
 
-        return resp;
-    }
-
-    public static byte[] BuildServfail(byte[] req)
-    {
-        return BuildRcodeResponse(req, rcode: 2);
+        return response;
     }
 }

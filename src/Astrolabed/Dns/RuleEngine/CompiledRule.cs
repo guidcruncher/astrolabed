@@ -10,3 +10,4 @@ public sealed record CompiledRule(
     bool Block,
     string Name,
     Regex? Regex);
+

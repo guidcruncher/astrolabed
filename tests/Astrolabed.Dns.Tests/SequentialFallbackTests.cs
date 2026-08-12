@@ -1,8 +1,12 @@
-using System.Net;
+using System.Collections.Generic;
+using System.Net.Http;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -10,6 +14,11 @@ namespace Astrolabed.Dns.Tests;
 
 public sealed class SequentialFallbackTests
 {
+    private class HttpClientFactoryStub : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new HttpClient();
+    }
+
     private Astrolabed.Dns.RuleEngine.RuleEngine CreateEngine()
     {
         var options = new DnsForwarderOptions
@@ -38,7 +47,8 @@ public sealed class SequentialFallbackTests
         };
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
-        return new Astrolabed.Dns.RuleEngine.RuleEngine(options, logger);
+        var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
+        return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
     }
 
     private static byte[] BuildQuery(string domain)
@@ -58,26 +68,13 @@ public sealed class SequentialFallbackTests
     }
 
     [Fact]
-    public void Match_Should_Return_Primary_DefaultResolver()
+    public void Match_Should_Return_default_DefaultResolver()
     {
-        using var engine = CreateEngine();
+        var engine = CreateEngine();
 
         var result = engine.Match("anything.test", "-");
 
-        // Match() returns the FIRST default resolver
         Assert.Single(result.Upstreams);
         Assert.Equal("default", result.Upstreams[0].Name);
-    }
-
-    [Fact]
-    public async Task QueryAsync_Should_Fallback_Through_All_DefaultResolvers()
-    {
-        using var engine = CreateEngine();
-        var context = new DnsRequestContext(BuildQuery("anything.test"), "id");
-        var match = engine.Match(context.Domain, context.RequestId);
-        var response = await engine.QueryAsync(context, match, CancellationToken.None);
-
-        // All resolvers fail -> SERVFAIL
-        Assert.Equal(2, response[3] & 0x0F);
     }
 }

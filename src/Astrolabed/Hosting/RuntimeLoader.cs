@@ -3,7 +3,6 @@ using System.Threading.Tasks;
 using Astrolabed.Dhcp.Bootstrap;
 using Astrolabed.Dns.Bootstrap;
 
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,15 +21,13 @@ public static class RuntimeLoader
         var provider = scope.ServiceProvider;
 
         logger.LogInformation("Loading DNS runtime...");
-        var dnsLoader = new AstrolabedRuntimeLoader(
-            provider.GetRequiredService<IConfiguration>());
-        await dnsLoader.LoadAsync(provider);
+        var dnsLoader = provider.GetRequiredService<IDnsForwarderRuntimeLoader>();
+        await dnsLoader.LoadAsync();
         logger.LogInformation("DNS runtime loaded.");
 
         logger.LogInformation("Loading DHCP runtime...");
-        var dhcpLoader = new DhcpRuntimeLoader(
-            provider.GetRequiredService<IConfiguration>());
-        await dhcpLoader.LoadAsync(provider);
+        var dhcpLoader = provider.GetRequiredService<IDhcpRuntimeLoader>();
+        await dhcpLoader.LoadAsync();
         logger.LogInformation("DHCP runtime loaded.");
 
         logger.LogInformation("Runtime loader completed.");

@@ -77,7 +77,6 @@ internal sealed class HostMatcher
 
         string lower = ToLowerFast(domain);
 
-        // $O(1)$ fast path for exact matches
         if (_exact.TryGetValue(lower, out var exactIp))
         {
             return exactIp;
@@ -90,7 +89,6 @@ internal sealed class HostMatcher
 
         EnsureSorted();
 
-        // First matching pattern is guaranteed to be the most specific match
         for (int i = 0; i < _nonExact.Count; i++)
         {
             var p = _nonExact[i];

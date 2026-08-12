@@ -6,13 +6,14 @@ namespace Astrolabed.Dns.Filtering;
 public sealed class UrlBlocklistSource : IBlocklistSource
 {
     private readonly IEnumerable<string> _urls;
-    private readonly HttpClient _http = new();
+    private readonly HttpClient _http;
     private readonly string _cacheDir;
     private readonly TimeSpan _ttl = TimeSpan.FromHours(24);
 
-    public UrlBlocklistSource(IEnumerable<string> urls)
+    public UrlBlocklistSource(IEnumerable<string> urls, HttpClient http)
     {
         _urls = urls;
+        _http = http;
         _cacheDir = Path.Combine(AppContext.BaseDirectory, "blocklist-cache");
         Directory.CreateDirectory(_cacheDir);
     }

@@ -1,6 +1,9 @@
+using System.Net.Http;
+
 using Astrolabed.Dns.Core;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -8,12 +11,16 @@ namespace Astrolabed.Dns.Tests;
 
 public sealed class RuleEngineTests
 {
+    private class HttpClientFactoryStub : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new HttpClient();
+    }
+
     [Fact]
     public void Match_Uses_Default_When_No_Rules()
     {
         var options = new DnsForwarderOptions
         {
-            // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =
             {
                 new UpstreamResolverOptions
@@ -27,7 +34,8 @@ public sealed class RuleEngineTests
         };
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(options, logger);
+        var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
 
         var result = engine.Match("anything.test", "-");
 

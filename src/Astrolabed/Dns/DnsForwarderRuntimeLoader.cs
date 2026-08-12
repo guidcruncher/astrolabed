@@ -1,116 +1,122 @@
-using System.Net;
-
-using Astrolabed.Dns;
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.RuleEngine;
 
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Bootstrap;
 
-public sealed class AstrolabedRuntimeLoader
+public sealed class DnsForwarderRuntimeLoader : IDnsForwarderRuntimeLoader
 {
-    private readonly IConfiguration _config;
+    private readonly DnsForwarderOptions _options;
+    private readonly Astrolabed.Dns.RuleEngine.RuleEngine _engine;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger<DnsForwarderRuntimeLoader> _logger;
 
-    public AstrolabedRuntimeLoader(IConfiguration config)
+    public DnsForwarderRuntimeLoader(
+        IOptions<DnsForwarderOptions> options,
+        Astrolabed.Dns.RuleEngine.RuleEngine engine,
+        IHttpClientFactory httpClientFactory,
+        ILoggerFactory loggerFactory,
+        ILogger<DnsForwarderRuntimeLoader> logger)
     {
-        _config = config;
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(engine);
+        ArgumentNullException.ThrowIfNull(httpClientFactory);
+        ArgumentNullException.ThrowIfNull(loggerFactory);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _options = options.Value;
+        _engine = engine;
+        _httpClientFactory = httpClientFactory;
+        _loggerFactory = loggerFactory;
+        _logger = logger;
     }
 
-    public async Task LoadAsync(IServiceProvider services)
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        var logger = services.GetRequiredService<ILogger<AstrolabedRuntimeLoader>>();
-
-        var options = services.GetRequiredService<DnsForwarderOptions>();
-        var engine = services.GetRequiredService<RuleEngine.RuleEngine>();
-
-        await LoadHostsAsync(options, engine, logger);
-        await LoadBlocklistsAsync(options, engine, logger);
-        await LoadAllowlistsAsync(options, engine, logger);
+        await LoadHostsAsync(cancellationToken).ConfigureAwait(false);
+        await LoadBlocklistsAsync(cancellationToken).ConfigureAwait(false);
+        await LoadAllowlistsAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    // ------------------------------------------------------------
-    // HOSTS
-    // ------------------------------------------------------------
-    private async Task LoadHostsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadHostsAsync(CancellationToken cancellationToken)
     {
-        if (options.HostsFiles?.Any() != true)
+        if (_options.HostsFiles?.Any() != true)
         {
-            logger.LogWarning("No Hosts files defined in configuration");
+            _logger.LogWarning("No Hosts files defined in configuration");
             return;
         }
 
-        logger.LogInformation("Loading Hosts files");
-        var hostsPaths = options.HostsFiles
-            .Select(p => p.StartsWith("file://") ? p[7..] : p);
+        _logger.LogInformation("Loading Hosts files");
+        var hostsPaths = _options.HostsFiles
+            .Select(p => p.StartsWith("file://", StringComparison.OrdinalIgnoreCase) ? p[7..] : p)
+            .ToList();
 
-        var hostsSource = new HostsFileSource(hostsPaths, logger);
-        await engine.AddHostsAsync(hostsSource);
-        logger.LogInformation($"Loaded {hostsPaths.Count()} Hosts files");
+        var hostsLogger = _loggerFactory.CreateLogger<HostsFileSource>();
+        var hostsSource = new HostsFileSource(hostsPaths, hostsLogger);
+
+        await _engine.AddHostsAsync(hostsSource).ConfigureAwait(false);
+        _logger.LogInformation("Loaded {Count} Hosts files", hostsPaths.Count);
     }
 
-    // ------------------------------------------------------------
-    // BLOCKLISTS
-    // ------------------------------------------------------------
-    private async Task LoadBlocklistsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadBlocklistsAsync(CancellationToken cancellationToken)
     {
-        if (options.Blocklists?.Any() != true)
+        if (_options.Blocklists?.Any() != true)
         {
-            logger.LogWarning("No Block Lists defined in configuration");
+            _logger.LogWarning("No Block Lists defined in configuration");
             return;
         }
 
-        logger.LogInformation("Loading Block lists");
-        var source = CreateSource(options.Blocklists);
-        await engine.AddListAsync(source, block: true);
-        logger.LogInformation("Finished loading Block lists");
+        _logger.LogInformation("Loading Block lists");
+        var source = CreateSource(_options.Blocklists);
+        await _engine.AddListAsync(source, block: true).ConfigureAwait(false);
+        _logger.LogInformation("Finished loading Block lists");
     }
 
-    // ------------------------------------------------------------
-    // ALLOWLISTS
-    // ------------------------------------------------------------
-    private async Task LoadAllowlistsAsync(DnsForwarderOptions options, RuleEngine.RuleEngine engine, ILogger logger)
+    private async Task LoadAllowlistsAsync(CancellationToken cancellationToken)
     {
-        if (options.Allowlists?.Any() != true)
+        if (_options.Allowlists?.Any() != true)
         {
-            logger.LogWarning("No Allow Lists defined in configuration");
+            _logger.LogWarning("No Allow Lists defined in configuration");
             return;
         }
 
-        logger.LogInformation("Loading Allow lists");
-        var source = CreateSource(options.Allowlists);
-        await engine.AddListAsync(source, block: false);
-        logger.LogInformation("Finished loading Allow lists");
+        _logger.LogInformation("Loading Allow lists");
+        var source = CreateSource(_options.Allowlists);
+        await _engine.AddListAsync(source, block: false).ConfigureAwait(false);
+        _logger.LogInformation("Finished loading Allow lists");
     }
 
-    // ------------------------------------------------------------
-    // SOURCE SELECTION (file:// vs URL)
-    // ------------------------------------------------------------
-    private static IBlocklistSource CreateSource(IEnumerable<string> items)
+    private IBlocklistSource CreateSource(IEnumerable<string> items)
     {
-        var fileItems = items
-            .Where(i => i.StartsWith("file://"))
-            .Select(i => i.Replace("file://", ""));
+        var itemList = items.ToList();
 
-        var urlItems = items
-            .Where(i => !i.StartsWith("file://"));
+        var fileItems = itemList
+            .Where(i => i.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            .Select(i => i[7..])
+            .ToList();
 
-        if (fileItems.Any() && urlItems.Any())
+        var urlItems = itemList
+            .Where(i => !i.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (fileItems.Count > 0 && urlItems.Count > 0)
         {
+            var httpClient = _httpClientFactory.CreateClient("BlocklistClient");
             return new CompositeBlocklistSource(new IBlocklistSource[]
             {
                 new FileBlocklistSource(fileItems),
-                new UrlBlocklistSource(urlItems)
+                new UrlBlocklistSource(urlItems, httpClient)
             });
         }
 
-        if (fileItems.Any())
+        if (fileItems.Count > 0)
             return new FileBlocklistSource(fileItems);
 
-        return new UrlBlocklistSource(urlItems);
+        var client = _httpClientFactory.CreateClient("BlocklistClient");
+        return new UrlBlocklistSource(urlItems, client);
     }
 }

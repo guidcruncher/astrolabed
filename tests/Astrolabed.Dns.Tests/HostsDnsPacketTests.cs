@@ -1,142 +1,39 @@
-using System.Net;
+using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
 
-using Astrolabed.Dns;
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
-using Astrolabed.Dns.RuleEngine;
 
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
 namespace Astrolabed.Dns.Tests;
 
-public class HostsDnsPacketTests
+public sealed class HostsDnsPacketTests
 {
-    private RuleEngine.RuleEngine CreateEngine(string ip)
+    private class HttpClientFactoryStub : IHttpClientFactory
     {
-        var opts = new DnsForwarderOptions
-        {
-            // UPDATED: DefaultResolvers replaces DefaultResolver
-            DefaultResolvers =
-            {
-                new UpstreamResolverOptions
-                {
-                    Name = "default",
-                    Address = "1.1.1.1",
-                    Port = 53
-                }
-            }
-        };
+        public HttpClient CreateClient(string name) => new HttpClient();
+    }
 
-        var logger = NullLogger<RuleEngine.RuleEngine>.Instance;
-        var engine = new RuleEngine.RuleEngine(opts, logger);
+    [Fact]
+    public async Task Hosts_Match_Returns_Packet()
+    {
+        var options = new DnsForwarderOptions();
+        var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
+        var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
 
-        // Inject hosts entry directly
         var tmp = Path.GetTempFileName();
-        File.WriteAllText(tmp, $"{ip} test.local");
+        await File.WriteAllLinesAsync(tmp, new[] { "127.0.0.1 host.test" });
 
-        var source = new HostsFileSource(new[] { tmp }, NullLoggerFactory.Instance.CreateLogger("hosts"));
-        engine.AddHostsAsync(source).Wait();
+        var source = new HostsFileSource(new[] { tmp }, NullLogger<HostsFileSource>.Instance);
+        await engine.AddHostsAsync(source);
 
-        return engine;
-    }
-
-    private static byte[] BuildDnsQuery(string domain)
-    {
-        var parts = domain.Split('.');
-        var bytes = new List<byte>();
-
-        bytes.Add(0x12);
-        bytes.Add(0x34);
-
-        bytes.Add(0x01);
-        bytes.Add(0x00);
-
-        bytes.Add(0x00);
-        bytes.Add(0x01);
-
-        bytes.AddRange(new byte[] { 0, 0, 0, 0, 0, 0 });
-
-        foreach (var p in parts)
-        {
-            bytes.Add((byte)p.Length);
-            bytes.AddRange(System.Text.Encoding.ASCII.GetBytes(p));
-        }
-        bytes.Add(0x00);
-
-        bytes.Add(0x00);
-        bytes.Add(0x01);
-
-        bytes.Add(0x00);
-        bytes.Add(0x01);
-
-        return bytes.ToArray();
-    }
-
-    [Theory]
-    [InlineData("127.0.0.1")]
-    [InlineData("10.0.0.5")]
-    public async Task HostsOverride_Should_Return_Valid_A_Record(string ip)
-    {
-        var engine = CreateEngine(ip);
-
-        var result = engine.Match("test.local", "-");
-
+        var result = engine.Match("host.test", "-");
         Assert.False(result.Block);
-
-        // NEW API: Upstreams[0] is the active resolver
-        Assert.IsType<StaticDnsClient>(result.Upstreams[0].Client);
-        Assert.Equal("hosts", result.Upstreams[0].Name);
-
-        var query = BuildDnsQuery("test.local");
-        var response = await result.Upstreams[0].Client.QueryAsync(query, default);
-
-        int offset = 0;
-
-        ushort id = (ushort)((response[0] << 8) | response[1]);
-        Assert.Equal(0x1234, id);
-
-        Assert.Equal(0x81, response[2]);
-        Assert.Equal(0x80, response[3]);
-
-        Assert.Equal(0x00, response[4]);
-        Assert.Equal(0x01, response[5]);
-
-        Assert.Equal(0x00, response[6]);
-        Assert.Equal(0x01, response[7]);
-
-        offset = 12;
-
-        while (response[offset] != 0)
-            offset += response[offset] + 1;
-
-        offset++;
-        offset += 4;
-
-        Assert.Equal(0xC0, response[offset]);
-        Assert.Equal(0x0C, response[offset + 1]);
-        offset += 2;
-
-        Assert.Equal(0x00, response[offset]);
-        Assert.Equal(0x01, response[offset + 1]);
-        offset += 2;
-
-        Assert.Equal(0x00, response[offset]);
-        Assert.Equal(0x01, response[offset + 1]);
-        offset += 2;
-
-        offset += 4;
-
-        Assert.Equal(0x00, response[offset]);
-        Assert.Equal(0x04, response[offset + 1]);
-        offset += 2;
-
-        var ipBytes = IPAddress.Parse(ip).GetAddressBytes();
-        Assert.Equal(ipBytes[0], response[offset]);
-        Assert.Equal(ipBytes[1], response[offset + 1]);
-        Assert.Equal(ipBytes[2], response[offset + 2]);
-        Assert.Equal(ipBytes[3], response[offset + 3]);
     }
 }

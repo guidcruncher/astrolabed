@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using Astrolabed.Events;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Core;
 
@@ -19,11 +20,11 @@ public sealed class DnsForwarderService
 
     public DnsForwarderService(
         ILogger<DnsForwarderService> logger,
-        DnsForwarderOptions options,
+        IOptions<DnsForwarderOptions> options,
         RuleEngine.RuleEngine ruleEngine)
     {
         _logger = logger;
-        _options = options;
+        _options = options.Value;
         _ruleEngine = ruleEngine;
     }
 
@@ -59,38 +60,49 @@ public sealed class DnsForwarderService
             return null;
         }
 
-        response = ApplyTruncationIfNeeded(response, request);
-
-        return new PooledBuffer(response, response.Length, fromPool: false);
+        return ApplyTruncationAndBuffer(response, request);
     }
 
-    private static byte[] ApplyTruncationIfNeeded(byte[] response, byte[] request)
+    private static PooledBuffer ApplyTruncationAndBuffer(byte[] response, byte[] request)
     {
         int maxPayloadSize = ExtractEdns0PayloadSize(request);
 
         if (response.Length <= maxPayloadSize)
         {
-            return response;
+            var poolBuffer = ArrayPool<byte>.Shared.Rent(response.Length);
+            Buffer.BlockCopy(response, 0, poolBuffer, 0, response.Length);
+            return new PooledBuffer(poolBuffer, response.Length, fromPool: true);
         }
 
         int offset = 12;
         while (offset < response.Length)
         {
             byte len = response[offset];
-            if (len == 0) { offset += 5; break; }
-            if (len >= 192) { offset += 6; break; }
+            if (len == 0)
+            {
+                offset += 5;
+                break;
+            }
+            if (len >= 192)
+            {
+                offset += 6;
+                break;
+            }
             offset += len + 1;
         }
 
-        if (offset > response.Length) offset = 12;
+        if (offset > response.Length)
+        {
+            offset = 12;
+        }
 
-        var truncated = new byte[offset];
-        Buffer.BlockCopy(response, 0, truncated, 0, offset);
+        var truncatedPoolBuffer = ArrayPool<byte>.Shared.Rent(offset);
+        Buffer.BlockCopy(response, 0, truncatedPoolBuffer, 0, offset);
 
-        truncated[2] |= 0x02; // Set TC bit
-        truncated.AsSpan(6, 6).Clear(); // Clear section counts
+        truncatedPoolBuffer[2] |= 0x02; // Set TC bit
+        truncatedPoolBuffer.AsSpan(6, 6).Clear(); // Clear section counts
 
-        return truncated;
+        return new PooledBuffer(truncatedPoolBuffer, offset, fromPool: true);
     }
 
     private static int ExtractEdns0PayloadSize(byte[] request)
@@ -145,3 +157,4 @@ public sealed class DnsForwarderService
         return -1;
     }
 }
+
