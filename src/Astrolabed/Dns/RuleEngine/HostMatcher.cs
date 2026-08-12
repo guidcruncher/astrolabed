@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -20,9 +22,9 @@ internal sealed class HostMatcher
         int Specificity,
         HostPatternKind Kind);
 
-    private readonly Dictionary<string, IPAddress> _exact = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, IPAddress> _exact = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<HostPattern> _nonExact = new();
-    private readonly object _lock = new();
+    private readonly ReaderWriterLockSlim _lock = new();
     private bool _isSorted;
 
     public void Add(string host, IPAddress ip)
@@ -33,16 +35,17 @@ internal sealed class HostMatcher
             return;
         }
 
-        lock (_lock)
+        if (!pattern.Contains('*'))
+        {
+            var core = pattern.ToLowerInvariant();
+            _exact[core] = ip;
+            return;
+        }
+
+        _lock.EnterWriteLock();
+        try
         {
             _isSorted = false;
-
-            if (!pattern.Contains('*'))
-            {
-                var core = pattern.ToLowerInvariant();
-                _exact[core] = ip;
-                return;
-            }
 
             if (pattern.StartsWith("*.", StringComparison.Ordinal))
             {
@@ -66,15 +69,14 @@ internal sealed class HostMatcher
 
             _nonExact.Add(new HostPattern(trimmed, ip, trimmed.Length, HostPatternKind.WildcardSubstring));
         }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
     }
 
     public IPAddress? MatchMostSpecific(string domain)
     {
-        if (_exact.Count == 0 && _nonExact.Count == 0)
-        {
-            return null;
-        }
-
         string lower = ToLowerFast(domain);
 
         if (_exact.TryGetValue(lower, out var exactIp))
@@ -82,40 +84,42 @@ internal sealed class HostMatcher
             return exactIp;
         }
 
-        if (_nonExact.Count == 0)
+        _lock.EnterReadLock();
+        try
         {
+            if (_nonExact.Count == 0)
+            {
+                return null;
+            }
+
+            EnsureSortedUnderLock();
+
+            for (int i = 0; i < _nonExact.Count; i++)
+            {
+                var p = _nonExact[i];
+                if (IsMatch(p, lower))
+                {
+                    return p.Address;
+                }
+            }
+
             return null;
         }
-
-        EnsureSorted();
-
-        for (int i = 0; i < _nonExact.Count; i++)
+        finally
         {
-            var p = _nonExact[i];
-            if (IsMatch(p, lower))
-            {
-                return p.Address;
-            }
+            _lock.ExitReadLock();
         }
-
-        return null;
     }
 
-    private void EnsureSorted()
+    private void EnsureSortedUnderLock()
     {
         if (_isSorted)
         {
             return;
         }
 
-        lock (_lock)
-        {
-            if (!_isSorted)
-            {
-                _nonExact.Sort((a, b) => b.Specificity.CompareTo(a.Specificity));
-                _isSorted = true;
-            }
-        }
+        _nonExact.Sort((a, b) => b.Specificity.CompareTo(a.Specificity));
+        _isSorted = true;
     }
 
     private static bool IsMatch(in HostPattern p, string domain)

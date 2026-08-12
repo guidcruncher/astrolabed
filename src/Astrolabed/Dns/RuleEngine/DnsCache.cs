@@ -98,18 +98,35 @@ public sealed class DnsCache : IDisposable
 
         var key = new DnsCacheKey(context.Domain, context.QType, context.QClass);
         var expires = DateTime.UtcNow + ttl;
+        
         var buf = ArrayPool<byte>.Shared.Rent(response.Length);
-        Buffer.BlockCopy(response, 0, buf, 0, response.Length);
+        CacheEntry? newEntry = null;
 
-        var newEntry = new CacheEntry(buf, response.Length, expires);
+        try
+        {
+            Buffer.BlockCopy(response, 0, buf, 0, response.Length);
+            newEntry = new CacheEntry(buf, response.Length, expires);
 
-        _entries.AddOrUpdate(key,
-            newEntry,
-            (_, existing) =>
+            _entries.AddOrUpdate(key,
+                newEntry,
+                (_, existing) =>
+                {
+                    existing.Dispose();
+                    return newEntry;
+                });
+        }
+        catch
+        {
+            if (newEntry != null)
             {
-                existing.Dispose();
-                return newEntry;
-            });
+                newEntry.Dispose();
+            }
+            else
+            {
+                ArrayPool<byte>.Shared.Return(buf, clearArray: true);
+            }
+            throw;
+        }
     }
 
     private void TriggerEviction()

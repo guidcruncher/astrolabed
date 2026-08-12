@@ -197,7 +197,8 @@ internal sealed class AhoCorasickMatcher<T>
 
                     if (c < 128)
                     {
-                        state = asciiTransitions[state * 128 + c];
+                        int index = state * 128 + c;
+                        state = (uint)index < (uint)asciiTransitions.Length ? asciiTransitions[index] : 0;
                     }
                     else
                     {
@@ -206,12 +207,15 @@ internal sealed class AhoCorasickMatcher<T>
 
                     _state = state;
 
-                    var stateOutputs = outputs[state];
-                    if (stateOutputs != null && stateOutputs.Length > 0)
+                    if ((uint)state < (uint)outputs.Length)
                     {
-                        _currentOutputs = stateOutputs;
-                        _outputIndex = 1;
-                        return true;
+                        var stateOutputs = outputs[state];
+                        if (stateOutputs != null && stateOutputs.Length > 0)
+                        {
+                            _currentOutputs = stateOutputs;
+                            _outputIndex = 1;
+                            return true;
+                        }
                     }
                 }
 
@@ -230,3 +234,4 @@ internal sealed class AhoCorasickMatcher<T>
         }
     }
 }
+
