@@ -13,6 +13,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp = null,
+	IPAddress? webproxy = null,
         IPAddress? subnetMask = null)
     {
         var buf = new List<byte>();
@@ -65,6 +66,13 @@ public static class DhcpPacketCodec
             buf.Add(42);
             buf.Add(4);
             buf.AddRange(ntp.GetAddressBytes());
+        }
+
+        if (webproxy is not null)
+        {
+            buf.Add(252);
+            buf.Add(4);
+            buf.AddRange(webproxy.GetAddressBytes());
         }
 
         buf.Add(255);
@@ -170,6 +178,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
+	IPAddress? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -181,6 +190,7 @@ public static class DhcpPacketCodec
             router,
             dns,
             ntp,
+	    webproxy,
             lease,
             subnetMask);
     }
@@ -192,6 +202,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
+	IPAddress? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -203,6 +214,7 @@ public static class DhcpPacketCodec
             router,
             dns,
             ntp,
+	    webproxy,
             lease,
             subnetMask);
     }
@@ -215,6 +227,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
+	IPAddress? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -265,6 +278,13 @@ public static class DhcpPacketCodec
             buf.Add(42);
             buf.Add(4);
             buf.AddRange(ntp.GetAddressBytes());
+        }
+
+        if (webproxy is not null)
+        {
+            buf.Add(252);
+            buf.Add(4);
+            buf.AddRange(webproxy.GetAddressBytes());
         }
 
         buf.Add(1);

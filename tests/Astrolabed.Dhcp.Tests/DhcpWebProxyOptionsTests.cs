@@ -6,7 +6,7 @@ using Xunit;
 
 namespace Astrolabed.Dhcp.Tests;
 
-public class DhcpNtpOptionTests
+public class DhcpWebProxyOptionTests
 {
     private static DhcpPacket MakeBasePacket()
     {
@@ -28,13 +28,13 @@ public class DhcpNtpOptionTests
     }
 
     [Fact]
-    public void Offer_Includes_Ntp_When_Configured()
+    public void Offer_Includes_WebProxy_When_Configured()
     {
         var req = MakeBasePacket();
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
-        var ntp = IPAddress.Parse("192.168.1.123");
+        var webproxy = IPAddress.Parse("192.168.1.123");
         var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var offerBytes = DhcpPacketCodec.BuildOffer(
@@ -43,19 +43,19 @@ public class DhcpNtpOptionTests
             serverId,
             router,
             dns,
-            ntp,
-	    null,
+            null,
+	    webproxy,
             TimeSpan.FromHours(1),
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 42);
-        Assert.Equal(ntp.GetAddressBytes(), parsed.Options.First(o => o.Code == 42).Data);
+        Assert.Contains(parsed.Options, o => o.Code == 252);
+        Assert.Equal(webproxy.GetAddressBytes(), parsed.Options.First(o => o.Code == 252).Data);
     }
 
     [Fact]
-    public void Offer_Does_Not_Include_Ntp_When_Not_Configured()
+    public void Offer_Does_Not_Include_WebProxy_When_Not_Configured()
     {
         var req = MakeBasePacket();
         var serverId = IPAddress.Parse("192.168.1.1");
@@ -76,17 +76,17 @@ public class DhcpNtpOptionTests
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
-        Assert.DoesNotContain(parsed.Options, o => o.Code == 42);
+        Assert.DoesNotContain(parsed.Options, o => o.Code == 252);
     }
 
     [Fact]
-    public void Ack_Includes_Ntp_When_Configured()
+    public void Ack_Includes_WebProxy_When_Configured()
     {
         var req = MakeBasePacket();
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
-        var ntp = IPAddress.Parse("192.168.1.123");
+        var webproxy = IPAddress.Parse("192.168.1.123");
         var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var ackBytes = DhcpPacketCodec.BuildAck(
@@ -95,19 +95,19 @@ public class DhcpNtpOptionTests
             serverId,
             router,
             dns,
-            ntp,
-	    null,
+            null,
+	    webproxy,
             TimeSpan.FromHours(1),
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 42);
-        Assert.Equal(ntp.GetAddressBytes(), parsed.Options.First(o => o.Code == 42).Data);
+        Assert.Contains(parsed.Options, o => o.Code == 252);
+        Assert.Equal(webproxy.GetAddressBytes(), parsed.Options.First(o => o.Code == 252).Data);
     }
 
     [Fact]
-    public void InformAck_Includes_Ntp_When_Configured()
+    public void InformAck_Includes_WebProxy_When_Configured()
     {
         var req = MakeBasePacket();
         req.Ciaddr = IPAddress.Parse("192.168.1.77");
@@ -115,7 +115,7 @@ public class DhcpNtpOptionTests
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
-        var ntp = IPAddress.Parse("192.168.1.123");
+        var webproxy = IPAddress.Parse("192.168.1.123");
         var subnetMask = IPAddress.Parse("255.255.255.0");
 
         var ackBytes = DhcpPacketCodec.BuildInformAck(
@@ -123,17 +123,17 @@ public class DhcpNtpOptionTests
             serverId,
             router,
             dns,
-            ntp,
-	    null,
+            null,
+	    webproxy,
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 42);
+        Assert.Contains(parsed.Options, o => o.Code == 252);
     }
 
     [Fact]
-    public void InformAck_Does_Not_Include_Ntp_When_Not_Configured()
+    public void InformAck_Does_Not_Include_WebProxy_When_Not_Configured()
     {
         var req = MakeBasePacket();
         req.Ciaddr = IPAddress.Parse("192.168.1.77");
@@ -154,6 +154,6 @@ public class DhcpNtpOptionTests
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
-        Assert.DoesNotContain(parsed.Options, o => o.Code == 42);
+        Assert.DoesNotContain(parsed.Options, o => o.Code == 252);
     }
 }

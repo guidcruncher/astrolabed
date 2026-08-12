@@ -26,6 +26,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
     private readonly IPAddress _router;
     private readonly IPAddress _dns;
     private readonly IPAddress? _ntp;
+    private readonly IPAddress? _webproxy;
     private readonly IPAddress _subnetMask;
     private readonly TimeSpan _defaultLeaseTime;
     private readonly TimeSpan _maxLeaseTime;
@@ -65,6 +66,12 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _ntp = IPAddress.Parse(_config.NtpServer);
         else
             _ntp = null;
+
+        if (!string.IsNullOrWhiteSpace(_config.WebProxyServer))
+            _webproxy = IPAddress.Parse(_config.WebProxyServer);
+        else
+            _webproxy = null;
+
     }
 
     private static IPAddress ParseSubnetMaskFromCidr(string? cidr)
@@ -251,6 +258,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _router,
             _dns,
             _ntp,
+	    _webproxy,
             leaseTime,
             _subnetMask);
 
@@ -330,6 +338,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _router,
             _dns,
             _ntp,
+            _webproxy,
             leaseTime,
             _subnetMask);
 
@@ -387,6 +396,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _router,
             _dns,
             _ntp,
+            _webproxy,
             _subnetMask);
 
         await _transport.SendAsync(ack, ack.Length, DetermineReplyEndpoint(req))

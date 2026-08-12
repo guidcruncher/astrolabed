@@ -43,6 +43,12 @@ public sealed class DhcpOptions
     //
     public string NtpServer { get; set; } = "";
 
+
+    //
+    // Web Proxy Auto-discovery option (252)
+    //
+    public string WebProxyServer { get; set; } = "";
+
     //
     // Default lease duration
     //
