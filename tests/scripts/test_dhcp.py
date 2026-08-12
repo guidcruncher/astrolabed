@@ -64,8 +64,8 @@ def build_dhcp_packet(
         options.extend([54, 4])
         options.extend(socket.inet_aton(server_ip))
 
-    # Option 55: Parameter Request List (1: Subnet Mask, 3: Router, 6: DNS, 42: NTP)
-    options.extend([55, 4, 1, 3, 6, 42])
+    # Option 55: Parameter Request List (1: Subnet Mask, 3: Router, 6: DNS, 42: NTP, 252: WPAD)
+    options.extend([55, 5, 1, 3, 6, 42, 252])
 
     # Option 255: End
     options.append(255)
@@ -115,6 +115,10 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
     if 42 in parsed_options:
         ntp_servers = parse_ip_list(parsed_options[42])
 
+    wpad_url = None
+    if 252 in parsed_options:
+        wpad_url = parsed_options[252].decode("utf-8", errors="ignore").rstrip("\x00")
+
     return {
         "xid": xid,
         "yiaddr": yiaddr,
@@ -122,6 +126,7 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
         "server_id": server_id,
         "dns_servers": dns_servers,
         "ntp_servers": ntp_servers,
+        "wpad_url": wpad_url,
     }
 
 
@@ -161,6 +166,7 @@ def test_dhcp_server(
         server_id = None
         offer_dns = []
         offer_ntp = []
+        offer_wpad = None
         start_time = time.time()
 
         while time.time() - start_time < timeout:
@@ -173,6 +179,7 @@ def test_dhcp_server(
                 server_id = parsed["server_id"] or target_host
                 offer_dns = parsed["dns_servers"]
                 offer_ntp = parsed["ntp_servers"]
+                offer_wpad = parsed["wpad_url"]
                 break
 
         if not offered_ip:
@@ -204,6 +211,7 @@ def test_dhcp_server(
                         "server_id": server_id,
                         "dns_servers": parsed["dns_servers"] or offer_dns,
                         "ntp_servers": parsed["ntp_servers"] or offer_ntp,
+                        "wpad_url": parsed["wpad_url"] or offer_wpad,
                         "response_from_host": addr[0],
                         "response_from_port": addr[1],
                     }
@@ -237,6 +245,7 @@ if __name__ == "__main__":
         print(f"  Server ID Option:   {result['server_id']}")
         print(f"  DNS Servers:        {', '.join(result['dns_servers']) if result['dns_servers'] else 'None returned'}")
         print(f"  NTP Servers:        {', '.join(result['ntp_servers']) if result['ntp_servers'] else 'None returned'}")
+        print(f"  WPAD URL (Opt 252): {result['wpad_url'] if result['wpad_url'] else 'None returned'}")
         print(f"  Responded From:     {result['response_from_host']}:{result['response_from_port']}")
     except Exception as err:
         print(f"DHCP Lease Test Failed: {err}")

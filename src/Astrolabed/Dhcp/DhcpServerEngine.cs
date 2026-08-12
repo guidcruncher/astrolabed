@@ -26,7 +26,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
     private readonly IPAddress _router;
     private readonly IPAddress _dns;
     private readonly IPAddress? _ntp;
-    private readonly IPAddress? _webproxy;
+    private readonly string? _webproxy;
     private readonly IPAddress _subnetMask;
     private readonly TimeSpan _defaultLeaseTime;
     private readonly TimeSpan _maxLeaseTime;
@@ -67,8 +67,8 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         else
             _ntp = null;
 
-        if (!string.IsNullOrWhiteSpace(_config.WebProxyServer))
-            _webproxy = IPAddress.Parse(_config.WebProxyServer);
+        if (!string.IsNullOrWhiteSpace(_config.WebProxyServerUrl))
+            _webproxy = _config.WebProxyServerUrl;
         else
             _webproxy = null;
 
@@ -258,7 +258,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             _router,
             _dns,
             _ntp,
-	    _webproxy,
+        _webproxy,
             leaseTime,
             _subnetMask);
 

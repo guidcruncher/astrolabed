@@ -21,7 +21,7 @@ public class DhcpOptionsEdgeCasesTests
             IPAddress.Parse("192.168.10.1"),
             IPAddress.Parse("1.1.1.1"),
             null,
-	    null,
+        null,
             TimeSpan.FromHours(1),
             IPAddress.Parse("255.255.255.248"));
 

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Net;
+using System.Text;
 
 namespace Astrolabed.Dhcp;
 
@@ -13,7 +14,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp = null,
-	IPAddress? webproxy = null,
+    string? webproxy = null,
         IPAddress? subnetMask = null)
     {
         var buf = new List<byte>();
@@ -70,9 +71,10 @@ public static class DhcpPacketCodec
 
         if (webproxy is not null)
         {
+            byte[] urlBytes = Encoding.UTF8.GetBytes(webproxy);
             buf.Add(252);
-            buf.Add(4);
-            buf.AddRange(webproxy.GetAddressBytes());
+            buf.Add((byte)urlBytes.Length);
+            buf.AddRange(urlBytes);
         }
 
         buf.Add(255);
@@ -178,7 +180,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
-	IPAddress? webproxy,
+    string? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -190,7 +192,7 @@ public static class DhcpPacketCodec
             router,
             dns,
             ntp,
-	    webproxy,
+        webproxy,
             lease,
             subnetMask);
     }
@@ -202,7 +204,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
-	IPAddress? webproxy,
+    string? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -214,7 +216,7 @@ public static class DhcpPacketCodec
             router,
             dns,
             ntp,
-	    webproxy,
+        webproxy,
             lease,
             subnetMask);
     }
@@ -227,7 +229,7 @@ public static class DhcpPacketCodec
         IPAddress router,
         IPAddress dns,
         IPAddress? ntp,
-	IPAddress? webproxy,
+    string? webproxy,
         TimeSpan lease,
         IPAddress subnetMask)
     {
@@ -282,9 +284,10 @@ public static class DhcpPacketCodec
 
         if (webproxy is not null)
         {
+            byte[] urlBytes = Encoding.UTF8.GetBytes(webproxy);
             buf.Add(252);
-            buf.Add(4);
-            buf.AddRange(webproxy.GetAddressBytes());
+            buf.Add((byte)urlBytes.Length);
+            buf.AddRange(urlBytes);
         }
 
         buf.Add(1);

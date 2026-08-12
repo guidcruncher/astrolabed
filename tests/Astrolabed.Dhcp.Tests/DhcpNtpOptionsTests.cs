@@ -44,7 +44,7 @@ public class DhcpNtpOptionTests
             router,
             dns,
             ntp,
-	    null,
+        null,
             TimeSpan.FromHours(1),
             subnetMask);
 
@@ -70,7 +70,7 @@ public class DhcpNtpOptionTests
             router,
             dns,
             null,
-	    null,
+        null,
             TimeSpan.FromHours(1),
             subnetMask);
 
@@ -96,7 +96,7 @@ public class DhcpNtpOptionTests
             router,
             dns,
             ntp,
-	    null,
+        null,
             TimeSpan.FromHours(1),
             subnetMask);
 
@@ -124,7 +124,7 @@ public class DhcpNtpOptionTests
             router,
             dns,
             ntp,
-	    null,
+        null,
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
@@ -149,7 +149,7 @@ public class DhcpNtpOptionTests
             router,
             dns,
             null,
-	    null,
+        null,
             subnetMask);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
