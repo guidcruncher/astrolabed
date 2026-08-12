@@ -53,7 +53,7 @@ internal sealed class QueryExecutor
                     int ttl = TtlExtractor.ExtractTtl(response);
                     if (ttl > 0 && _options.Caching?.Enabled != false)
                     {
-                        _cache.Add(context, response, TimeSpan.FromSeconds(ttl));
+                        _cache.Store(context, response, TimeSpan.FromSeconds(ttl));
                     }
 
                     return response;

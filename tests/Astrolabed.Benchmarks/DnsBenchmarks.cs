@@ -1,4 +1,6 @@
+using System;
 using System.Net;
+using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.RuleEngine;
@@ -7,6 +9,7 @@ using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Benchmarks;
 
@@ -14,8 +17,9 @@ public class DnsBenchmarks
 {
     private byte[] _query = Array.Empty<byte>();
     private Astrolabed.Dns.RuleEngine.RuleEngine _engine = default!;
-    private IDnsClient _client = default!;
-    private CachingDnsClientDecorator _cache = default!;
+    private DnsCache _cache = default!;
+    private DnsRequestContext _context = default!;
+    private byte[] _sampleResponse = Array.Empty<byte>();
 
     [GlobalSetup]
     public void Setup()
@@ -30,6 +34,22 @@ public class DnsBenchmarks
             0x00,
             0x00, 0x01,
             0x00, 0x01
+        };
+
+        _sampleResponse = new byte[]
+        {
+            0x12, 0x34, 0x81, 0x80,
+            0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x00,
+            0x07, (byte)'e',(byte)'x',(byte)'a',(byte)'m',(byte)'p',(byte)'l',(byte)'e',
+            0x03, (byte)'c',(byte)'o',(byte)'m',
+            0x00,
+            0x00, 0x01, 0x00, 0x01,
+            0xC0, 0x0C,
+            0x00, 0x01, 0x00, 0x01,
+            0x00, 0x00, 0x00, 0x3C,
+            0x00, 0x04,
+            0x5D, 0xB8, 0xD8, 0x22
         };
 
         var options = new DnsForwarderOptions
@@ -51,8 +71,6 @@ public class DnsBenchmarks
                     Block = true
                 }
             },
-
-            // UPDATED: DefaultResolvers replaces DefaultResolver
             DefaultResolvers =
             {
                 new UpstreamResolverOptions
@@ -70,7 +88,6 @@ public class DnsBenchmarks
                     Block = false
                 }
             },
-
             Caching = new CachingOptions
             {
                 Enabled = true,
@@ -78,14 +95,15 @@ public class DnsBenchmarks
             }
         };
 
+        var wrappedOptions = Options.Create(options);
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
-        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(options, logger);
+        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger);
 
-        _client = new UdpDnsClient(new IPEndPoint(IPAddress.Parse("1.1.1.1"), 53));
-        _cache = new CachingDnsClientDecorator(_client, options.Caching.MaxEntries);
+        _cache = new DnsCache(options.Caching.MaxEntries);
+        _context = new DnsRequestContext("example.com", 1, 1, IPAddress.Loopback, _query);
 
         // Warm cache
-        _cache.QueryAsync(_query, default).GetAwaiter().GetResult();
+        _cache.Store(_context, _sampleResponse, TimeSpan.FromMinutes(5));
     }
 
     [Benchmark]
@@ -112,8 +130,10 @@ public class DnsBenchmarks
     [Benchmark]
     public void Cache_Hit()
     {
-        var response = _cache.QueryAsync(_query, default).GetAwaiter().GetResult();
-        _ = response.Length;
+        if (_cache.TryGet(_context, out var response) && response != null)
+        {
+            _ = response.Length;
+        }
     }
 }
 
