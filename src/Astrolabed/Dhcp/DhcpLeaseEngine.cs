@@ -1,6 +1,11 @@
+using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Astrolabed.Dhcp;
 
@@ -13,22 +18,29 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
 
     public DhcpLeaseEngine(IDhcpLeaseStore store, ICidrPoolAllocator pool)
     {
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _pool = pool ?? throw new ArgumentNullException(nameof(pool));
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(pool);
+
+        _store = store;
+        _pool = pool;
     }
 
     public DhcpLease? GetActiveLease(PhysicalAddress mac)
     {
+        ArgumentNullException.ThrowIfNull(mac);
         return _store.GetActiveLeases().FirstOrDefault(l => l.Mac.Equals(mac));
     }
 
     public DhcpLease? GetAnyLease(PhysicalAddress mac)
     {
+        ArgumentNullException.ThrowIfNull(mac);
         return _store.GetActiveLeases().FirstOrDefault(l => l.Mac.Equals(mac));
     }
 
     public async Task<DhcpLease> AllocateAsync(PhysicalAddress mac, TimeSpan leaseTime)
     {
+        ArgumentNullException.ThrowIfNull(mac);
+
         await _allocationLock.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -46,7 +58,9 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
 
             var ip = _pool.Allocate(activeAndPending);
             if (ip == null)
+            {
                 throw new InvalidOperationException("DHCP pool exhausted");
+            }
 
             var lease = new DhcpLease
             {
@@ -69,6 +83,9 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
         TimeSpan leaseTime,
         IArpConflictDetector arp)
     {
+        ArgumentNullException.ThrowIfNull(mac);
+        ArgumentNullException.ThrowIfNull(arp);
+
         List<IPAddress> candidates = new();
         HashSet<IPAddress> badIps;
 
@@ -102,10 +119,14 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
         foreach (var candidate in candidates)
         {
             if (badIps.Contains(candidate))
+            {
                 continue;
+            }
 
             if (!_pendingAllocations.TryAdd(candidate, 0))
+            {
                 continue;
+            }
 
             try
             {
@@ -153,11 +174,13 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
 
     public async Task ReleaseAsync(PhysicalAddress mac)
     {
+        ArgumentNullException.ThrowIfNull(mac);
         await _store.RemoveAsync(mac).ConfigureAwait(false);
     }
 
     public async Task DeclineAsync(IPAddress ip)
     {
+        ArgumentNullException.ThrowIfNull(ip);
         await _store.AddBadIpAsync(ip).ConfigureAwait(false);
     }
 }

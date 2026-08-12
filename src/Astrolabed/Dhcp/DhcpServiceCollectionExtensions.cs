@@ -1,3 +1,4 @@
+using System;
 using System.Net;
 
 using Microsoft.Extensions.Configuration;
@@ -13,6 +14,9 @@ public static class DhcpServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
         services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
         return services.AddDhcpServices();
     }
@@ -21,6 +25,9 @@ public static class DhcpServiceCollectionExtensions
         this IServiceCollection services,
         Action<DhcpOptions> configureOptions)
     {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configureOptions);
+
         services.Configure(configureOptions);
         return services.AddDhcpServices();
     }

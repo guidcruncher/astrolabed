@@ -1,4 +1,7 @@
+using System;
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Net;
 using System.Text;
 
@@ -8,123 +11,14 @@ public static class DhcpPacketCodec
 {
     private static readonly byte[] MagicCookie = { 99, 130, 83, 99 };
 
-    public static byte[] BuildInformAck(
-        DhcpPacket inform,
-        IPAddress serverId,
-        IPAddress router,
-        IPAddress dns,
-        IPAddress subnetMask,
-        IPAddress? ntp = null,
-        string? webproxy = null)
-    {
-        var buf = new List<byte>();
-
-        buf.Add(2);
-        buf.Add(inform.Htype);
-        buf.Add(inform.Hlen);
-        buf.Add(inform.Hops);
-
-        AppendUInt32BigEndian(buf, inform.Xid);
-        AppendUInt16BigEndian(buf, inform.Secs);
-        AppendUInt16BigEndian(buf, inform.Flags);
-
-        buf.AddRange(inform.Ciaddr.GetAddressBytes());
-        buf.AddRange(IPAddress.Any.GetAddressBytes());
-        buf.AddRange(serverId.GetAddressBytes());
-        buf.AddRange(inform.Giaddr.GetAddressBytes());
-
-        buf.AddRange(inform.Chaddr);
-        buf.AddRange(new byte[64]);
-        buf.AddRange(new byte[128]);
-
-        buf.AddRange(MagicCookie);
-
-        buf.Add(53);
-        buf.Add(1);
-        buf.Add((byte)DhcpMessageType.Ack);
-
-        buf.Add(54);
-        buf.Add(4);
-        buf.AddRange(serverId.GetAddressBytes());
-
-        // Option 1: Subnet Mask
-        buf.Add(1);
-        buf.Add(4);
-        buf.AddRange(subnetMask.GetAddressBytes());
-
-        // Option 3: Router
-        buf.Add(3);
-        buf.Add(4);
-        buf.AddRange(router.GetAddressBytes());
-
-        // Option 6: DNS Server
-        buf.Add(6);
-        buf.Add(4);
-        buf.AddRange(dns.GetAddressBytes());
-
-        if (ntp is not null)
-        {
-            // Option 42: NTP Server
-            buf.Add(42);
-            buf.Add(4);
-            buf.AddRange(ntp.GetAddressBytes());
-        }
-
-        if (webproxy is not null)
-        {
-            // Option 252: WPAD URL
-            byte[] urlBytes = Encoding.UTF8.GetBytes(webproxy);
-            buf.Add(252);
-            buf.Add((byte)urlBytes.Length);
-            buf.AddRange(urlBytes);
-        }
-
-        buf.Add(255);
-
-        return buf.ToArray();
-    }
-
-    public static byte[] BuildNak(DhcpPacket request, IPAddress serverId)
-    {
-        var buf = new List<byte>();
-
-        buf.Add(2);
-        buf.Add(request.Htype);
-        buf.Add(request.Hlen);
-        buf.Add(request.Hops);
-
-        AppendUInt32BigEndian(buf, request.Xid);
-        AppendUInt16BigEndian(buf, request.Secs);
-        AppendUInt16BigEndian(buf, request.Flags);
-
-        buf.AddRange(request.Ciaddr.GetAddressBytes());
-        buf.AddRange(IPAddress.Any.GetAddressBytes());
-        buf.AddRange(serverId.GetAddressBytes());
-        buf.AddRange(request.Giaddr.GetAddressBytes());
-
-        buf.AddRange(request.Chaddr);
-        buf.AddRange(new byte[64]);
-        buf.AddRange(new byte[128]);
-
-        buf.AddRange(MagicCookie);
-
-        buf.Add(53);
-        buf.Add(1);
-        buf.Add((byte)DhcpMessageType.Nak);
-
-        buf.Add(54);
-        buf.Add(4);
-        buf.AddRange(serverId.GetAddressBytes());
-
-        buf.Add(255);
-
-        return buf.ToArray();
-    }
-
     public static DhcpPacket Parse(byte[] data)
     {
+        ArgumentNullException.ThrowIfNull(data);
+
         if (data.Length < 240)
+        {
             throw new ArgumentException("Packet is too short for standard DHCP format", nameof(data));
+        }
 
         var p = new DhcpPacket
         {
@@ -145,7 +39,9 @@ public static class DhcpPacketCodec
         int offset = 236;
 
         if (!data.AsSpan(offset, 4).SequenceEqual(MagicCookie))
+        {
             throw new FormatException("Invalid DHCP magic cookie");
+        }
 
         offset += 4;
 
@@ -153,18 +49,26 @@ public static class DhcpPacketCodec
         {
             byte code = data[offset++];
 
-            if (code == 255)
+            if (code == 255) // End Option
+            {
                 break;
+            }
 
-            if (code == 0)
+            if (code == 0) // Pad Option
+            {
                 continue;
+            }
 
             if (offset >= data.Length)
+            {
                 break;
+            }
 
             byte len = data[offset++];
             if (offset + len > data.Length)
+            {
                 break;
+            }
 
             var optData = data.AsSpan(offset, len).ToArray();
             offset += len;
@@ -223,6 +127,70 @@ public static class DhcpPacketCodec
             webproxy);
     }
 
+    public static byte[] BuildInformAck(
+        DhcpPacket inform,
+        IPAddress serverId,
+        IPAddress router,
+        IPAddress dns,
+        IPAddress subnetMask,
+        IPAddress? ntp = null,
+        string? webproxy = null)
+    {
+        var writer = new ArrayBufferWriter<byte>(512);
+        WriteHeader(writer, inform, 2, inform.Ciaddr, IPAddress.Any, serverId);
+
+        // Option 53: Message Type
+        WriteOptionHeader(writer, 53, 1);
+        writer.GetSpan(1)[0] = (byte)DhcpMessageType.Ack;
+        writer.Advance(1);
+
+        // Option 54: Server Identifier
+        WriteOptionIp(writer, 54, serverId);
+
+        // Option 1: Subnet Mask
+        WriteOptionIp(writer, 1, subnetMask);
+
+        // Option 3: Router
+        WriteOptionIp(writer, 3, router);
+
+        // Option 6: DNS Server
+        WriteOptionIp(writer, 6, dns);
+
+        if (ntp is not null)
+        {
+            WriteOptionIp(writer, 42, ntp);
+        }
+
+        if (webproxy is not null)
+        {
+            WriteOptionString(writer, 252, webproxy);
+        }
+
+        writer.GetSpan(1)[0] = 255; // End Option
+        writer.Advance(1);
+
+        return writer.WrittenSpan.ToArray();
+    }
+
+    public static byte[] BuildNak(DhcpPacket request, IPAddress serverId)
+    {
+        var writer = new ArrayBufferWriter<byte>(300);
+        WriteHeader(writer, request, 2, request.Ciaddr, IPAddress.Any, serverId);
+
+        // Option 53: Message Type
+        WriteOptionHeader(writer, 53, 1);
+        writer.GetSpan(1)[0] = (byte)DhcpMessageType.Nak;
+        writer.Advance(1);
+
+        // Option 54: Server Identifier
+        WriteOptionIp(writer, 54, serverId);
+
+        writer.GetSpan(1)[0] = 255; // End Option
+        writer.Advance(1);
+
+        return writer.WrittenSpan.ToArray();
+    }
+
     private static byte[] BuildResponse(
         DhcpPacket req,
         DhcpMessageType type,
@@ -235,95 +203,109 @@ public static class DhcpPacketCodec
         IPAddress? ntp = null,
         string? webproxy = null)
     {
-        var buf = new List<byte>();
-
-        buf.Add(2);
-        buf.Add(req.Htype);
-        buf.Add(req.Hlen);
-        buf.Add(req.Hops);
-
-        AppendUInt32BigEndian(buf, req.Xid);
-        AppendUInt16BigEndian(buf, req.Secs);
-        AppendUInt16BigEndian(buf, req.Flags);
-
-        buf.AddRange(req.Ciaddr.GetAddressBytes());
-        buf.AddRange(yiaddr.GetAddressBytes());
-        buf.AddRange(serverId.GetAddressBytes());
-        buf.AddRange(req.Giaddr.GetAddressBytes());
-
-        buf.AddRange(req.Chaddr);
-        buf.AddRange(new byte[64]);
-        buf.AddRange(new byte[128]);
-
-        buf.AddRange(MagicCookie);
+        var writer = new ArrayBufferWriter<byte>(512);
+        WriteHeader(writer, req, 2, req.Ciaddr, yiaddr, serverId);
 
         // Option 53: Message Type
-        buf.Add(53);
-        buf.Add(1);
-        buf.Add((byte)type);
+        WriteOptionHeader(writer, 53, 1);
+        writer.GetSpan(1)[0] = (byte)type;
+        writer.Advance(1);
 
         // Option 54: Server Identifier
-        buf.Add(54);
-        buf.Add(4);
-        buf.AddRange(serverId.GetAddressBytes());
+        WriteOptionIp(writer, 54, serverId);
 
         // Option 51: IP Address Lease Time
-        buf.Add(51);
-        buf.Add(4);
-        AppendUInt32BigEndian(buf, (uint)lease.TotalSeconds);
+        WriteOptionHeader(writer, 51, 4);
+        BinaryPrimitives.WriteUInt32BigEndian(writer.GetSpan(4), (uint)lease.TotalSeconds);
+        writer.Advance(4);
 
         // Option 1: Subnet Mask
-        buf.Add(1);
-        buf.Add(4);
-        buf.AddRange(subnetMask.GetAddressBytes());
+        WriteOptionIp(writer, 1, subnetMask);
 
         // Option 3: Router
-        buf.Add(3);
-        buf.Add(4);
-        buf.AddRange(router.GetAddressBytes());
+        WriteOptionIp(writer, 3, router);
 
         // Option 6: DNS Server
-        buf.Add(6);
-        buf.Add(4);
-        buf.AddRange(dns.GetAddressBytes());
+        WriteOptionIp(writer, 6, dns);
 
         if (ntp is not null)
         {
-            // Option 42: NTP Server
-            buf.Add(42);
-            buf.Add(4);
-            buf.AddRange(ntp.GetAddressBytes());
+            WriteOptionIp(writer, 42, ntp);
         }
 
         if (webproxy is not null)
         {
-            // Option 252: WPAD URL
-            byte[] urlBytes = Encoding.UTF8.GetBytes(webproxy);
-            buf.Add(252);
-            buf.Add((byte)urlBytes.Length);
-            buf.AddRange(urlBytes);
+            WriteOptionString(writer, 252, webproxy);
         }
 
-        buf.Add(255);
+        writer.GetSpan(1)[0] = 255; // End Option
+        writer.Advance(1);
 
-        return buf.ToArray();
+        return writer.WrittenSpan.ToArray();
     }
 
-    private static void AppendUInt16BigEndian(List<byte> buf, ushort value)
+    private static void WriteHeader(
+        IBufferWriter<byte> writer,
+        DhcpPacket req,
+        byte op,
+        IPAddress ciaddr,
+        IPAddress yiaddr,
+        IPAddress serverId)
     {
-        Span<byte> bytes = stackalloc byte[2];
-        BinaryPrimitives.WriteUInt16BigEndian(bytes, value);
-        buf.Add(bytes[0]);
-        buf.Add(bytes[1]);
+        Span<byte> span = writer.GetSpan(236);
+
+        span[0] = op;
+        span[1] = req.Htype;
+        span[2] = req.Hlen;
+        span[3] = req.Hops;
+
+        BinaryPrimitives.WriteUInt32BigEndian(span[4..], req.Xid);
+        BinaryPrimitives.WriteUInt16BigEndian(span[8..], req.Secs);
+        BinaryPrimitives.WriteUInt16BigEndian(span[10..], req.Flags);
+
+        ciaddr.TryWriteBytes(span[12..], out _);
+        yiaddr.TryWriteBytes(span[16..], out _);
+        serverId.TryWriteBytes(span[20..], out _);
+        req.Giaddr.TryWriteBytes(span[24..], out _);
+
+        span[28..44].Clear();
+        req.Chaddr.AsSpan(0, Math.Min(req.Chaddr.Length, 16)).CopyTo(span[28..]);
+
+        span[44..108].Clear();  // sname (64 bytes)
+        span[108..236].Clear(); // file (128 bytes)
+
+        writer.Advance(236);
+
+        Span<byte> cookieSpan = writer.GetSpan(4);
+        MagicCookie.CopyTo(cookieSpan);
+        writer.Advance(4);
     }
 
-    private static void AppendUInt32BigEndian(List<byte> buf, uint value)
+    private static void WriteOptionHeader(IBufferWriter<byte> writer, byte code, byte length)
     {
-        Span<byte> bytes = stackalloc byte[4];
-        BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
-        buf.Add(bytes[0]);
-        buf.Add(bytes[1]);
-        buf.Add(bytes[2]);
-        buf.Add(bytes[3]);
+        Span<byte> span = writer.GetSpan(2);
+        span[0] = code;
+        span[1] = length;
+        writer.Advance(2);
+    }
+
+    private static void WriteOptionIp(IBufferWriter<byte> writer, byte code, IPAddress ip)
+    {
+        WriteOptionHeader(writer, code, 4);
+        Span<byte> span = writer.GetSpan(4);
+        ip.TryWriteBytes(span, out _);
+        writer.Advance(4);
+    }
+
+    private static void WriteOptionString(IBufferWriter<byte> writer, byte code, string value)
+    {
+        int byteCount = Encoding.UTF8.GetByteCount(value);
+        byte length = (byte)Math.Min(byteCount, 255);
+
+        WriteOptionHeader(writer, code, length);
+        Span<byte> span = writer.GetSpan(length);
+        Encoding.UTF8.GetBytes(value.AsSpan(0, Math.Min(value.Length, length)), span);
+        writer.Advance(length);
     }
 }
+

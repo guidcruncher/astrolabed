@@ -30,7 +30,9 @@ public sealed class DhcpRuntimeLoader : IDhcpRuntimeLoader
             return;
         }
 
-        if (_leaseStore is JsonDhcpLeaseStore jsonStore && !string.IsNullOrWhiteSpace(_options.LeaseStorePath) && File.Exists(_options.LeaseStorePath))
+        if (_leaseStore is JsonDhcpLeaseStore jsonStore 
+            && !string.IsNullOrWhiteSpace(_options.LeaseStorePath) 
+            && File.Exists(_options.LeaseStorePath))
         {
             await jsonStore.LoadAsync().ConfigureAwait(false);
         }

@@ -1,5 +1,8 @@
+using System;
+using System.Buffers.Binary;
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
-
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp;
@@ -18,6 +21,8 @@ public sealed class CidrPoolAllocator : ICidrPoolAllocator
 
     public CidrPoolAllocator(string cidr)
     {
+        ArgumentException.ThrowIfNullOrEmpty(cidr);
+
         var parts = cidr.Split('/');
         var ip = IPAddress.Parse(parts[0]);
         var prefix = int.Parse(parts[1]);
@@ -34,30 +39,36 @@ public sealed class CidrPoolAllocator : ICidrPoolAllocator
 
     public bool IsInPool(IPAddress ip)
     {
+        ArgumentNullException.ThrowIfNull(ip);
         uint value = ToUInt32(ip);
         return value >= _first && value <= _last;
     }
 
     public IEnumerable<IPAddress> AllocationSequence(IEnumerable<IPAddress> used)
     {
+        ArgumentNullException.ThrowIfNull(used);
         var usedSet = used.Select(ToUInt32).ToHashSet();
 
         for (uint i = _first; i <= _last; i++)
         {
-            var ip = FromUInt32(i);
             if (!usedSet.Contains(i))
-                yield return ip;
+            {
+                yield return FromUInt32(i);
+            }
         }
     }
 
     public IPAddress? Allocate(IEnumerable<IPAddress> used)
     {
+        ArgumentNullException.ThrowIfNull(used);
         var usedSet = used.Select(ToUInt32).ToHashSet();
 
         for (uint i = _first; i <= _last; i++)
         {
             if (!usedSet.Contains(i))
+            {
                 return FromUInt32(i);
+            }
         }
 
         return null;
@@ -65,17 +76,18 @@ public sealed class CidrPoolAllocator : ICidrPoolAllocator
 
     private static uint ToUInt32(IPAddress ip)
     {
-        var bytes = ip.GetAddressBytes();
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(bytes);
-        return BitConverter.ToUInt32(bytes, 0);
+        Span<byte> bytes = stackalloc byte[4];
+        if (!ip.TryWriteBytes(bytes, out _))
+        {
+            throw new ArgumentException("Invalid IPv4 address length", nameof(ip));
+        }
+        return BinaryPrimitives.ReadUInt32BigEndian(bytes);
     }
 
     private static IPAddress FromUInt32(uint value)
     {
-        var bytes = BitConverter.GetBytes(value);
-        if (BitConverter.IsLittleEndian)
-            Array.Reverse(bytes);
+        Span<byte> bytes = stackalloc byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(bytes, value);
         return new IPAddress(bytes);
     }
 }

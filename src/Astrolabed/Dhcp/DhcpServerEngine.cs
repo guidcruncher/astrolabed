@@ -1,8 +1,11 @@
+using System;
 using System.Buffers.Binary;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Astrolabed.Events;
 using Astrolabed.Utilities;
@@ -47,14 +50,23 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         IArpConflictDetector arp,
         bool testMode = false)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _config = configOptions?.Value ?? throw new ArgumentNullException(nameof(configOptions));
-        _store = store ?? throw new ArgumentNullException(nameof(store));
-        _transport = transport ?? throw new ArgumentNullException(nameof(transport));
-        _metrics = metrics ?? throw new ArgumentNullException(nameof(metrics));
-        _leaseEngine = leaseEngine ?? throw new ArgumentNullException(nameof(leaseEngine));
-        _pool = pool ?? throw new ArgumentNullException(nameof(pool));
-        _arp = arp ?? throw new ArgumentNullException(nameof(arp));
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(configOptions);
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(transport);
+        ArgumentNullException.ThrowIfNull(metrics);
+        ArgumentNullException.ThrowIfNull(leaseEngine);
+        ArgumentNullException.ThrowIfNull(pool);
+        ArgumentNullException.ThrowIfNull(arp);
+
+        _logger = logger;
+        _config = configOptions.Value;
+        _store = store;
+        _transport = transport;
+        _metrics = metrics;
+        _leaseEngine = leaseEngine;
+        _pool = pool;
+        _arp = arp;
         _testMode = testMode;
 
         _serverId = IPAddress.Parse(_config.ServerIdentifier);
@@ -64,21 +76,18 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         _defaultLeaseTime = TimeSpan.FromHours(1);
         _maxLeaseTime = TimeSpan.FromDays(7);
 
-        if (!string.IsNullOrWhiteSpace(_config.NtpServer))
-            _ntp = IPAddress.Parse(_config.NtpServer);
-        else
-            _ntp = null;
+        _ntp = !string.IsNullOrWhiteSpace(_config.NtpServer)
+            ? IPAddress.Parse(_config.NtpServer)
+            : null;
 
-        if (!string.IsNullOrWhiteSpace(_config.WebProxyServerUrl))
-            _webproxy = _config.WebProxyServerUrl;
-        else
-            _webproxy = null;
+        _webproxy = !string.IsNullOrWhiteSpace(_config.WebProxyServerUrl)
+            ? _config.WebProxyServerUrl
+            : null;
     }
 
     private static IPAddress ParseSubnetMaskFromCidr(string? cidr)
     {
-        if (string.IsNullOrWhiteSpace(cidr))
-            throw new ArgumentException("Pool CIDR configuration cannot be null or empty.", nameof(cidr));
+        ArgumentException.ThrowIfNullOrEmpty(cidr);
 
         var parts = cidr.Split('/');
         if (parts.Length < 2 || !int.TryParse(parts[1], out int prefix) || prefix < 0 || prefix > 32)
@@ -107,10 +116,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
             if (requestedSeconds > 0)
             {
                 var requestedSpan = TimeSpan.FromSeconds(requestedSeconds);
-                if (requestedSpan > _maxLeaseTime)
-                    return _maxLeaseTime;
-
-                return requestedSpan;
+                return requestedSpan > _maxLeaseTime ? _maxLeaseTime : requestedSpan;
             }
         }
 
@@ -121,10 +127,14 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
     {
         var optIp = req.GetRequestedIp();
         if (optIp != null)
+        {
             return optIp;
+        }
 
         if (!req.Ciaddr.Equals(IPAddress.Any))
+        {
             return req.Ciaddr;
+        }
 
         return null;
     }
@@ -192,8 +202,16 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
                 continue;
             }
 
+            // RFC 2131: Only process incoming BOOTREQUEST (1) packets
+            if (req.Op != 1)
+            {
+                _logger.LogTrace("Ignoring non-BOOTREQUEST packet opcode ({Op}) from {Endpoint}", req.Op, result.RemoteEndPoint);
+                continue;
+            }
+
             var type = req.GetMessageType();
-            var mac = new PhysicalAddress(req.Chaddr.Take(req.Hlen).ToArray());
+            int validMacLength = Math.Clamp((int)req.Hlen, 0, Math.Min(req.Chaddr.Length, 16));
+            var mac = new PhysicalAddress(req.Chaddr.AsSpan(0, validMacLength).ToArray());
 
             switch (type)
             {
@@ -230,13 +248,19 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
     private IPEndPoint DetermineReplyEndpoint(DhcpPacket req)
     {
         if (_testMode && _lastClient is not null)
+        {
             return _lastClient;
+        }
 
         if (!req.Giaddr.Equals(IPAddress.Any))
+        {
             return new IPEndPoint(req.Giaddr, 67);
+        }
 
         if (!req.Ciaddr.Equals(IPAddress.Any))
+        {
             return new IPEndPoint(req.Ciaddr, 68);
+        }
 
         return new IPEndPoint(IPAddress.Broadcast, 68);
     }
@@ -378,7 +402,9 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         await _leaseEngine.ReleaseAsync(mac).ConfigureAwait(false);
 
         if (requestedIp is not null)
+        {
             await _leaseEngine.DeclineAsync(requestedIp).ConfigureAwait(false);
+        }
 
         _metrics.NakSent(new DhcpNakEvent(
             Timestamp: DateTime.UtcNow,
