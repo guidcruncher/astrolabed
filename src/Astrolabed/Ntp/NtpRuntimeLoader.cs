@@ -19,7 +19,9 @@ public sealed class NtpRuntimeLoader : IHostedService
         IOptions<NtpServerOptions> options,
         INtpTimeSource timeSource)
     {
+        ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(timeSource);
 
         _logger = logger;
         _options = options.Value;
@@ -36,10 +38,8 @@ public sealed class NtpRuntimeLoader : IHostedService
 
         _logger.LogInformation("NTP Runtime Loader starting.");
 
-        var result = await _timeSource.GetTimeAsync(cancellationToken);
+        var result = await _timeSource.GetTimeAsync(cancellationToken).ConfigureAwait(false);
         _logger.LogInformation("Reference time initialized: {RefUtc}", result.ReferenceUtc);
-
-        await Task.Delay(10, cancellationToken);
 
         _logger.LogInformation("NTP Runtime Loader completed.");
     }

@@ -7,8 +7,8 @@ public static class NtpTimestamp
 {
     private static readonly DateTime Era0Epoch = new(1900, 1, 1, 0, 0, 0, DateTimeKind.Utc);
     private const long TicksPerSecond = TimeSpan.TicksPerSecond;
-    private const long SecondsPerEra = 0x100000000L; // 2^32 seconds (~136 years)
-    private const double SecondsPerEraDouble = 4294967296.0; // 2^32
+    private const long SecondsPerEra = 0x100000000L;
+    private const double SecondsPerEraDouble = 4294967296.0;
 
     public static void WriteTimestamp(Span<byte> destination, DateTime utc)
     {
@@ -22,17 +22,17 @@ public static class NtpTimestamp
             utc = utc.ToUniversalTime();
         }
 
-        var totalTicks = (utc - Era0Epoch).Ticks;
+        long totalTicks = (utc - Era0Epoch).Ticks;
         if (totalTicks < 0)
         {
             totalTicks = 0;
         }
 
-        var totalSeconds = totalTicks / TicksPerSecond;
-        var eraSeconds = (uint)(totalSeconds % SecondsPerEra);
-        var remainingTicks = totalTicks % TicksPerSecond;
+        long totalSeconds = totalTicks / TicksPerSecond;
+        uint eraSeconds = (uint)(totalSeconds % SecondsPerEra);
+        long remainingTicks = totalTicks % TicksPerSecond;
 
-        var fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
+        uint fraction = (uint)((remainingTicks << 32) / TicksPerSecond);
 
         BinaryPrimitives.WriteUInt32BigEndian(destination[..4], eraSeconds);
         BinaryPrimitives.WriteUInt32BigEndian(destination.Slice(4, 4), fraction);
@@ -60,25 +60,22 @@ public static class NtpTimestamp
         uint seconds = BinaryPrimitives.ReadUInt32BigEndian(buffer[..4]);
         uint fraction = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(4, 4));
 
-        // Dynamic Era pivoting relative to current system time
         long currentSystemSeconds = (DateTime.UtcNow - Era0Epoch).Ticks / TicksPerSecond;
         long currentEra = currentSystemSeconds / SecondsPerEra;
         long eraBaseSeconds = currentEra * SecondsPerEra;
 
         long candidateSeconds = eraBaseSeconds + seconds;
 
-        // Pivot boundary check: if candidate is > 68 years in the future, it belongs to previous era
         if (candidateSeconds - currentSystemSeconds > (SecondsPerEra / 2))
         {
             candidateSeconds -= SecondsPerEra;
         }
-        // If candidate is > 68 years in the past, it belongs to next era
         else if (currentSystemSeconds - candidateSeconds > (SecondsPerEra / 2))
         {
             candidateSeconds += SecondsPerEra;
         }
 
-        long fractionTicks = (long)Math.Round((double)fraction * TicksPerSecond / SecondsPerEraDouble);
+        long fractionTicks = (long)Math.Round(fraction * TicksPerSecond / SecondsPerEraDouble);
         long ticks = (candidateSeconds * TicksPerSecond) + fractionTicks;
 
         return Era0Epoch.AddTicks(ticks);

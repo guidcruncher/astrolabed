@@ -16,6 +16,9 @@ public sealed class NtpRequestHandler : INtpRequestHandler
         ILogger<NtpRequestHandler> logger,
         INtpTimeSource timeSource)
     {
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(timeSource);
+
         _logger = logger;
         _timeSource = timeSource;
     }
@@ -31,7 +34,7 @@ public sealed class NtpRequestHandler : INtpRequestHandler
         {
             var request = NtpPacket.Parse(result.Buffer);
 
-            var upstream = await _timeSource.GetTimeAsync(ct);
+            var upstream = await _timeSource.GetTimeAsync(ct).ConfigureAwait(false);
             var transmitUtc = DateTime.UtcNow;
 
             var correctedReceiveUtc = receiveUtc + upstream.Offset;
@@ -43,7 +46,8 @@ public sealed class NtpRequestHandler : INtpRequestHandler
                 correctedTransmitUtc,
                 upstream.Stratum,
                 upstream.ReferenceId,
-                upstream.LeapIndicator);
+                upstream.LeapIndicator,
+                upstream.ReferenceUtc);
 
             var bytes = responsePacket.ToBytes();
 

@@ -9,9 +9,9 @@ namespace Astrolabed.Dhcp.Tests;
 
 public class DhcpWebProxyOptionTests
 {
-    private static DhcpPacket MakeBasePacket()
+    private static DhcpPacket MakeBasePacket(bool requestWebProxy = true)
     {
-        return new DhcpPacket
+        var req = new DhcpPacket
         {
             Op = 1,
             Htype = 1,
@@ -26,12 +26,22 @@ public class DhcpWebProxyOptionTests
             Giaddr = IPAddress.Parse("0.0.0.0"),
             Chaddr = new byte[16]
         };
+
+        req.Options.Add(new DhcpOption(53, new byte[] { 1 })); // DHCPDISCOVER
+
+        if (requestWebProxy)
+        {
+            // Option 55: Subnet Mask (1), Router (3), DNS (6), Domain Name (15), WPAD/WebProxy (252)
+            req.Options.Add(new DhcpOption(55, new byte[] { 1, 3, 6, 15, 252 }));
+        }
+
+        return req;
     }
 
     [Fact]
     public void Offer_Includes_WebProxy_When_Configured()
     {
-        var req = MakeBasePacket();
+        var req = MakeBasePacket(requestWebProxy: true);
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
@@ -46,19 +56,20 @@ public class DhcpWebProxyOptionTests
             dns,
             subnetMask,
             TimeSpan.FromHours(1),
-            null,
-            webproxy);
+            domainName: null,
+            webproxy: webproxy);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 252);
-        Assert.Equal(Encoding.UTF8.GetBytes(webproxy), parsed.Options.First(o => o.Code == 252).Data);
+        var proxyOpt = parsed.Options.FirstOrDefault(o => o.Code == 252);
+        Assert.NotNull(proxyOpt);
+        Assert.Equal(Encoding.UTF8.GetBytes(webproxy), proxyOpt.Data);
     }
 
     [Fact]
     public void Offer_Does_Not_Include_WebProxy_When_Not_Configured()
     {
-        var req = MakeBasePacket();
+        var req = MakeBasePacket(requestWebProxy: true);
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
@@ -71,7 +82,9 @@ public class DhcpWebProxyOptionTests
             router,
             dns,
             subnetMask,
-            TimeSpan.FromHours(1));
+            TimeSpan.FromHours(1),
+            domainName: null,
+            webproxy: null);
 
         var parsed = DhcpPacketCodec.Parse(offerBytes);
 
@@ -81,7 +94,9 @@ public class DhcpWebProxyOptionTests
     [Fact]
     public void Ack_Includes_WebProxy_When_Configured()
     {
-        var req = MakeBasePacket();
+        var req = MakeBasePacket(requestWebProxy: true);
+        req.Options[0] = new DhcpOption(53, new byte[] { 3 }); // DHCPREQUEST
+
         var serverId = IPAddress.Parse("192.168.1.1");
         var router = IPAddress.Parse("192.168.1.1");
         var dns = IPAddress.Parse("192.168.1.53");
@@ -96,19 +111,21 @@ public class DhcpWebProxyOptionTests
             dns,
             subnetMask,
             TimeSpan.FromHours(1),
-            null,
-            webproxy);
+            domainName: null,
+            webproxy: webproxy);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 252);
-        Assert.Equal(Encoding.UTF8.GetBytes(webproxy), parsed.Options.First(o => o.Code == 252).Data);
+        var proxyOpt = parsed.Options.FirstOrDefault(o => o.Code == 252);
+        Assert.NotNull(proxyOpt);
+        Assert.Equal(Encoding.UTF8.GetBytes(webproxy), proxyOpt.Data);
     }
 
     [Fact]
     public void InformAck_Includes_WebProxy_When_Configured()
     {
-        var req = MakeBasePacket();
+        var req = MakeBasePacket(requestWebProxy: true);
+        req.Options[0] = new DhcpOption(53, new byte[] { 8 }); // DHCPINFORM
         req.Ciaddr = IPAddress.Parse("192.168.1.77");
 
         var serverId = IPAddress.Parse("192.168.1.1");
@@ -123,18 +140,21 @@ public class DhcpWebProxyOptionTests
             router,
             dns,
             subnetMask,
-            null,
-            webproxy);
+            domainName: null,
+            webproxy: webproxy);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
-        Assert.Contains(parsed.Options, o => o.Code == 252);
+        var proxyOpt = parsed.Options.FirstOrDefault(o => o.Code == 252);
+        Assert.NotNull(proxyOpt);
+        Assert.Equal(Encoding.UTF8.GetBytes(webproxy), proxyOpt.Data);
     }
 
     [Fact]
     public void InformAck_Does_Not_Include_WebProxy_When_Not_Configured()
     {
-        var req = MakeBasePacket();
+        var req = MakeBasePacket(requestWebProxy: true);
+        req.Options[0] = new DhcpOption(53, new byte[] { 8 }); // DHCPINFORM
         req.Ciaddr = IPAddress.Parse("192.168.1.77");
 
         var serverId = IPAddress.Parse("192.168.1.1");
@@ -147,7 +167,9 @@ public class DhcpWebProxyOptionTests
             serverId,
             router,
             dns,
-            subnetMask);
+            subnetMask,
+            domainName: null,
+            webproxy: null);
 
         var parsed = DhcpPacketCodec.Parse(ackBytes);
 
