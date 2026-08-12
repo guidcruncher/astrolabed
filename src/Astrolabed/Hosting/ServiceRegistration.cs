@@ -22,7 +22,7 @@ public static class ServiceRegistration
         services.AddSingleton<ConfigurationWriter>();
 
         services.AddEventBus(ctx.Configuration);
-        services.AddAstrolabed(ctx.Configuration);
+        services.AddDnsForwarder(ctx.Configuration);
         services.AddDhcpServer(ctx.Configuration);
         services.AddNtpServer(ctx.Configuration);
         services.AddMetricServices(ctx.Configuration);

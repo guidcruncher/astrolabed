@@ -1,65 +1,56 @@
-using System.Net;
-
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Bootstrap;
 
 public static class DnsServiceCollectionExtensions
 {
-    public static IServiceCollection AddAstrolabed(this IServiceCollection services, IConfiguration config)
+    public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config)
     {
-        var server = config.Get<ServerOptions>() ?? new ServerOptions();
-        var options = server.Dns;
+        // Bind configuration into Options Pattern
+        services.Configure<ServerOptions>(config);
+        services.Configure<DnsForwarderOptions>(config.GetSection("Dns"));
 
-        //
-        // Command-line overrides
-        //
-        if (config["ListenOverride"] is string listen)
+        // Command-line/dynamic post-configuration overrides
+        services.PostConfigure<DnsForwarderOptions>(options =>
         {
-            var parts = listen.Split(':');
-            options.Listen.Address = parts[0];
-            options.Listen.Port = int.Parse(parts[1]);
-        }
-
-        if (config["ResolverOverride"] is string resolver)
-        {
-            var parts = resolver.Split(':');
-
-            // Replace old single DefaultResolver with a list
-            options.DefaultResolvers.Clear();
-            options.DefaultResolvers.Add(new UpstreamResolverOptions
+            if (config["ListenOverride"] is string listen)
             {
-                Address = parts[0],
-                Port = parts.Length > 1 ? int.Parse(parts[1]) : 53,
-                Name = "override"
-            });
-        }
+                var parts = listen.Split(':');
+                options.Listen.Address = parts[0];
+                options.Listen.Port = int.Parse(parts[1]);
+            }
 
-        //
-        // Core options
-        //
-        services.AddSingleton(options);
+            if (config["ResolverOverride"] is string resolver)
+            {
+                var parts = resolver.Split(':');
+                options.DefaultResolvers.Clear();
+                options.DefaultResolvers.Add(new UpstreamResolverOptions
+                {
+                    Address = parts[0],
+                    Port = parts.Length > 1 ? int.Parse(parts[1]) : 53,
+                    Name = "override"
+                });
+            }
+        });
 
-        //
-        // DNS client + caching
-        //
-        services.AddSingleton<StaticDnsClient>();
-
-        // Add HttpClientFactory so we can create HttpClient instances for DoH upstreams
+        // HTTP Client infrastructure
         services.AddHttpClient();
+        services.AddHttpClient("BlocklistClient");
 
-        // Register the factory that knows how to create Doh vs Udp clients
+        // DNS Infrastructure Clients
+        services.AddSingleton<StaticDnsClient>();
         services.AddSingleton<IDnsClientFactory, DefaultDnsClientFactory>();
 
-        // Global default IDnsClient (keeps previous behaviour but uses the factory)
+        // Register default IDnsClient using IOptions
         services.AddSingleton<IDnsClient>(sp =>
         {
-            var opt = sp.GetRequiredService<DnsForwarderOptions>();
+            var opt = sp.GetRequiredService<IOptions<DnsForwarderOptions>>().Value;
 
             var resolvers = opt.DefaultResolvers.Count > 0
                 ? opt.DefaultResolvers
@@ -75,23 +66,22 @@ public static class DnsServiceCollectionExtensions
 
             var selected = resolvers[0];
             var factory = sp.GetRequiredService<IDnsClientFactory>();
-            var client = factory.Create(selected);
+            IDnsClient client = factory.Create(selected);
 
             if (opt.Caching.Enabled)
+            {
                 client = new CachingDnsClientDecorator(client, opt.Caching.MaxEntries);
+            }
 
             return client;
         });
 
-        //
-        // Rule engine + hosts loader
-        //
+        // Core Rule Engine and Loaders
         services.AddSingleton<RuleEngine.RuleEngine>();
-        services.AddSingleton<HostsFileSource>();
+        services.AddTransient<IHostsFileSource, HostsFileSource>();
+        services.AddSingleton<IDnsForwarderRuntimeLoader, DnsForwarderRuntimeLoader>();
 
-        //
-        // Forwarder + server
-        //
+        // DNS Forwarding & Hosting
         services.AddSingleton<DnsForwarderService>();
         services.AddHostedService<DnsServer>();
 

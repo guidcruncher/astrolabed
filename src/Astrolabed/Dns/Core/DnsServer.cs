@@ -1,24 +1,21 @@
-using System;
 using System.Buffers;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 using Astrolabed.Events;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Core;
 
 public sealed class DnsServer : BackgroundService
 {
-    private const int SocketBufferSize = 4 * 1024 * 1024; // 4 MB socket buffer
+    private const int SocketBufferSize = 4 * 1024 * 1024;
     private const int BufferSize = 4096;
     private static readonly TimeSpan TcpClientIdleTimeout = TimeSpan.FromSeconds(15);
 
@@ -33,7 +30,7 @@ public sealed class DnsServer : BackgroundService
 
     public DnsServer(
         ILogger<DnsServer> logger,
-        DnsForwarderOptions options,
+        IOptions<DnsForwarderOptions> options,
         DnsForwarderService forwarder,
         IDnsMetrics metrics)
     {
@@ -43,7 +40,7 @@ public sealed class DnsServer : BackgroundService
         ArgumentNullException.ThrowIfNull(metrics);
 
         _logger = logger;
-        _options = options;
+        _options = options.Value;
         _forwarder = forwarder;
         _metrics = metrics;
     }
@@ -58,7 +55,6 @@ public sealed class DnsServer : BackgroundService
 
         var endpoint = new IPEndPoint(listenAddress, _options.Listen.Port);
 
-        // Configure UDP Socket
         _udpSocket = new Socket(endpoint.AddressFamily, SocketType.Dgram, ProtocolType.Udp)
         {
             ReceiveBufferSize = SocketBufferSize,
@@ -66,7 +62,6 @@ public sealed class DnsServer : BackgroundService
         };
         _udpSocket.Bind(endpoint);
 
-        // Configure TCP Socket (RFC 1035 & RFC 7766)
         _tcpSocket = new Socket(endpoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp)
         {
             NoDelay = true,
@@ -181,7 +176,7 @@ public sealed class DnsServer : BackgroundService
                     bool success = await TryReadExactAsync(clientSocket, lengthBuffer.AsMemory(0, 2), timeoutCts.Token).ConfigureAwait(false);
                     if (!success)
                     {
-                        break; // Connection closed gracefully or idle timeout reached
+                        break;
                     }
 
                     ushort payloadLength = BinaryPrimitives.ReadUInt16BigEndian(lengthBuffer.AsSpan(0, 2));
@@ -205,11 +200,9 @@ public sealed class DnsServer : BackgroundService
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                // Service shutdown
             }
             catch (SocketException)
             {
-                // Client disconnected
             }
             catch (Exception ex)
             {

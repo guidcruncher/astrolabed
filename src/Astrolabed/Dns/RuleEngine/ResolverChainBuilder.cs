@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -21,25 +23,28 @@ internal sealed partial class ResolverChainBuilder
     private readonly ILogger _logger;
 
     public ResolverChainBuilder(
-        DnsForwarderOptions options,
+        IOptions<DnsForwarderOptions> options,
         IDnsClient defaultClient,
         IReadOnlyList<UpstreamEntry> fallback,
         IDnsClientFactory clientFactory,
         ILogger logger)
     {
+        ArgumentNullException.ThrowIfNull(options);
         _logger = logger;
+
+        var opt = options.Value;
 
         if (fallback.Count > 0)
         {
             _defaultChain = fallback;
             _defaultChainKind = DefaultChainKind.Fallback;
         }
-        else if (options.DefaultResolvers != null && options.DefaultResolvers.Count > 0)
+        else if (opt.DefaultResolvers != null && opt.DefaultResolvers.Count > 0)
         {
-            var list = new List<UpstreamEntry>(options.DefaultResolvers.Count);
-            for (int i = 0; i < options.DefaultResolvers.Count; i++)
+            var list = new List<UpstreamEntry>(opt.DefaultResolvers.Count);
+            for (int i = 0; i < opt.DefaultResolvers.Count; i++)
             {
-                var def = options.DefaultResolvers[i];
+                var def = opt.DefaultResolvers[i];
                 var client = clientFactory.Create(def);
                 list.Add(new UpstreamEntry(def.Name, client));
             }
@@ -56,7 +61,6 @@ internal sealed partial class ResolverChainBuilder
 
     public IReadOnlyList<UpstreamEntry> BuildChain(RuleResult match, string domain, string? requestId)
     {
-
         if (match.Upstreams.Count > 0)
         {
             if (requestId is not null) LogUsingRuleUpstreams(_logger, requestId, domain);

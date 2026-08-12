@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 using Astrolabed.Dns.Core;
@@ -5,6 +7,7 @@ using Astrolabed.Dns.Filtering;
 using Astrolabed.Utils;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -26,17 +29,18 @@ internal sealed class RuleCompiler
     public List<CompiledRule> RegexRules { get; } = new();
     public List<UpstreamEntry> FallbackResolvers { get; } = new();
 
-    public RuleCompiler(DnsForwarderOptions options, ILogger logger, IDnsClientFactory clientFactory)
+    public RuleCompiler(IOptions<DnsForwarderOptions> options, ILogger logger, IDnsClientFactory clientFactory)
     {
-        _options = options;
+        ArgumentNullException.ThrowIfNull(options);
+        _options = options.Value;
         _logger = logger;
         _clientFactory = clientFactory ?? throw new ArgumentNullException(nameof(clientFactory));
 
         UpstreamResolverOptions selected;
 
-        if (options.DefaultResolvers is { Count: > 0 })
+        if (_options.DefaultResolvers is { Count: > 0 })
         {
-            selected = options.DefaultResolvers[0];
+            selected = _options.DefaultResolvers[0];
         }
         else
         {

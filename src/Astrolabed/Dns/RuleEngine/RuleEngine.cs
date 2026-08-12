@@ -1,6 +1,6 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -8,6 +8,7 @@ using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -23,26 +24,22 @@ public sealed class RuleEngine : IDisposable
     private readonly BlockResponseBuilder _blockBuilder;
     private bool _disposed;
 
-    private sealed class SimpleHttpClientFactory : IHttpClientFactory
-    {
-        private static readonly HttpClient SharedClient = new();
-        public HttpClient CreateClient(string name) => SharedClient;
-    }
-
     public DnsCache Cache { get; }
 
-    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger)
-        : this(options, logger, new DefaultDnsClientFactory(new SimpleHttpClientFactory()))
+    public RuleEngine(
+        IOptions<DnsForwarderOptions> options,
+        ILogger<RuleEngine> logger,
+        IDnsClientFactory clientFactory)
     {
-    }
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(clientFactory);
 
-    public RuleEngine(DnsForwarderOptions options, ILogger<RuleEngine> logger, IDnsClientFactory clientFactory)
-    {
-        _options = options;
+        _options = options.Value;
         _logger = logger;
 
-        int maxEntries = options.Caching?.MaxEntries > 0 ? options.Caching.MaxEntries : 10000;
-        int cleanupIntervalMinutes = options.Caching?.CleanupIntervalMinutes > 0 ? options.Caching.CleanupIntervalMinutes : 1;
+        int maxEntries = _options.Caching?.MaxEntries > 0 ? _options.Caching.MaxEntries : 10000;
+        int cleanupIntervalMinutes = _options.Caching?.CleanupIntervalMinutes > 0 ? _options.Caching.CleanupIntervalMinutes : 1;
 
         Cache = new DnsCache(maxEntries, TimeSpan.FromMinutes(cleanupIntervalMinutes));
 
@@ -52,9 +49,9 @@ public sealed class RuleEngine : IDisposable
         _blockBuilder = new BlockResponseBuilder(options);
         _executor = new QueryExecutor(Cache, options, logger);
 
-        if (options.Resolvers != null)
+        if (_options.Resolvers != null)
         {
-            foreach (var r in options.Resolvers)
+            foreach (var r in _options.Resolvers)
             {
                 _compiler.AddResolver(r);
             }
@@ -63,7 +60,7 @@ public sealed class RuleEngine : IDisposable
         _compiler.BuildAutomata();
     }
 
-    public async Task AddHostsAsync(HostsFileSource src)
+    public async Task AddHostsAsync(IHostsFileSource src)
     {
         var entries = await src.LoadAsync().ConfigureAwait(false);
 

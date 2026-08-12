@@ -5,16 +5,12 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Astrolabed.Dns.Filtering;
 
-public sealed class HostsFileSource
+public sealed class HostsFileSource : IHostsFileSource
 {
     private readonly IEnumerable<string> _paths;
-    private readonly ILogger _logger;
+    private readonly ILogger<HostsFileSource> _logger;
 
-    public HostsFileSource(IEnumerable<string> paths) : this(paths, NullLoggerFactory.Instance.CreateLogger("hosts"))
-    {
-    }
-
-    public HostsFileSource(IEnumerable<string> paths, ILogger logger)
+    public HostsFileSource(IEnumerable<string> paths, ILogger<HostsFileSource> logger)
     {
         _paths = paths;
         _logger = logger;
@@ -51,12 +47,7 @@ public sealed class HostsFileSource
             {
                 var line = raw.Trim();
 
-                if (string.IsNullOrWhiteSpace(line))
-                {
-                    continue;
-                }
-
-                if (line.StartsWith("#"))
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#"))
                 {
                     continue;
                 }
@@ -100,7 +91,6 @@ public sealed class HostsFileSource
                         Address = ip,
                         Source = path
                     });
-
                 }
             }
 

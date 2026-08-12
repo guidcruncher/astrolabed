@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
 
 using Astrolabed.Dns.Core;
@@ -27,9 +29,6 @@ internal sealed class RuleMatcher
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
         string lower = ToLowerFast(domain);
 
-        //
-        // HOSTS OVERRIDE
-        //
         var hostIp = _compiler.Hosts.MatchMostSpecific(lower);
         if (hostIp != null)
         {
@@ -40,9 +39,6 @@ internal sealed class RuleMatcher
             return HostOverride(hostIp);
         }
 
-        //
-        // RULE MATCHING
-        //
         var allow = ListPool<UpstreamEntry>.Rent();
         UpstreamEntry? block = null;
 
@@ -76,9 +72,6 @@ internal sealed class RuleMatcher
                 }
             }
 
-            //
-            // ALLOW RULES
-            //
             if (allow.Count > 0)
             {
                 if (isDebug)
@@ -88,9 +81,6 @@ internal sealed class RuleMatcher
                 return new RuleResult(new List<UpstreamEntry>(allow), false);
             }
 
-            //
-            // BLOCK RULES
-            //
             if (block != null)
             {
                 if (isDebug)
@@ -106,9 +96,6 @@ internal sealed class RuleMatcher
             ListPool<UpstreamEntry>.Return(allow);
         }
 
-        //
-        // NO RULES MATCHED
-        //
         if (_compiler.FallbackResolvers.Count == 0)
         {
             if (isDebug)

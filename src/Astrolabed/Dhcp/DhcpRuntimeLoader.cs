@@ -1,33 +1,38 @@
-using Astrolabed.Dhcp;
+using System;
+using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp.Bootstrap;
 
-public sealed class DhcpRuntimeLoader
+public sealed class DhcpRuntimeLoader : IDhcpRuntimeLoader
 {
-    private readonly IConfiguration _config;
+    private readonly DhcpOptions _options;
+    private readonly IDhcpLeaseStore _leaseStore;
 
-    public DhcpRuntimeLoader(IConfiguration config)
+    public DhcpRuntimeLoader(
+        IOptions<ServerOptions> options,
+        IDhcpLeaseStore leaseStore)
     {
-        _config = config;
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(leaseStore);
+
+        _options = options.Value.Dhcp;
+        _leaseStore = leaseStore;
     }
 
-    public async Task LoadAsync(IServiceProvider services)
+    public async Task LoadAsync(CancellationToken cancellationToken = default)
     {
-        var server = _config.Get<ServerOptions>() ?? new ServerOptions();
-        var dhcp = server.Dhcp;
-
-        if (!dhcp.Enabled)
-            return;
-
-        // Example: load static leases from file
-        var store = services.GetRequiredService<IDhcpLeaseStore>();
-
-        if (store is JsonDhcpLeaseStore json && File.Exists(dhcp.LeaseStorePath))
+        if (!_options.Enabled)
         {
-            await json.LoadAsync();
+            return;
+        }
+
+        if (_leaseStore is JsonDhcpLeaseStore jsonStore && !string.IsNullOrWhiteSpace(_options.LeaseStorePath) && File.Exists(_options.LeaseStorePath))
+        {
+            await jsonStore.LoadAsync().ConfigureAwait(false);
         }
     }
 }

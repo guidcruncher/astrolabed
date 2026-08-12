@@ -21,7 +21,6 @@ public static class TtlExtractor
             return 0;
         }
 
-        // 1. Positive answers: return minimum non-zero answer TTL
         if (message.Answers.Count > 0)
         {
             int minTtl = int.MaxValue;
@@ -35,7 +34,6 @@ public static class TtlExtractor
             return minTtl == int.MaxValue ? 0 : minTtl;
         }
 
-        // 2. Negative caching (RFC 2308): RCODE 3 (NXDOMAIN) or RCODE 0 with 0 answers (NODATA)
         int rcode = response[3] & 0x0F;
         if (rcode == 3 || (rcode == 0 && message.Answers.Count == 0))
         {
@@ -47,7 +45,6 @@ public static class TtlExtractor
 
                 if (soaMinimumField > 0)
                 {
-                    // RFC 2308: Negative TTL = min(SOA.TTL, SOA.MINIMUM)
                     return Math.Min(soaRecordTtl, soaMinimumField);
                 }
 
@@ -67,7 +64,6 @@ public static class TtlExtractor
 
         try
         {
-            // MINIMUM TTL is the 32-bit integer located at the final 4 bytes of SOA RDATA
             int offset = rdata.Length - 4;
             uint minTtl = BinaryPrimitives.ReadUInt32BigEndian(rdata.AsSpan(offset, 4));
             return minTtl > int.MaxValue ? int.MaxValue : (int)minTtl;
