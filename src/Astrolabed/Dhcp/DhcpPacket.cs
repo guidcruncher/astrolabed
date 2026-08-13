@@ -49,7 +49,7 @@ public sealed class DhcpPacket
         return opt == null ? null : Encoding.ASCII.GetString(opt.Data);
     }
 
-    public string? GetVendorClassIdentifier() 
+    public string? GetVendorClassIdentifier()
     {
         var opt = Options.FirstOrDefault(o => o.Code == 60);
         return opt == null ? null : Encoding.ASCII.GetString(opt.Data);

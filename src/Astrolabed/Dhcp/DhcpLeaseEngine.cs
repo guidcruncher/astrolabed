@@ -65,7 +65,7 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
             var lease = new DhcpLease
             {
                 ClientName = clientName,
-		VendorClassIdentifier = vendorClassIdentifier,
+                VendorClassIdentifier = vendorClassIdentifier,
                 Mac = mac,
                 Ip = ip,
                 ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
@@ -152,7 +152,7 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
                         var lease = new DhcpLease
                         {
                             ClientName = clientName,
-			    VendorClassIdentifier = vendorClassIdentifier,
+                            VendorClassIdentifier = vendorClassIdentifier,
                             Mac = mac,
                             Ip = candidate,
                             ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)

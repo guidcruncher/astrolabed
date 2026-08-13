@@ -289,7 +289,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         TimeSpan leaseTime = GetRequestedLeaseTime(req);
 
         var lease = await _leaseEngine.AllocateWithArpCheckAsync(
-	req.GetVendorClassIdentifier() ?? "",
+    req.GetVendorClassIdentifier() ?? "",
         req.GetHostName() ?? req.GetFqdn() ?? "",
             mac,
             leaseTime,
@@ -357,7 +357,7 @@ public sealed class DhcpServerEngine : IDhcpServerEngine
         }
 
         var lease = await _leaseEngine.AllocateWithArpCheckAsync(
-	req.GetVendorClassIdentifier() ?? "",
+    req.GetVendorClassIdentifier() ?? "",
         req.GetHostName() ?? req.GetFqdn() ?? "",
             mac,
             leaseTime,

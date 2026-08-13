@@ -114,7 +114,7 @@ public sealed class DhcpLeaseReader : IDhcpLeaseReader
             Mac = mac,
             Ip = ip,
             ClientName = dto.ClientName ?? "",
-	    VendorClassIdentifier = dto.VendorClassIdentifier ?? "",
+            VendorClassIdentifier = dto.VendorClassIdentifier ?? "",
             ExpiresAt = dto.ExpiresAt
         };
 
