@@ -17,6 +17,7 @@ ntp:
 
 dhcp:
 	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68
+	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
 
 mkdocs-install:
 	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin

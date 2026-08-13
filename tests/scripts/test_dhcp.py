@@ -24,12 +24,14 @@ DHCP_OPTION_DEFINITIONS = {
     26: ("Interface MTU", "uint16"),
     28: ("Broadcast Address", "ip"),
     42: ("NTP Server", "ip_list"),
+    43: ("Vendor Specific Information", "hex"),  # Added Option 43 support
     50: ("Requested IP Address", "ip"),
     51: ("IP Address Lease Time", "uint32_seconds"),
     53: ("DHCP Message Type", "msg_type"),
     54: ("DHCP Server Identifier", "ip"),
     58: ("Renewal Time (T1)", "uint32_seconds"),
     59: ("Rebinding Time (T2)", "uint32_seconds"),
+    60: ("Vendor Class Identifier", "string"),
     66: ("TFTP Server Name", "string"),
     67: ("Bootfile Name", "string"),
     81: ("Client FQDN", "string"),
@@ -71,6 +73,8 @@ def decode_option(opt_code: int, data: bytes) -> tuple[str, str]:
     elif opt_type == "msg_type" and len(data) == 1:
         val = data[0]
         return name, DHCP_MSG_TYPES.get(val, f"Unknown ({val})")
+    elif opt_type == "hex":
+        return name, f"0x{data.hex()}"
 
     try:
         text = data.decode("ascii")
@@ -89,6 +93,7 @@ def build_dhcp_packet(
     requested_ip: str | None = None,
     server_ip: str | None = None,
     hostname: str | None = None,
+    vendor_class_id: str | None = None,
     broadcast: bool = False,
 ) -> bytes:
     flags = 0x8000 if broadcast else 0x0000
@@ -106,6 +111,12 @@ def build_dhcp_packet(
         options.extend([12, len(hostname_bytes)])
         options.extend(hostname_bytes)
 
+    if vendor_class_id:
+        # Strip trailing C-style null bytes if accidentally provided
+        vci_bytes = vendor_class_id.rstrip("\x00").encode("utf-8")
+        options.extend([60, len(vci_bytes)])
+        options.extend(vci_bytes)
+
     if requested_ip:
         options.extend([50, 4])
         options.extend(socket.inet_aton(requested_ip))
@@ -115,8 +126,8 @@ def build_dhcp_packet(
         options.extend(socket.inet_aton(server_ip))
 
     # Parameter Request List (Option 55):
-    # Subnet Mask(1), Router(3), DNS(6), Domain Name(15), MTU(26), NTP(42), TFTP Server(66), Bootfile(67), WPAD(252)
-    requested_options = [1, 3, 6, 15, 26, 42, 66, 67, 252]
+    # Added Option 43 (Vendor Specific Info) so the server returns custom vendor data
+    requested_options = [1, 3, 6, 15, 26, 42, 43, 60, 66, 67, 252]
     options.extend([55, len(requested_options)])
     options.extend(requested_options)
     options.append(255)
@@ -137,16 +148,22 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
 
     while i < len(options_data):
         opt = options_data[i]
-        if opt == 255:
+        if opt == 255:  # END option
             break
-        if opt == 0:
+        if opt == 0:    # PAD option
             i += 1
             continue
 
+        # Check if length byte exists
         if i + 1 >= len(options_data):
             break
 
         length = options_data[i + 1]
+        
+        # Check if entire payload falls within remaining options_data length
+        if i + 2 + length > len(options_data):
+            break
+
         val = bytes(options_data[i + 2 : i + 2 + length])
         name, formatted_val = decode_option(opt, val)
 
@@ -176,6 +193,7 @@ def test_dhcp_server(
     client_port: int = 68,
     mac_address: str = "00:11:22:33:44:55",
     hostname: str = "test-client",
+    vendor_class_id: str | None = None,
     timeout: float = 5.0,
 ) -> dict:
     mac_bytes = mac_to_bytes(mac_address)
@@ -196,6 +214,7 @@ def test_dhcp_server(
             xid,
             msg_type=1,
             hostname=hostname,
+            vendor_class_id=vendor_class_id,
             broadcast=use_broadcast,
         )
         sock.sendto(discover_packet, (target_host, target_port))
@@ -226,6 +245,7 @@ def test_dhcp_server(
             requested_ip=offered_ip,
             server_ip=server_id,
             hostname=hostname,
+            vendor_class_id=vendor_class_id,
             broadcast=use_broadcast,
         )
         sock.sendto(request_packet, (target_host, target_port))
@@ -272,6 +292,9 @@ if __name__ == "__main__":
         "--hostname", "-H", type=str, default="test-client", help="Client hostname (default: test-client)"
     )
     parser.add_argument(
+        "--vendor-class", "-v", type=str, default=None, help="Option 60 Vendor Class Identifier string (optional)"
+    )
+    parser.add_argument(
         "--timeout", "-t", type=float, default=5.0, help="Response timeout in seconds (default: 5.0)"
     )
 
@@ -287,6 +310,7 @@ if __name__ == "__main__":
             client_port=args.client_port,
             mac_address=args.mac,
             hostname=args.hostname,
+            vendor_class_id=args.vendor_class,
             timeout=args.timeout,
         )
         print("\nDHCP Lease Test Successful:")

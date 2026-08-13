@@ -16,6 +16,9 @@ internal sealed class DhcpLeaseDto
     [JsonPropertyName("ClientName")]
     public string? ClientName { get; set; }
 
+    [JsonPropertyName("VendorClassIdentifier")]
+    public string? VendorClassIdentifier { get; set; }
+
     [JsonPropertyName("ExpiresAt")]
     public DateTimeOffset ExpiresAt { get; set; }
 }

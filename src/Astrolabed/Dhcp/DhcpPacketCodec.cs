@@ -48,7 +48,6 @@ public static class DhcpPacketCodec
         while (offset < data.Length)
         {
             byte code = data[offset++];
-
             if (code == 255) // End Option
             {
                 break;
