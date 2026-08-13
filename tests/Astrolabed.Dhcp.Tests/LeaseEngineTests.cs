@@ -23,7 +23,7 @@ public class LeaseEngineTests
         var engine = new DhcpLeaseEngine(store, pool);
         var arp = new ArpConflictDetector(IPAddress.Parse("127.0.0.1"));
 
-        var lease = await engine.AllocateWithArpCheckAsync("host", Mac(1), TimeSpan.FromHours(1), arp);
+        var lease = await engine.AllocateWithArpCheckAsync("test", "host", Mac(1), TimeSpan.FromHours(1), arp);
 
         Assert.Equal("192.168.10.1", lease.Ip.ToString());
         Assert.Single(store.GetActiveLeases());
@@ -37,8 +37,8 @@ public class LeaseEngineTests
         var engine = new DhcpLeaseEngine(store, pool);
         var arp = new ArpConflictDetector(IPAddress.Parse("127.0.0.1"));
 
-        var first = await engine.AllocateWithArpCheckAsync("host1", Mac(1), TimeSpan.FromHours(1), arp);
-        var second = await engine.AllocateWithArpCheckAsync("host2", Mac(1), TimeSpan.FromHours(1), arp);
+        var first = await engine.AllocateWithArpCheckAsync("test", "host1", Mac(1), TimeSpan.FromHours(1), arp);
+        var second = await engine.AllocateWithArpCheckAsync("test", "host2", Mac(1), TimeSpan.FromHours(1), arp);
 
         Assert.Equal(first.Ip, second.Ip);
     }

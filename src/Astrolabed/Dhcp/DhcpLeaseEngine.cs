@@ -37,7 +37,7 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
         return _store.GetActiveLeases().FirstOrDefault(l => l.Mac.Equals(mac));
     }
 
-    public async Task<DhcpLease> AllocateAsync(string clientName, PhysicalAddress mac, TimeSpan leaseTime)
+    public async Task<DhcpLease> AllocateAsync(string vendorClassIdentifier, string clientName, PhysicalAddress mac, TimeSpan leaseTime)
     {
         ArgumentNullException.ThrowIfNull(mac);
 
@@ -65,6 +65,7 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
             var lease = new DhcpLease
             {
                 ClientName = clientName,
+		VendorClassIdentifier = vendorClassIdentifier,
                 Mac = mac,
                 Ip = ip,
                 ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)
@@ -80,7 +81,8 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
     }
 
     public async Task<DhcpLease> AllocateWithArpCheckAsync(
-    string clientName,
+        string vendorClassIdentifier,
+        string clientName,
         PhysicalAddress mac,
         TimeSpan leaseTime,
         IArpConflictDetector arp)
@@ -150,6 +152,7 @@ public sealed class DhcpLeaseEngine : IDhcpLeaseEngine
                         var lease = new DhcpLease
                         {
                             ClientName = clientName,
+			    VendorClassIdentifier = vendorClassIdentifier,
                             Mac = mac,
                             Ip = candidate,
                             ExpiresAt = DateTimeOffset.UtcNow.Add(leaseTime)

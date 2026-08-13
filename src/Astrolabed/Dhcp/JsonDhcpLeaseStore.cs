@@ -66,6 +66,7 @@ public sealed class JsonDhcpLeaseStore : IDhcpLeaseStore
                     {
                         Mac = mac,
                         Ip = ip,
+			VendorClassIdentifier = l.VendorClassIdentifier ?? "",
                         ClientName = l.ClientName ?? "",
                         ExpiresAt = l.ExpiresAt
                     };

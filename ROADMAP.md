@@ -13,7 +13,6 @@ Architecture and feature trajectory for DNS & DHCP engine services.
 
 -  Automatic local DNS registration (.home.arpa)
 -  Dynamic PTR (Reverse DNS) record generator
--  Upstream DNS-over-HTTPS (DoH) resolver client
 -  Domain blocklist / sinkhole filtering engine
 
 ## PHASE 3: WEB UI & OPERATIONS [PLANNED]
