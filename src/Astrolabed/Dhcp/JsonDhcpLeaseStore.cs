@@ -119,6 +119,7 @@ public sealed class JsonDhcpLeaseStore : IDhcpLeaseStore
                     Mac = string.Join(":", l.Mac.GetAddressBytes().Select(b => b.ToString("X2"))),
                     Ip = l.Ip.ToString(),
                     ClientName = l.ClientName,
+                    VendorClassIdentifier = l.VendorClassIdentifier,
                     ExpiresAt = l.ExpiresAt
                 }).ToList(),
 
