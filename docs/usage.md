@@ -18,7 +18,7 @@
 
 Configuearation is storesd im a JSON text file called appsettings.json which should be located im the same folder as the application.
 	
-See [configuration.md](configuration.md) for example configuratiob.
+See [configurations.md](configurations.md) for example configuratiob.
 
 ## Configuration Notes
 
