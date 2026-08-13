@@ -1,3 +1,4 @@
+using Astrolabed.Dhcp;
 using Astrolabed.Dns.ConditionalForwarding;
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
@@ -43,6 +44,9 @@ public static class DnsServiceCollectionExtensions
         // HTTP Client infrastructure
         services.AddHttpClient();
         services.AddHttpClient("BlocklistClient");
+
+        // Local DHCP lease reader
+        services.AddTransient<IDhcpLeaseReader, DhcpLeaseReader>();
 
         // DNS Infrastructure Clients
         services.AddSingleton<StaticDnsClient>();

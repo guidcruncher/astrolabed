@@ -1,9 +1,11 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json;
+
+using Astrolabed;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Astrolabed;
 
 namespace Astrolabed.Dhcp;
 
@@ -16,22 +18,31 @@ public sealed class DhcpLeaseReader : IDhcpLeaseReader
 
     private readonly string _path;
     private readonly ILogger<DhcpLeaseReader> _logger;
+    private readonly bool _enabled;
 
     public DhcpLeaseReader(
-        IOptions<DhcpOptions> options,
+        IOptions<ServerOptions> options,
         ILogger<DhcpLeaseReader> logger)
     {
         ArgumentNullException.ThrowIfNull(options);
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         var config = options.Value ?? throw new ArgumentNullException(nameof(options));
-        ArgumentException.ThrowIfNullOrWhiteSpace(config.LeaseStorePath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(config.Dhcp.LeaseStorePath);
 
-        _path = config.LeaseStorePath;
+        _enabled = config.Dhcp.Enabled;
+        _path = config.Dhcp.LeaseStorePath;
+    }
+
+    public bool Enabled()
+    {
+        return _enabled;
     }
 
     public async Task<IReadOnlyList<DhcpLease>> GetAllLeasesAsync(CancellationToken cancellationToken = default)
     {
+        if (!Enabled()) { return new List<DhcpLease>(); }
+
         try
         {
             if (!File.Exists(_path))
@@ -72,6 +83,8 @@ public sealed class DhcpLeaseReader : IDhcpLeaseReader
 
     public async Task<DhcpLease?> GetLeaseByIpAsync(IPAddress ip, CancellationToken cancellationToken = default)
     {
+        if (!Enabled()) { return null; }
+
         ArgumentNullException.ThrowIfNull(ip);
 
         var allLeases = await GetAllLeasesAsync(cancellationToken).ConfigureAwait(false);
@@ -82,7 +95,7 @@ public sealed class DhcpLeaseReader : IDhcpLeaseReader
     {
         lease = default!;
 
-	if (dto == null) { return false; }
+        if (dto == null) { return false; }
 
         if (!PhysicalAddress.TryParse(dto.Mac, out var mac))
         {

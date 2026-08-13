@@ -4,6 +4,8 @@ namespace Astrolabed.Dhcp;
 
 public interface IDhcpLeaseReader
 {
+    bool Enabled();
+
     /// <summary>
     /// Reads and returns all leases present in the JSON file.
     /// </summary>
