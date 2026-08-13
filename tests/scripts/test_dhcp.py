@@ -30,6 +30,7 @@ DHCP_OPTION_DEFINITIONS = {
     54: ("DHCP Server Identifier", "ip"),
     58: ("Renewal Time (T1)", "uint32_seconds"),
     59: ("Rebinding Time (T2)", "uint32_seconds"),
+    60: ("Vendor Class Identifier", "string"),
     66: ("TFTP Server Name", "string"),
     67: ("Bootfile Name", "string"),
     81: ("Client FQDN", "string"),
@@ -89,6 +90,7 @@ def build_dhcp_packet(
     requested_ip: str | None = None,
     server_ip: str | None = None,
     hostname: str | None = None,
+    vendor_class_id: str | None = None,
     broadcast: bool = False,
 ) -> bytes:
     flags = 0x8000 if broadcast else 0x0000
@@ -106,6 +108,11 @@ def build_dhcp_packet(
         options.extend([12, len(hostname_bytes)])
         options.extend(hostname_bytes)
 
+    if vendor_class_id:
+        vci_bytes = vendor_class_id.encode("utf-8")
+        options.extend([60, len(vci_bytes)])
+        options.extend(vci_bytes)
+
     if requested_ip:
         options.extend([50, 4])
         options.extend(socket.inet_aton(requested_ip))
@@ -115,8 +122,8 @@ def build_dhcp_packet(
         options.extend(socket.inet_aton(server_ip))
 
     # Parameter Request List (Option 55):
-    # Subnet Mask(1), Router(3), DNS(6), Domain Name(15), MTU(26), NTP(42), TFTP Server(66), Bootfile(67), WPAD(252)
-    requested_options = [1, 3, 6, 15, 26, 42, 66, 67, 252]
+    # Subnet Mask(1), Router(3), DNS(6), Domain Name(15), MTU(26), NTP(42), Vendor Class(60), TFTP Server(66), Bootfile(67), WPAD(252)
+    requested_options = [1, 3, 6, 15, 26, 42, 60, 66, 67, 252]
     options.extend([55, len(requested_options)])
     options.extend(requested_options)
     options.append(255)
@@ -176,6 +183,7 @@ def test_dhcp_server(
     client_port: int = 68,
     mac_address: str = "00:11:22:33:44:55",
     hostname: str = "test-client",
+    vendor_class_id: str | None = None,
     timeout: float = 5.0,
 ) -> dict:
     mac_bytes = mac_to_bytes(mac_address)
@@ -196,6 +204,7 @@ def test_dhcp_server(
             xid,
             msg_type=1,
             hostname=hostname,
+            vendor_class_id=vendor_class_id,
             broadcast=use_broadcast,
         )
         sock.sendto(discover_packet, (target_host, target_port))
@@ -226,6 +235,7 @@ def test_dhcp_server(
             requested_ip=offered_ip,
             server_ip=server_id,
             hostname=hostname,
+            vendor_class_id=vendor_class_id,
             broadcast=use_broadcast,
         )
         sock.sendto(request_packet, (target_host, target_port))
@@ -272,6 +282,9 @@ if __name__ == "__main__":
         "--hostname", "-H", type=str, default="test-client", help="Client hostname (default: test-client)"
     )
     parser.add_argument(
+        "--vendor-class", "-v", type=str, default=None, help="Option 60 Vendor Class Identifier string (optional)"
+    )
+    parser.add_argument(
         "--timeout", "-t", type=float, default=5.0, help="Response timeout in seconds (default: 5.0)"
     )
 
@@ -287,6 +300,7 @@ if __name__ == "__main__":
             client_port=args.client_port,
             mac_address=args.mac,
             hostname=args.hostname,
+            vendor_class_id=args.vendor_class,
             timeout=args.timeout,
         )
         print("\nDHCP Lease Test Successful:")
