@@ -9,6 +9,7 @@ using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
+using Astrolabed.Dhcp;
 using Astrolabed.Dns.ConditionalForwarding;
 using Astrolabed.Events;
 
@@ -29,6 +30,7 @@ public sealed class DnsServer : BackgroundService
     private readonly DnsForwarderService _forwarder;
     private readonly IDnsMetrics _metrics;
     private readonly IConditionalDnsForwarder _conditionalForwarder;
+    private readonly IDhcpLeaseReader _dhcpReader;
 
     private Socket? _udpSocket;
     private Socket? _tcpSocket;
@@ -39,7 +41,8 @@ public sealed class DnsServer : BackgroundService
         IOptions<DnsForwarderOptions> options,
         DnsForwarderService forwarder,
         IDnsMetrics metrics,
-        IConditionalDnsForwarder conditionalForwarder)
+        IConditionalDnsForwarder conditionalForwarder,
+    IDhcpLeaseReader dhcpReader)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(options);
@@ -52,6 +55,7 @@ public sealed class DnsServer : BackgroundService
         _forwarder = forwarder;
         _metrics = metrics;
         _conditionalForwarder = conditionalForwarder;
+        _dhcpReader = dhcpReader;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -417,7 +421,18 @@ public sealed class DnsServer : BackgroundService
     {
         try
         {
+            if (_dhcpReader.Enabled())
+            {
+                var lease = await _dhcpReader.GetLeaseByIpAsync(clientIp, ct);
+                if (lease != null)
+                {
+                    if (!string.IsNullOrEmpty(lease.ClientName)) { return lease.ClientName; }
+                }
+
+            }
+
             string ptrQueryName = FormatPtrDomain(clientIp);
+
             const ushort ptrQueryType = 12; // PTR record type
 
             if (ConditionalDnsForwarder.IsLocalhost(ptrQueryName))
