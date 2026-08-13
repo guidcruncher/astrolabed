@@ -143,7 +143,23 @@ test_dns.py: error: the following arguments are required: domain
 ```
 
 ```bash
-$ python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
+$ python3 ./test_dns.py -s 1.1.1.1 -p 53 bbc.com A
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 31424
+;; flags: qr rd ra; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;bbc.com.               IN      A
+
+;; ANSWER SECTION:
+bbc.com.                121     IN      A       151.101.64.81
+bbc.com.                121     IN      A       151.101.128.81
+bbc.com.                121     IN      A       151.101.192.81
+bbc.com.                121     IN      A       151.101.0.81
+
+;; Query time: 5.36 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Thu Aug 13 03:05:18 BST 2026
+;; MSG SIZE  rcvd: 89
 ```
 
 ### DHCP
@@ -151,7 +167,7 @@ $ python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
 Note this script must be run with elevated privileges such as sudo.
 
 ```bash
-$ sudo python3 test_dhcp.py --server-port 1067 --client-port 68
+$ sudo python3 ./test_dhcp.py --server-port 1067 --client-port 68
 ```
 
 ### NTP
@@ -159,7 +175,7 @@ $ sudo python3 test_dhcp.py --server-port 1067 --client-port 68
 This script connects to 127.0.0.1:1123 only.
 
 ```bash
-$ python3 test_ntp.py 
+$ python3 ./test_ntp.py 
 ```
 
 
