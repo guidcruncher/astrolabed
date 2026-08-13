@@ -8,6 +8,9 @@ They are available in the project root.
 
 Comprehensive example for local/dev running.
 
+For documenstion on configuration see [configurationdocs.md](configurationdocs.md)
+
+
 ```json
 {
   "Dns": {
