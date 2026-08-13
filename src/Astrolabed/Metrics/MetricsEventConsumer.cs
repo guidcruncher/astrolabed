@@ -7,13 +7,16 @@ namespace Astrolabed.Metrics;
 public sealed class MetricsEventConsumer : IEventConsumer
 {
     private readonly MetricsRegistry _registry;
+    private readonly MetricsRepository _repository;
     private readonly ILogger<MetricsEventConsumer> _logger;
 
     public MetricsEventConsumer(
         MetricsRegistry registry,
+    MetricsRepository repository,
         ILogger<MetricsEventConsumer> logger)
     {
         _registry = registry;
+        _repository = repository;
         _logger = logger;
     }
 
@@ -37,6 +40,7 @@ public sealed class MetricsEventConsumer : IEventConsumer
 
             case DnsResponseEvent r:
                 _registry.RecordDnsResponse(r);
+                _repository.RecordDnsResponse(r);
                 break;
 
             case DnsCacheHitEvent:

@@ -44,10 +44,6 @@ public static class EventsServiceCollection
                 services.AddHostedService<JsonEventExporter>();
                 break;
 
-            case "litedb":
-                services.AddHostedService<LiteDbEventExporter>();
-                break;
-
             case "prometheus":
                 break;
 
