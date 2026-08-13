@@ -5,6 +5,7 @@ namespace Astrolabed.Dhcp;
 
 public sealed class DhcpLease
 {
+    public string ClientName { get; set; } = "";
     public PhysicalAddress Mac { get; set; } = default!;
     public IPAddress Ip { get; set; } = default!;
     public DateTimeOffset ExpiresAt { get; set; }

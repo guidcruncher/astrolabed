@@ -1,7 +1,16 @@
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Astrolabed.Dhcp;
 
 internal sealed class DhcpLeaseStoreDto
 {
-    public List<DhcpLeaseDto> Leases { get; set; } = new();
-    public List<byte[]> BadIps { get; set; } = new();
+    [JsonPropertyName("Leases")]
+    public List<DhcpLeaseDto> Leases { get; set; } = [];
+
+    [JsonPropertyName("BadIps")]
+    public List<string> BadIps { get; set; } = [];
 }
+
