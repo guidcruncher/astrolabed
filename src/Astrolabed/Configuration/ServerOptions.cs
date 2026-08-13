@@ -17,4 +17,6 @@ public sealed class ServerOptions
 
     public WebUiOptions WebUI { get; set; } = new();
 
+    public DbOptions DbOptions { get; set; } = new();
+
 }
