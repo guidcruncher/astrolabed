@@ -144,7 +144,7 @@ test_dns.py: error: the following arguments are required: domain
 
 ```bash
 $ python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
-```bash
+```
 
 ### DHCP
 
