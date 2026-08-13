@@ -16,107 +16,9 @@
 
 ## Configuration (appsettings.json)
 
-```json
-{
-  "Dns": {
-    "Listen": {
-      "Address": "0.0.0.0",
-      "Port": 5353
-    },
-    "DefaultResolvers": [{
-      "Name": "Cloudflare",
-      "Address": "1.1.1.1",
-      "Port": 53
-    }],
-    "Resolvers": [
-      {
-        "Name": "InternalDNS",
-        "Address": "10.0.0.10",
-        "Port": 53,
-        "Rule": "^(.+\\.corp\\.local)$",
-        "Block": false
-      },
-      {
-        "Name": "BlockTracking",
-        "Rule": "^(tracking\\.|ads\\.).*",
-        "Block": true
-      },
-      {
-        "Name": "GoogleDNS",
-        "Address": "8.8.8.8",
-        "Port": 53,
-        "Rule": "^google\\.com$",
-        "Block": false
-      }
-    ],
-    "Blocklists": [
-    ],
-    "Allowlists": [
-    ],
-    "HostsFiles": [
-    ],
-    "BlockResponse": {
-      "Mode": "NXDOMAIN",
-      "StaticIp": "0.0.0.0",
-      "Ttl": 60
-    },
-    "Caching": {
-      "Enabled": true,
-      "TtlSeconds": 300,
-      "MaxEntries": 10000
-    }
-  },
-  "Dhcp": {
-    "Enabled": true,
-    "ListenAddress": "0.0.0.0",
-    "ListenPort": 67,
-    "LeaseStorePath": "/var/lib/dnsforwarder/leases.json",
-    "PoolCidr": "192.168.10.0/24",
-
-    "ServerIdentifier": "192.168.10.1",
-    "Router": "192.168.10.1",
-    "DnsServer": "1.1.1.1",
-    "NtpServer": "",
-
-    "LeaseHours": 1,
-
-    "ArpTimeoutMs": 500,
-
-    "BadIpStorePath": "/var/lib/dnsforwarder/badips.json"
-  },
-  "Ntp": {
-    "Enabled": true,
-    "ListenAddress": "0.0.0.0",
-    "Port": 123,
-    "BufferSize": 65536,
-    "Stratum": 1,
-    "ReferenceId": "LOCL",
-    "Upstream": {
-      "Enabled": true,
-      "Servers": [
-        "0.pool.ntp.org",
-        "1.pool.ntp.org"
-      ],
-      "PollIntervalSeconds": 16
-    }
-  },
-  "Metrics": {
-    "Enabled": true,
-    "StorageEngine": "prometheus",
-    "Location": "/metrics",
-    "ListenAddress": "127.0.0.1",
-    "ListenPort": 1080
-  },
-  "WebUI": {
-    "Enabled": true,
-    "ListenAddress": "127.0.0.1",
-    "ListenPort": 1081
-  },
-  "Logging": {
-    "Level": "Debug"
-  }
-}
-```
+Configuearation is storesd im a JSON text file called appsettings.json which should be located im the same folder as the application.
+	
+See [configurations.md](configurations.md) for example configuratiob.
 
 ## Configuration Notes
 
@@ -222,3 +124,58 @@ Since ⁠NOERROR⁠ is returned, the client operating system considers the looku
 
 - Prometheus-style metrics are exposed at: `http://127.0.0.1:1080/metrics` (example).
 - Structured logging includes a `RequestId` for tracing individual DNS requests.
+
+
+## Testing
+
+In addition to the Unit tests, several Python test scripts exist to make real-world requests against the server amd show the results.
+
+These can be found in ./tests/scripts
+
+### DNS
+
+```bash
+$ python3 ./test_dns.py 
+usage: test_dns.py [-h] [-s SERVER] [-b CLIENT_IP] [--tcp] [-p PORT]
+                   [-t TIMEOUT]
+                   domain [type]
+test_dns.py: error: the following arguments are required: domain
+```
+
+```bash
+$ python3 ./test_dns.py -s 1.1.1.1 -p 53 bbc.com A
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 31424
+;; flags: qr rd ra; QUERY: 1, ANSWER: 4, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;bbc.com.               IN      A
+
+;; ANSWER SECTION:
+bbc.com.                121     IN      A       151.101.64.81
+bbc.com.                121     IN      A       151.101.128.81
+bbc.com.                121     IN      A       151.101.192.81
+bbc.com.                121     IN      A       151.101.0.81
+
+;; Query time: 5.36 msec
+;; SERVER: 1.1.1.1#53(1.1.1.1)
+;; WHEN: Thu Aug 13 03:05:18 BST 2026
+;; MSG SIZE  rcvd: 89
+```
+
+### DHCP
+
+Note this script must be run with elevated privileges such as sudo.
+
+```bash
+$ sudo python3 ./test_dhcp.py --server-port 1067 --client-port 68
+```
+
+### NTP
+
+This script connects to 127.0.0.1:1123 only.
+
+```bash
+$ python3 ./test_ntp.py 
+```
+
+
