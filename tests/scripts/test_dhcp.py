@@ -24,6 +24,7 @@ DHCP_OPTION_DEFINITIONS = {
     26: ("Interface MTU", "uint16"),
     28: ("Broadcast Address", "ip"),
     42: ("NTP Server", "ip_list"),
+    43: ("Vendor Specific Information", "hex"),  # Added Option 43 support
     50: ("Requested IP Address", "ip"),
     51: ("IP Address Lease Time", "uint32_seconds"),
     53: ("DHCP Message Type", "msg_type"),
@@ -72,6 +73,8 @@ def decode_option(opt_code: int, data: bytes) -> tuple[str, str]:
     elif opt_type == "msg_type" and len(data) == 1:
         val = data[0]
         return name, DHCP_MSG_TYPES.get(val, f"Unknown ({val})")
+    elif opt_type == "hex":
+        return name, f"0x{data.hex()}"
 
     try:
         text = data.decode("ascii")
@@ -109,7 +112,8 @@ def build_dhcp_packet(
         options.extend(hostname_bytes)
 
     if vendor_class_id:
-        vci_bytes = vendor_class_id.encode("utf-8")
+        # Strip trailing C-style null bytes if accidentally provided
+        vci_bytes = vendor_class_id.rstrip("\x00").encode("utf-8")
         options.extend([60, len(vci_bytes)])
         options.extend(vci_bytes)
 
@@ -122,8 +126,8 @@ def build_dhcp_packet(
         options.extend(socket.inet_aton(server_ip))
 
     # Parameter Request List (Option 55):
-    # Subnet Mask(1), Router(3), DNS(6), Domain Name(15), MTU(26), NTP(42), Vendor Class(60), TFTP Server(66), Bootfile(67), WPAD(252)
-    requested_options = [1, 3, 6, 15, 26, 42, 60, 66, 67, 252]
+    # Added Option 43 (Vendor Specific Info) so the server returns custom vendor data
+    requested_options = [1, 3, 6, 15, 26, 42, 43, 60, 66, 67, 252]
     options.extend([55, len(requested_options)])
     options.extend(requested_options)
     options.append(255)
@@ -144,16 +148,22 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
 
     while i < len(options_data):
         opt = options_data[i]
-        if opt == 255:
+        if opt == 255:  # END option
             break
-        if opt == 0:
+        if opt == 0:    # PAD option
             i += 1
             continue
 
+        # Check if length byte exists
         if i + 1 >= len(options_data):
             break
 
         length = options_data[i + 1]
+        
+        # Check if entire payload falls within remaining options_data length
+        if i + 2 + length > len(options_data):
+            break
+
         val = bytes(options_data[i + 2 : i + 2 + length])
         name, formatted_val = decode_option(opt, val)
 
