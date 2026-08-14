@@ -36,18 +36,24 @@ public static class ApiSidecar
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
 
         var apiHost = Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration(config =>
+            {
+                // Ensures the sidecar host consumes the exact same configuration sources as mainHost
+                config.AddConfiguration(mainConfig);
+            })
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
+                logging.AddConfiguration(mainConfig.GetSection("Logging"));
                 logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
             })
             .ConfigureServices(services =>
             {
                 services.AddSingleton(mainConfig);
-                services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
                 services.Configure<DhcpOptions>(mainConfig.GetSection("Dhcp"));
                 services.Configure<ServerOptions>(mainConfig);
+
+                services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
                 services.AddControllers()
                         .AddControllersFromNamespace<LeasesController>("Astrolabed.Api.Controllers");

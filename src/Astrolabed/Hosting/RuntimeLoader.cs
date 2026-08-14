@@ -25,10 +25,17 @@ public static class RuntimeLoader
         await dnsLoader.LoadAsync();
         logger.LogInformation("DNS runtime loaded.");
 
-        logger.LogInformation("Loading DHCP runtime...");
-        var dhcpLoader = provider.GetRequiredService<IDhcpRuntimeLoader>();
-        await dhcpLoader.LoadAsync();
-        logger.LogInformation("DHCP runtime loaded.");
+        var dhcpLoader = provider.GetService<IDhcpRuntimeLoader>();
+        if (dhcpLoader is not null)
+        {
+            logger.LogInformation("Loading DHCP runtime...");
+            await dhcpLoader.LoadAsync();
+            logger.LogInformation("DHCP runtime loaded.");
+        }
+        else
+        {
+            logger.LogWarning("DHCP is disabled; skipping DHCP runtime loader.");
+        }
 
         logger.LogInformation("Runtime loader completed.");
     }

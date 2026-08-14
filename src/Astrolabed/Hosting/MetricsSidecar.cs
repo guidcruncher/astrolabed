@@ -38,8 +38,8 @@ public static class MetricsSidecar
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
+                logging.AddConfiguration(mainConfig.GetSection("Logging"));
                 logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
             })
             .ConfigureServices(services =>
             {
