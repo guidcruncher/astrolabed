@@ -25,6 +25,17 @@ public class DnsController : ControllerBase
     }
 
     /// <summary>
+    /// Flushes the DNS Cache
+    /// </summary>
+    [HttpDelete("cache")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> FlushCache()
+    {
+        _dnsService.FlushCache();
+        return Ok();
+    }
+
+    /// <summary>
     /// Performs a DNS lookup for a record name and type.
     /// </summary>
     /// <param name="name">Domain or hostname to resolve (e.g. "gateway.home.arpa")</param>
