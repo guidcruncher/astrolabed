@@ -99,6 +99,7 @@ public static class ApiSidecar
             {
                 web.UseKestrel(options =>
                 {
+		    options.AddServerHeader = false;
                     if (IPAddress.TryParse(serverOptions.WebUI.ListenAddress, out var ip))
                     {
                         options.Listen(ip, serverOptions.WebUI.ListenPort);

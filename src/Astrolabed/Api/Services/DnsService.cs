@@ -8,6 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Dns;
+using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -19,19 +20,27 @@ public sealed class DnsService : IDnsService
     private readonly ILogger<DnsService> _logger;
     private readonly IDnsRequestHandler _handler;
     private readonly DnsForwarderOptions _options;
+    private readonly IDnsCache _dnsCache;
 
     public DnsService(
         ILogger<DnsService> logger,
         IDnsRequestHandler handler,
+    IDnsCache dnsCache,
         IOptions<DnsForwarderOptions> options)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
 
+        _dnsCache = dnsCache;
         _logger = logger;
         _handler = handler;
         _options = options.Value;
+    }
+
+    public void FlushCache()
+    {
+        _dnsCache.Flush();
     }
 
     public Task<DnsResponse> QueryAsync(

@@ -14,7 +14,8 @@ public sealed class DnsCache : IDnsCache
 
     public Guid InstanceId { get; } = Guid.NewGuid();
 
-    private readonly ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
+    private readonly object _sync = new();
+    private ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
     private readonly int _maxCapacity;
     private readonly Timer _cleanupTimer;
     private readonly Channel<byte> _evictionSignal = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
@@ -35,6 +36,25 @@ public sealed class DnsCache : IDnsCache
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default);
+    }
+
+    public void Flush()
+    {
+        ConcurrentDictionary<DnsCacheKey, CacheEntry> old;
+
+        lock (_sync)
+        {
+            old = _entries;
+            _entries = new ConcurrentDictionary<DnsCacheKey, CacheEntry>();
+        }
+
+        foreach (var kvp in old)
+        {
+            if (old.TryRemove(kvp.Key, out var removed))
+            {
+                removed.Dispose();
+            }
+        }
     }
 
     public bool TryGet(in DnsRequestContext context, out byte[]? response)
