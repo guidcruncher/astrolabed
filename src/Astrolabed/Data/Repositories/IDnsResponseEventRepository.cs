@@ -42,6 +42,11 @@ public interface IDnsResponseEventRepository
     IEnumerable<DnsResponseEvent> GetByStatus(string status, int limit = 100);
 
     /// <summary>
+    /// Retrieves all records
+    /// </summary>
+    IEnumerable<DnsResponseEvent> GetAll(int limit = 100);
+
+    /// <summary>
     /// Purges events older than the specified cutoff timestamp.
     /// </summary>
     int DeleteOlderThan(DateTimeOffset cutoff);

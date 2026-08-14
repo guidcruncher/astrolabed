@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Data.Entities;
 using Astrolabed.Data.Repositories;
+using Astrolabed.Events;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -33,9 +34,19 @@ public sealed class DnsEventsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Retrieves DNS response events within a specified time range.
-    /// </summary>
+    [HttpGet("/")]
+    [ProducesResponseType(typeof(IEnumerable<DnsResponseEvent>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public IActionResult GetAll(
+            string status,
+            [FromQuery, Range(1, 1000)] int limit = 100)
+    {
+        _logger.LogInformation("Retrieving All DNS response events limit {Limit}", limit);
+        var results = _repository.GetAll(limit);
+
+        return Ok(results);
+    }
+
     [HttpGet("range")]
     [ProducesResponseType(typeof(IEnumerable<DnsResponseEvent>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

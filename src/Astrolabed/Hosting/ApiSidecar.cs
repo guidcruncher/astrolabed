@@ -118,7 +118,7 @@ public static class ApiSidecar
                 web.Configure((context, app) =>
                 {
                     app.UseRouting();
-		    app.UseStaticFiles();
+                    app.UseStaticFiles();
 
                     app.UseEndpoints(endpoints =>
                     {
