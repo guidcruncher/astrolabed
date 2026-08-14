@@ -1,6 +1,9 @@
 using Astrolabed.Api.Services;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
+using Astrolabed.Dns.Core;
+using Astrolabed.Dns.Filtering;
+using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Ntp;
 
 using Microsoft.Extensions.Configuration;
@@ -21,6 +24,10 @@ public static class ApiServiceCollectionExtensions
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
         // 3. DNS Services
+        services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
+        services.AddSingleton(mainHost.Services.GetRequiredService<IHostsFileSource>());
+
+        services.AddSingleton<IDnsRequestHandler, DnsRequestHandler>();
         services.AddTransient<IDnsService, DnsService>();
 
         // 4. NTP Services
