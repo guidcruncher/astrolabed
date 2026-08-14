@@ -44,7 +44,6 @@ public static class ApiSidecar
         var apiHost = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration(config =>
             {
-                // Ensures the sidecar host consumes the exact same configuration sources as mainHost
                 config.AddConfiguration(mainConfig);
             })
             .ConfigureLogging(logging =>
@@ -113,7 +112,7 @@ public static class ApiSidecar
                         serverOptions.WebUI.ListenPort);
                 });
 
-                web.Configure(app =>
+                web.Configure((context, app) =>
                 {
                     app.UseRouting();
 
@@ -121,17 +120,16 @@ public static class ApiSidecar
                     {
                         endpoints.MapControllers();
 
-                        if (app.Environment.IsDevelopment())
+                        if (context.HostingEnvironment.IsDevelopment())
                         {
                             endpoints.MapOpenApi();
-                            endpoints.MapScalarApiReference();
+                            endpoints.MapScalarApiReference("/docs/");
                             logger.LogInformation("OpenApi Documentation enabled at /openapi/v1.json and /scalar");
                         }
                         else
                         {
                             logger.LogWarning("OpenApi Documentation disabled");
                         }
-
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");
@@ -150,3 +148,4 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
+

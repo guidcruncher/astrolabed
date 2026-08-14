@@ -48,9 +48,13 @@ format-json:
 	done
 
 run:
+	ASPNETCORE_ENVIRONMENT=Production \
+	DOTNET_ENVIRONMENT=Production \
 	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
 
 dev:
+	ASPNETCORE_ENVIRONMENT=Development \
+	DOTNET_ENVIRONMENT=Development \
 	dotnet run --project $(PROJECT) -c Debug -- --config appsettings.Development.json
 
 benchmark:
