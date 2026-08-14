@@ -17,7 +17,10 @@ public sealed class PhysicalAddressJsonConverter : JsonConverter<PhysicalAddress
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(value);
 
-        writer.WriteStringValue(value.ToString());
+        var bytes = value.GetAddressBytes();
+        var formattedMac = string.Join(":", bytes.Select(b => b.ToString("X2")));
+
+        writer.WriteStringValue(formattedMac);
     }
 }
 
