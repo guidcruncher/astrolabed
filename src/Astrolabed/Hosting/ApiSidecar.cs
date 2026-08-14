@@ -118,6 +118,7 @@ public static class ApiSidecar
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
+                        endpoints.MapOpenApi();
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");
