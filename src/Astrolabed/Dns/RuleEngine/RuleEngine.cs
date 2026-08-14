@@ -24,12 +24,13 @@ public sealed class RuleEngine : IDisposable
     private readonly BlockResponseBuilder _blockBuilder;
     private bool _disposed;
 
-    public DnsCache Cache { get; }
+    public IDnsCache Cache { get; }
 
     public RuleEngine(
         IOptions<DnsForwarderOptions> options,
         ILogger<RuleEngine> logger,
-        IDnsClientFactory clientFactory)
+        IDnsClientFactory clientFactory,
+    IDnsCache dnsCache)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -38,10 +39,7 @@ public sealed class RuleEngine : IDisposable
         _options = options.Value;
         _logger = logger;
 
-        int maxEntries = _options.Caching?.MaxEntries > 0 ? _options.Caching.MaxEntries : 10000;
-        int cleanupIntervalMinutes = _options.Caching?.CleanupIntervalMinutes > 0 ? _options.Caching.CleanupIntervalMinutes : 1;
-
-        Cache = new DnsCache(maxEntries, TimeSpan.FromMinutes(cleanupIntervalMinutes));
+        Cache = dnsCache;
 
         _compiler = new RuleCompiler(options, logger, clientFactory);
         _matcher = new RuleMatcher(_compiler, logger);
