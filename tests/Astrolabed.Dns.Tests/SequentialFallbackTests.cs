@@ -48,7 +48,8 @@ public sealed class SequentialFallbackTests
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
+        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
     }
 
     private static byte[] BuildQuery(string domain)

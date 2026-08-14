@@ -105,9 +105,9 @@ public class DnsBenchmarks
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
 
-        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory);
-
         _cache = new DnsCache(options.Caching.MaxEntries);
+        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory, _cache);
+
         _context = new DnsRequestContext(_query, "benchmark-id");
 
         // Warm cache

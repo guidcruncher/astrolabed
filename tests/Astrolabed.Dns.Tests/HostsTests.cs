@@ -37,8 +37,8 @@ public class HostsTests
         var wrappedOpts = Options.Create(opts);
         var logger = NullLogger<RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-
-        return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory);
+        var cache = new DnsCache(50);
+        return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory, cache);
     }
 
     private static HostsFileSource CreateHostsSource(params string[] files)

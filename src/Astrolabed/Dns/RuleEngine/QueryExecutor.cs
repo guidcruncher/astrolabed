@@ -13,11 +13,11 @@ namespace Astrolabed.Dns.RuleEngine;
 
 internal sealed class QueryExecutor
 {
-    private readonly DnsCache _cache;
+    private readonly IDnsCache _cache;
     private readonly DnsForwarderOptions _options;
     private readonly ILogger _logger;
 
-    public QueryExecutor(DnsCache cache, IOptions<DnsForwarderOptions> options, ILogger logger)
+    public QueryExecutor(IDnsCache cache, IOptions<DnsForwarderOptions> options, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(cache);
         ArgumentNullException.ThrowIfNull(options);

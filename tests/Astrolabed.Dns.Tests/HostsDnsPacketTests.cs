@@ -25,7 +25,8 @@ public sealed class HostsDnsPacketTests
         var options = new DnsForwarderOptions();
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
+        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
 
         var tmp = Path.GetTempFileName();
         await File.WriteAllLinesAsync(tmp, new[] { "127.0.0.1 host.test" });

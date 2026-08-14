@@ -6,6 +6,7 @@ using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
 using Astrolabed.Configuration;
 using Astrolabed.Dhcp;
+using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Serialization;
 
 using Microsoft.AspNetCore.Builder;
@@ -23,7 +24,7 @@ namespace Astrolabed.Hosting;
 
 public static class ApiSidecar
 {
-    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args)
+    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args, IDnsCache sharedCache)
     {
         var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ApiSidecar));
 
@@ -37,6 +38,8 @@ public static class ApiSidecar
             "Starting API sidecar on http://{Address}:{Port}",
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
+
+        logger.LogInformation($"System Shared DNS Cache Instance Identifier {sharedCache.InstanceId}");
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
@@ -57,7 +60,7 @@ public static class ApiSidecar
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
 
-                services.AddApiServices(mainHost, mainConfig);
+                services.AddApiServices(mainHost, mainConfig, sharedCache);
 
                 services.ConfigureHttpJsonOptions(options =>
                 {

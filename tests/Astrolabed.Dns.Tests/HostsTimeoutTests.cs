@@ -22,7 +22,8 @@ public sealed class HostsTimeoutTests
         var options = new DnsForwarderOptions();
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory);
+        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
 
         var result = engine.Match("timeout.test", "-");
         Assert.NotNull(result);

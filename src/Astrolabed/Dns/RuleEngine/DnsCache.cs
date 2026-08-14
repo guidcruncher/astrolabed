@@ -9,8 +9,11 @@ using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Dns.RuleEngine;
 
-public sealed class DnsCache : IDisposable
+public sealed class DnsCache : IDnsCache
 {
+
+    public Guid InstanceId { get; } = Guid.NewGuid();
+
     private readonly ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
     private readonly int _maxCapacity;
     private readonly Timer _cleanupTimer;
