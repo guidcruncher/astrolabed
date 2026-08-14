@@ -38,7 +38,6 @@ public sealed class DnsEventsController : ControllerBase
     [ProducesResponseType(typeof(IEnumerable<DnsResponseEvent>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetAll(
-            string status,
             [FromQuery, Range(1, 1000)] int limit = 100)
     {
         _logger.LogInformation("Retrieving All DNS response events limit {Limit}", limit);
