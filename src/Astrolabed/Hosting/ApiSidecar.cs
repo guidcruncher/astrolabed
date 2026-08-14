@@ -1,4 +1,6 @@
 using System.Net;
+using System.Net.NetworkInformation;
+using System.Text.Json.Nodes;
 
 using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
@@ -13,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Microsoft.OpenApi;
 
 namespace Astrolabed.Hosting;
 
@@ -69,6 +72,25 @@ public static class ApiSidecar
                         options.JsonSerializerOptions.Converters.Add(new IPAddressJsonConverter());
                         options.JsonSerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
                     });
+
+                services.AddOpenApi(options =>
+                {
+                    options.AddSchemaTransformer((schema, context, cancellationToken) =>
+                    {
+                        if (context.JsonTypeInfo.Type == typeof(IPAddress))
+                        {
+                            schema.Type = JsonSchemaType.String;
+                            schema.Example = JsonValue.Create("192.168.1.50");
+                        }
+                        else if (context.JsonTypeInfo.Type == typeof(PhysicalAddress))
+                        {
+                            schema.Type = JsonSchemaType.String;
+                            schema.Example = JsonValue.Create("00:11:22:33:44:55");
+                        }
+
+                        return Task.CompletedTask;
+                    });
+                });
             })
             .ConfigureWebHostDefaults(web =>
             {

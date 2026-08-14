@@ -1,0 +1,21 @@
+                // Configure .NET 10 Built-in OpenAPI
+                services.AddOpenApi(options =>
+                {
+                    options.AddSchemaTransformer((schema, context, cancellationToken) =>
+                    {
+                        if (context.JsonTypeInfo.Type == typeof(IPAddress))
+                        {
+                            schema.Type = JsonSchemaType.String;
+                            schema.Example = JsonValue.Create("192.168.1.50");
+                        }
+                        else if (context.JsonTypeInfo.Type == typeof(PhysicalAddress))
+                        {
+                            schema.Type = JsonSchemaType.String;
+                            schema.Example = JsonValue.Create("00:11:22:33:44:55");
+                        }
+
+                        return Task.CompletedTask;
+                    });
+                });
+            })
+            .ConfigureWebHostDefaults(web =>
