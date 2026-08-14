@@ -11,6 +11,9 @@ namespace Astrolabed.Dns.RuleEngine;
 
 public sealed class DnsCache : IDisposable
 {
+
+    public Guid InstanceId { get; } = Guid.NewGuid();
+
     private readonly ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
     private readonly int _maxCapacity;
     private readonly Timer _cleanupTimer;
