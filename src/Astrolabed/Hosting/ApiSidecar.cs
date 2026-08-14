@@ -55,10 +55,9 @@ public static class ApiSidecar
             .ConfigureServices(services =>
             {
                 services.AddSingleton(mainConfig);
-                services.Configure<DhcpOptions>(mainConfig.GetSection("Dhcp"));
                 services.Configure<ServerOptions>(mainConfig);
 
-                services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
+                services.AddApiServices(mainHost, mainConfig);
 
                 services.ConfigureHttpJsonOptions(options =>
                 {
