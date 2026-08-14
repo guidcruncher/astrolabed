@@ -17,6 +17,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
+using Scalar.AspNetCore;
+
 namespace Astrolabed.Hosting;
 
 public static class ApiSidecar
@@ -118,7 +120,18 @@ public static class ApiSidecar
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
-                        endpoints.MapOpenApi();
+
+                        if (app.Environment.IsDevelopment())
+                        {
+                            endpoints.MapOpenApi();
+                            endpoints.MapScalarApiReference();
+                            logger.LogInformation("OpenApi Documentation enabled at /openapi/v1.json and /scalar");
+                        }
+                        else
+                        {
+                            logger.LogWarning("OpenApi Documentation disabled");
+                        }
+
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");
