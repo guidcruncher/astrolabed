@@ -63,7 +63,12 @@ public static class ApiSidecar
                 });
 
                 services.AddControllers()
-                        .AddControllersFromNamespace<LeasesController>("Astrolabed.Api.Controllers");
+                    .AddControllersFromNamespace<LeasesController>("Astrolabed.Api.Controllers")
+                    .AddJsonOptions(options =>
+                    {
+                        options.JsonSerializerOptions.Converters.Add(new IPAddressJsonConverter());
+                        options.JsonSerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
+                    });
             })
             .ConfigureWebHostDefaults(web =>
             {
@@ -109,4 +114,3 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
-
