@@ -1,16 +1,20 @@
-using Astrolabed.Ntp;
+using Astrolabed;
 using Astrolabed.Events;
+using Astrolabed.Ntp;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
-using Astrolabed;
 using Astrolabed.Api.Services;
+using Astrolabed.Events.Bootstrap;
+using Astrolabed.Dhcp.Bootstrap;
+using Astrolabed.Dns.Bootstrap;
+using Astrolabed.Ntp.Bootstrap;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Astrolabed.Api;
 
-public static class NtpServiceCollectionExtensions
+public static class ApiServiceCollectionExtensions
 {
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
@@ -18,17 +22,14 @@ public static class NtpServiceCollectionExtensions
         services.Configure<NtpServerOptions>(configuration.GetSection("Ntp"));
         services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
 
-        // 2. DHCP Services
-        services.AddSingleton(services.GetRequiredService<IDhcpLeaseReader>());
+	// 3. Event bus
+	services.AddEventBus(configuration);
 
-        // 2. Core NTP Handler & Metrics Dependencies (Existing)
-        services.AddSingleton<INtpMetrics, NtpMetrics>();
-        services.AddTransient<INtpRequestHandler, NtpRequestHandler>();
+        // 4. DHCP Services
+        services.AddDhcpServer(configuration);
 
-        // 3. NTP Background Listener Service (Existing)
-        services.AddHostedService<NtpServerService>();
-
-        // 4. NEW: Register the INtpService for API / internal queries
+        //5. NTP Services
+	services.AddNtpServer(configuration);
         services.AddTransient<INtpService, NtpService>();
 
         return services;

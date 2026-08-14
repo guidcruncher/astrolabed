@@ -5,7 +5,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed;
-using Astrolabed.Events;
 using Astrolabed.Ntp;
 
 using Microsoft.Extensions.Logging;
@@ -18,23 +17,19 @@ public sealed class NtpService : INtpService
     private readonly ILogger<NtpService> _logger;
     private readonly INtpRequestHandler _handler;
     private readonly NtpServerOptions _options;
-    private readonly INtpMetrics _metrics;
 
     public NtpService(
         ILogger<NtpService> logger,
         INtpRequestHandler handler,
-        IOptions<NtpServerOptions> options,
-        INtpMetrics metrics)
+        IOptions<NtpServerOptions> options)
     {
         ArgumentNullException.ThrowIfNull(logger);
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(metrics);
 
         _logger = logger;
         _handler = handler;
         _options = options.Value;
-        _metrics = metrics;
     }
 
     public Task<NtpResponse> QueryAsync(CancellationToken cancellationToken = default)
@@ -75,16 +70,6 @@ public sealed class NtpService : INtpService
             // 3. Delegate packet processing & validation to internal INtpRequestHandler
             var handlerResult = await _handler.HandleAsync(receiveResult, udp, cancellationToken).ConfigureAwait(false);
 
-            // 4. Record synchronization metrics via shared INtpMetrics architecture
-            _metrics.Sync(new NtpSyncEvent(
-                Server: endpoint.ToString(),
-                Delay: TimeSpan.Zero,
-                Timestamp: DateTimeOffset.UtcNow,
-                ClientIp: receiveResult.RemoteEndPoint.Address.ToString(),
-                ClientName: string.Empty,
-                Offset: handlerResult.Offset,
-                Success: handlerResult.Success));
-
             var now = DateTimeOffset.UtcNow;
 
             return new NtpResponse
@@ -101,15 +86,6 @@ public sealed class NtpService : INtpService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing NTP request for {Endpoint}", endpoint);
-
-            _metrics.Sync(new NtpSyncEvent(
-                Server: endpoint.ToString(),
-                Delay: TimeSpan.Zero,
-                Timestamp: DateTimeOffset.UtcNow,
-                ClientIp: endpoint.Address.ToString(),
-                ClientName: string.Empty,
-                Offset: TimeSpan.Zero,
-                Success: false));
 
             return new NtpResponse
             {
