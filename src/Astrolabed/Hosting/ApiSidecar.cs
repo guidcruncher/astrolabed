@@ -17,6 +17,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.OpenApi;
 
+using Scalar.AspNetCore;
+
 namespace Astrolabed.Hosting;
 
 public static class ApiSidecar
@@ -42,7 +44,6 @@ public static class ApiSidecar
         var apiHost = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration(config =>
             {
-                // Ensures the sidecar host consumes the exact same configuration sources as mainHost
                 config.AddConfiguration(mainConfig);
             })
             .ConfigureLogging(logging =>
@@ -111,14 +112,24 @@ public static class ApiSidecar
                         serverOptions.WebUI.ListenPort);
                 });
 
-                web.Configure(app =>
+                web.Configure((context, app) =>
                 {
                     app.UseRouting();
 
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
-                        endpoints.MapOpenApi();
+
+                        if (context.HostingEnvironment.IsDevelopment())
+                        {
+                            endpoints.MapOpenApi();
+                            endpoints.MapScalarApiReference("/docs/");
+                            logger.LogInformation("OpenApi Documentation enabled at /openapi/v1.json and /scalar");
+                        }
+                        else
+                        {
+                            logger.LogWarning("OpenApi Documentation disabled");
+                        }
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");
@@ -137,3 +148,4 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
+

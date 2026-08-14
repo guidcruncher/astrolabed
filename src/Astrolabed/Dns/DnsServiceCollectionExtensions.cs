@@ -49,7 +49,6 @@ public static class DnsServiceCollectionExtensions
         services.AddTransient<IDhcpLeaseReader, DhcpLeaseReader>();
 
         // DNS Infrastructure Clients
-        services.AddSingleton<StaticDnsClient>();
         services.AddSingleton<IDnsClientFactory, DefaultDnsClientFactory>();
 
         services.AddSingleton<IConditionalDnsForwarder, ConditionalDnsForwarder>();
