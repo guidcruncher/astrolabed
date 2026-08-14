@@ -23,9 +23,10 @@ public class Program
         await RuntimeLoader.LoadAsync(host);
 
         var serverOptions = host.Services.GetRequiredService<ServerOptions>();
+
         MetricsSidecar.StartIfEnabled(host, serverOptions, args);
 
-        WebUiSidecar.StartIfEnabled(host, serverOptions, args);
+        ApiSidecar.StartIfEnabled(host, serverOptions, args);
 
         await host.RunAsync();
     }

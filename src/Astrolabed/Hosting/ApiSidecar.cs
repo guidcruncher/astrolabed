@@ -1,7 +1,10 @@
 using System.Net;
 
+using Astrolabed.Api;
+using Astrolabed.Api.Controllers;
 using Astrolabed.Configuration;
-using Astrolabed.WebUI;
+using Astrolabed.Dhcp;
+using Astrolabed.Serialization;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -13,39 +16,59 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Hosting;
 
-public static class WebUiSidecar
+public static class ApiSidecar
 {
     public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args)
     {
-        var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(WebUiSidecar));
+        var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ApiSidecar));
 
         if (!serverOptions.WebUI.Enabled)
         {
-            logger.LogWarning("WebUI not enabled.");
+            logger.LogWarning("API sidecar not enabled.");
             return;
         }
 
         logger.LogInformation(
-            "Starting WebUI sidecar on http://{Address}:{Port}",
+            "Starting API sidecar on http://{Address}:{Port}",
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
 
-        var webUiHost = Host.CreateDefaultBuilder(args)
+        var apiHost = Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration(config =>
+            {
+                // Ensures the sidecar host consumes the exact same configuration sources as mainHost
+                config.AddConfiguration(mainConfig);
+            })
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
+                logging.AddConfiguration(mainConfig.GetSection("Logging"));
                 logging.AddConsole();
-                logging.SetMinimumLevel(LogLevel.Information);
             })
             .ConfigureServices(services =>
             {
                 services.AddSingleton(mainConfig);
-                services.AddSingleton(mainHost.Services.GetRequiredService<IApplicationRestartManager>());
-                services.AddTransient<ConfigurationWriter>();
+                services.Configure<DhcpOptions>(mainConfig.GetSection("Dhcp"));
                 services.Configure<ServerOptions>(mainConfig);
+
+                services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
+
+                services.ConfigureHttpJsonOptions(options =>
+                {
+                    options.SerializerOptions.Converters.Add(new IPAddressJsonConverter());
+                    options.SerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
+                });
+
+                services.AddControllers()
+                    .AddControllersFromNamespace<LeasesController>("Astrolabed.Api.Controllers")
+                    .AddJsonOptions(options =>
+                    {
+                        options.JsonSerializerOptions.Converters.Add(new IPAddressJsonConverter());
+                        options.JsonSerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
+                    });
             })
             .ConfigureWebHostDefaults(web =>
             {
@@ -61,38 +84,33 @@ public static class WebUiSidecar
                     }
 
                     logger.LogInformation(
-                        "Kestrel bound to {Address}:{Port}",
+                        "Kestrel bound API sidecar to {Address}:{Port}",
                         serverOptions.WebUI.ListenAddress,
                         serverOptions.WebUI.ListenPort);
                 });
 
                 web.Configure(app =>
                 {
-                    app.UseDefaultFiles();
-                    app.UseStaticFiles();
-
                     app.UseRouting();
 
                     app.UseEndpoints(endpoints =>
                     {
-                        WebUiRouting.RegisterRoutes(endpoints);
-
-                        endpoints.MapFallbackToFile("index.html");
+                        endpoints.MapControllers();
                     });
 
-                    logger.LogInformation("WebUI endpoints registered");
+                    logger.LogInformation("API sidecar controllers registered successfully.");
                 });
             })
             .Build();
 
-        _ = webUiHost.RunAsync(lifetime.ApplicationStopping).ContinueWith(t =>
+        _ = apiHost.RunAsync(lifetime.ApplicationStopping).ContinueWith(t =>
         {
             if (t.IsFaulted && t.Exception is not null)
             {
-                logger.LogError(t.Exception, "WebUI sidecar encountered an error during execution.");
+                logger.LogError(t.Exception, "API sidecar encountered an error during execution.");
             }
         });
 
-        logger.LogInformation("WebUI sidecar started successfully.");
+        logger.LogInformation("API sidecar started successfully.");
     }
 }

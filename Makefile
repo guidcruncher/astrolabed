@@ -4,11 +4,14 @@ BUILD_DIR = bin/
 RUNTIME = linux-x64
 IMAGE_NAME ?= guidcruncher/astrolabed
 
-.PHONY: all build clean run dev test restore publish metrics benchmark format format-json dig docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
+.PHONY: api all build clean run dev test restore publish metrics benchmark format format-json dns docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
 
 all: restore build
 
-dig:
+api:
+	@curl -s -X GET "http://127.0.0.1:1081/api/v1/leases" | jq
+
+dns:
 	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
 	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
 

@@ -3,6 +3,7 @@ using System.Net;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -12,42 +13,35 @@ public static class DhcpServiceCollectionExtensions
 {
     public static IServiceCollection AddDhcpServer(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration config)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(config);
 
-        services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
-        return services.AddDhcpServices();
-    }
+        var dhcpSection = config.GetSection("Dhcp");
+        services.Configure<DhcpOptions>(dhcpSection);
 
-    public static IServiceCollection AddDhcpServer(
-        this IServiceCollection services,
-        Action<DhcpOptions> configureOptions)
-    {
-        ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(configureOptions);
+        var dhcpOptions = dhcpSection.Get<DhcpOptions>() ?? new DhcpOptions();
 
-        services.Configure(configureOptions);
-        return services.AddDhcpServices();
-    }
+        if (!dhcpOptions.Enabled)
+        {
+            return services;
+        }
 
-    private static IServiceCollection AddDhcpServices(this IServiceCollection services)
-    {
-        services.AddSingleton<ICidrPoolAllocator, CidrPoolAllocator>();
-        services.AddSingleton<IArpConflictDetector, ArpConflictDetector>();
-        services.AddSingleton<IDhcpLeaseEngine, DhcpLeaseEngine>();
+        services.TryAddSingleton<ICidrPoolAllocator, CidrPoolAllocator>();
+        services.TryAddSingleton<IArpConflictDetector, ArpConflictDetector>();
+        services.TryAddSingleton<IDhcpLeaseEngine, DhcpLeaseEngine>();
 
-        services.AddSingleton<DhcpServerEngine>();
-        services.AddSingleton<IDhcpServerEngine>(sp => sp.GetRequiredService<DhcpServerEngine>());
+        services.TryAddSingleton<DhcpServerEngine>();
+        services.TryAddSingleton<IDhcpServerEngine>(sp => sp.GetRequiredService<DhcpServerEngine>());
 
-        services.AddSingleton<IDhcpLeaseStore>(sp =>
+        services.TryAddSingleton<IDhcpLeaseStore>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DhcpOptions>>().Value;
             return new JsonDhcpLeaseStore(options.LeaseStorePath);
         });
 
-        services.AddSingleton<IUdpTransport>(sp =>
+        services.TryAddSingleton<IUdpTransport>(sp =>
         {
             var options = sp.GetRequiredService<IOptions<DhcpOptions>>().Value;
             var logger = sp.GetRequiredService<ILogger<UdpTransport>>();
@@ -57,7 +51,7 @@ public static class DhcpServiceCollectionExtensions
                 logger);
         });
 
-        services.AddSingleton<IDhcpRuntimeLoader, DhcpRuntimeLoader>();
+        services.TryAddSingleton<IDhcpRuntimeLoader, DhcpRuntimeLoader>();
         services.AddHostedService<DhcpHostedService>();
 
         return services;
