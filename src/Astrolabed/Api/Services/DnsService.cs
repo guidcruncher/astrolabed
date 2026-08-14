@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Astrolabed.Dns;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
-using Astrolabed;
-using Astrolabed.Dns;
 
 namespace Astrolabed.Api.Services;
 
@@ -34,14 +34,20 @@ public sealed class DnsService : IDnsService
         _options = options.Value;
     }
 
-    public Task<DnsResponse> QueryAsync(string name, string type = "A", CancellationToken cancellationToken = default)
+    public Task<DnsResponse> QueryAsync(
+        string name,
+        string type = "A",
+        CancellationToken cancellationToken = default)
     {
-        if (!IPAddress.TryParse(_options.Address, out var address))
+        var addressStr = _options.Listen?.Address;
+        if (!IPAddress.TryParse(addressStr, out var address))
         {
             address = IPAddress.Loopback;
         }
 
-        var endpoint = new IPEndPoint(address, _options.Port > 0 ? _options.Port : 53);
+        int port = _options.Listen?.Port > 0 ? _options.Listen.Port : 53;
+        var endpoint = new IPEndPoint(address, port);
+
         return QueryServerAsync(name, type, endpoint, cancellationToken);
     }
 
@@ -60,11 +66,6 @@ public sealed class DnsService : IDnsService
         var sw = Stopwatch.StartNew();
 
         using var udp = new UdpClient(endpoint.AddressFamily);
-        if (_options.BufferSize > 0)
-        {
-            udp.Client.ReceiveBufferSize = _options.BufferSize;
-            udp.Client.SendBufferSize = _options.BufferSize;
-        }
 
         try
         {
@@ -80,7 +81,7 @@ public sealed class DnsService : IDnsService
             sw.Stop();
 
             // 3. Delegate response handling/parsing using internal IDnsRequestHandler
-            var handlerResult = await _handler.HandleAsync(receiveResult, udp, cancellationToken).ConfigureAwait(false);
+            var handlerResult = await _handler.HandleAsync(receiveResult.Buffer, endpoint, cancellationToken).ConfigureAwait(false);
 
             return new DnsResponse
             {
@@ -137,7 +138,7 @@ public sealed class DnsService : IDnsService
         var labels = name.Trim('.').Split('.');
         foreach (var label in labels)
         {
-            var bytes = System.Text.Encoding.ASCII.GetBytes(label);
+            var bytes = Encoding.ASCII.GetBytes(label);
             packet.Add((byte)bytes.Length);
             packet.AddRange(bytes);
         }
@@ -183,7 +184,13 @@ public sealed class DnsService : IDnsService
         {
             TransactionId = id,
             IsResponse = (flags & 0x8000) != 0,
-            OpCode = ((flags >> 11) & 0x0F) switch { 0 => "QUERY", 1 => "IQUERY", 2 => "STATUS", _ => "UNKNOWN" },
+            OpCode = ((flags >> 11) & 0x0F) switch
+            {
+                0 => "QUERY",
+                1 => "IQUERY",
+                2 => "STATUS",
+                _ => "UNKNOWN"
+            },
             AuthoritativeAnswer = (flags & 0x0400) != 0,
             Truncated = (flags & 0x0200) != 0,
             RecursionDesired = (flags & 0x0100) != 0,
