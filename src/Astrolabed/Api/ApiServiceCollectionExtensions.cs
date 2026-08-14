@@ -13,7 +13,7 @@ namespace Astrolabed.Api;
 
 public static class ApiServiceCollectionExtensions
 {
-    public static IServiceCollection AddApiServices(this IServiceCollection services, IHost mainHost, IConfiguration configuration)
+    public static IServiceCollection AddApiServices(this IServiceCollection services, IHost mainHost, IConfiguration configuration, IDnsCache sharedCache)
     {
         // 1. Options Binding
         services.Configure<NtpServerOptions>(configuration.GetSection("Ntp"));
@@ -24,6 +24,7 @@ public static class ApiServiceCollectionExtensions
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
         // 3. DNS Services
+        services.AddSingleton<IDnsCache>(sharedCache);
         services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
         services.AddSingleton(mainHost.Services.GetRequiredService<IHostsFileSource>());
 

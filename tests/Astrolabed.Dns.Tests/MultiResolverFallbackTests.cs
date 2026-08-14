@@ -53,7 +53,7 @@ public sealed class MultiResolverFallbackTests
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-	var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
         return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
     }
 

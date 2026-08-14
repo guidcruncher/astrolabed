@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
 using Astrolabed.Configuration;
+using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Dhcp;
 using Astrolabed.Serialization;
 
@@ -23,7 +24,7 @@ namespace Astrolabed.Hosting;
 
 public static class ApiSidecar
 {
-    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args)
+    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args, IDnsCache sharedCache)
     {
         var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ApiSidecar));
 
@@ -57,7 +58,7 @@ public static class ApiSidecar
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
 
-                services.AddApiServices(mainHost, mainConfig);
+                services.AddApiServices(mainHost, mainConfig, sharedCache);
 
                 services.ConfigureHttpJsonOptions(options =>
                 {

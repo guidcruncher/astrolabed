@@ -12,7 +12,20 @@ namespace Astrolabed.Dns.Bootstrap;
 
 public static class DnsServiceCollectionExtensions
 {
-    public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config)
+
+    public static IDnsCache CreateSharedDnsCache(this IServiceCollection services, IConfiguration config)
+    {
+        var dnsSection = config.GetSection("Dns:Caching");
+        services.Configure<CachingOptions>(dnsSection);
+
+        var options = dnsSection.Get<CachingOptions>() ?? new CachingOptions();
+        var maxEntries = options.MaxEntries > 0 ? options.MaxEntries : 10000;
+        var cleanupIntervalMinutes = options.CleanupIntervalMinutes > 0 ? options.CleanupIntervalMinutes : 1;
+        var sharedCache = new DnsCache(maxEntries, TimeSpan.FromMinutes(cleanupIntervalMinutes));
+        return sharedCache;
+    }
+
+    public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config, IDnsCache sharedCache)
     {
         // Bind configuration into Options Pattern
         services.Configure<ServerOptions>(config);
@@ -45,6 +58,7 @@ public static class DnsServiceCollectionExtensions
         services.AddHttpClient();
         services.AddHttpClient("BlocklistClient");
 
+        services.AddSingleton<IDnsCache>(sharedCache);
         // Local DHCP lease reader
         services.AddTransient<IDhcpLeaseReader, DhcpLeaseReader>();
 
