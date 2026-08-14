@@ -5,8 +5,8 @@ using System.Text.Json.Nodes;
 using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
 using Astrolabed.Configuration;
-using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Dhcp;
+using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Serialization;
 
 using Microsoft.AspNetCore.Builder;
@@ -38,6 +38,8 @@ public static class ApiSidecar
             "Starting API sidecar on http://{Address}:{Port}",
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
+
+        logger.LogInformation($"System Shared DNS Cache Instance Identifier {sharedCache.InstanceId}");
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();

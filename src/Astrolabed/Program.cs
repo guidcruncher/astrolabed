@@ -26,9 +26,10 @@ public class Program
 
         MetricsSidecar.StartIfEnabled(host, serverOptions, args);
 
-	if (ServiceRegistration.SharedDnsCache == null) {
-		throw new NullReferenceException("Shared DNS Cache is null");
-	}
+        if (ServiceRegistration.SharedDnsCache == null)
+        {
+            throw new NullReferenceException("Shared DNS Cache is null");
+        }
 
         ApiSidecar.StartIfEnabled(host, serverOptions, args, ServiceRegistration.SharedDnsCache);
 
