@@ -4,6 +4,7 @@ using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
 using Astrolabed.Configuration;
 using Astrolabed.Dhcp;
+using Astrolabed.Serialization;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -54,6 +55,12 @@ public static class ApiSidecar
                 services.Configure<ServerOptions>(mainConfig);
 
                 services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
+
+                services.ConfigureHttpJsonOptions(options =>
+                {
+                    options.SerializerOptions.Converters.Add(new IPAddressJsonConverter());
+                    options.SerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
+                });
 
                 services.AddControllers()
                         .AddControllersFromNamespace<LeasesController>("Astrolabed.Api.Controllers");
