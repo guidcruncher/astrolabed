@@ -29,7 +29,7 @@ public static class DnsServiceCollectionExtensions
     {
         // Bind configuration into Options Pattern
         services.Configure<ServerOptions>(config);
-        services.Configure<DnsForwarderOptions>(config.GetSection("Dns"));
+        services.Configure<DnsForwarderOptions>(config.GetSection(DnsForwarderOptions.SectionName));
 
         // Command-line/dynamic post-configuration overrides
         services.PostConfigure<DnsForwarderOptions>(options =>

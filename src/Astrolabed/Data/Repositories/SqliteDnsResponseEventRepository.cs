@@ -243,6 +243,31 @@ public class SqliteDnsResponseEventRepository : IDnsResponseEventRepository
         return results;
     }
 
+    public IEnumerable<DnsResponseEvent> GetAll(int limit = 1000)
+    {
+        using var connection = CreateConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = $"""
+            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
+            FROM dns_response_events
+            ORDER BY Timestamp DESC
+            LIMIT $limit;
+        """;
+
+        command.Parameters.AddWithValue("$limit", limit);
+
+        using var reader = command.ExecuteReader();
+        var results = new List<DnsResponseEvent>();
+
+        while (reader.Read())
+        {
+            results.Add(MapReaderToRecord(reader));
+        }
+
+        return results;
+    }
+
     public int DeleteOlderThan(DateTimeOffset cutoff)
     {
         using var connection = CreateConnection();

@@ -51,7 +51,7 @@ public static class MetricsSidecar
             {
                 web.UseKestrel(options =>
                 {
-		    options.AddServerHeader = false;
+                    options.AddServerHeader = false;
                     if (IPAddress.TryParse(serverOptions.Metrics.ListenAddress, out var ip))
                     {
                         options.Listen(ip, serverOptions.Metrics.ListenPort);

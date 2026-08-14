@@ -4,6 +4,7 @@ namespace Astrolabed.Ntp;
 
 public sealed class NtpServerOptions
 {
+    public const string SectionName = "Ntp";
 
     public bool Enabled { get; set; } = false;
 

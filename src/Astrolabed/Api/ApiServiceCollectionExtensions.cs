@@ -1,4 +1,5 @@
 using Astrolabed.Api.Services;
+using Astrolabed.Data.Repositories;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
 using Astrolabed.Dns.Core;
@@ -16,14 +17,16 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApiServices(this IServiceCollection services, IHost mainHost, IConfiguration configuration, IDnsCache sharedCache)
     {
         // 1. Options Binding
-        services.Configure<NtpServerOptions>(configuration.GetSection("Ntp"));
-        services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
-        services.Configure<DnsForwarderOptions>(configuration.GetSection("Dns"));
+        services.Configure<NtpServerOptions>(configuration.GetSection(NtpServerOptions.SectionName));
+        services.Configure<DhcpOptions>(configuration.GetSection(DhcpOptions.SectionName));
+        services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
 
         // 2. DHCP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
         // 3. DNS Services
+        services.AddSingleton<IDnsResponseEventRepository, SqliteDnsResponseEventRepository>();
+
         services.AddSingleton<IDnsCache>(sharedCache);
         services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
         services.AddSingleton(mainHost.Services.GetRequiredService<IHostsFileSource>());

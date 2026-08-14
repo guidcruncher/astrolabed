@@ -6,6 +6,8 @@ namespace Astrolabed;
 public class DbOptions
 {
 
+    public const string SectionName = "DbOptions";
+
     /// <summary>
     /// SQLite connection string (e.g., "Data Source=dns_events.db;Cache=Shared").
     /// </summary>

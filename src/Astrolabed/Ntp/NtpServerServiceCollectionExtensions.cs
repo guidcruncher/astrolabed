@@ -17,7 +17,7 @@ public static class NtpServerServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
-        var ntpSection = config.GetSection("Ntp");
+        var ntpSection = config.GetSection(NtpServerOptions.SectionName);
         services.Configure<NtpServerOptions>(ntpSection);
 
         var ntpOptions = ntpSection.Get<NtpServerOptions>() ?? new NtpServerOptions();

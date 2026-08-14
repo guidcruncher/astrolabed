@@ -99,7 +99,7 @@ public static class ApiSidecar
             {
                 web.UseKestrel(options =>
                 {
-		    options.AddServerHeader = false;
+                    options.AddServerHeader = false;
                     if (IPAddress.TryParse(serverOptions.WebUI.ListenAddress, out var ip))
                     {
                         options.Listen(ip, serverOptions.WebUI.ListenPort);
@@ -118,6 +118,7 @@ public static class ApiSidecar
                 web.Configure((context, app) =>
                 {
                     app.UseRouting();
+                    app.UseStaticFiles();
 
                     app.UseEndpoints(endpoints =>
                     {

@@ -2,6 +2,8 @@ namespace Astrolabed.Dhcp;
 
 public sealed class DhcpOptions
 {
+    public const string SectionName = "Dhcp";
+
     //
     // Core enable/disable
     //

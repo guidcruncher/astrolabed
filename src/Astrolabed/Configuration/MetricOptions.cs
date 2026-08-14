@@ -4,6 +4,7 @@ namespace Astrolabed.Ntp;
 
 public sealed class MetricOptions
 {
+    public const string SectionName = "Metrics";
 
     public bool Enabled { get; set; } = false;
 
