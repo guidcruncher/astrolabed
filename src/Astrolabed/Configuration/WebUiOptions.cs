@@ -4,6 +4,7 @@ namespace Astrolabed.Ntp;
 
 public sealed class WebUiOptions
 {
+    public const string SectionName = "WebUI";
 
     public bool Enabled { get; set; } = false;
 
