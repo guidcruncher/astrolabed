@@ -7,8 +7,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-using Astrolabed.Dns.Core;
 using Astrolabed.Dns;
+using Astrolabed.Dns.Core;
 
 using Microsoft.Extensions.Logging;
 
