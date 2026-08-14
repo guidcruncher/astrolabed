@@ -18,7 +18,7 @@ public static class DhcpServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(config);
 
-        var dhcpSection = config.GetSection("Dhcp");
+        var dhcpSection = config.GetSection(DhcpOptions.SectionName);
         services.Configure<DhcpOptions>(dhcpSection);
 
         var dhcpOptions = dhcpSection.Get<DhcpOptions>() ?? new DhcpOptions();

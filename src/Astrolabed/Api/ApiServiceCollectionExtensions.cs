@@ -16,9 +16,9 @@ public static class ApiServiceCollectionExtensions
     public static IServiceCollection AddApiServices(this IServiceCollection services, IHost mainHost, IConfiguration configuration, IDnsCache sharedCache)
     {
         // 1. Options Binding
-        services.Configure<NtpServerOptions>(configuration.GetSection("Ntp"));
-        services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
-        services.Configure<DnsForwarderOptions>(configuration.GetSection("Dns"));
+        services.Configure<NtpServerOptions>(configuration.GetSection(NtpServerOptions.SectionName));
+        services.Configure<DhcpOptions>(configuration.GetSection(DhcpOptions.SectionName));
+        services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
 
         // 2. DHCP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
