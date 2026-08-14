@@ -1,5 +1,3 @@
-namespace Astrolabed.Utilities;
-
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,6 +6,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
+namespace Astrolabed.Utilities;
 
 /// <summary>
 /// Extension methods for generating paginated collections and setting up Dependency Injection services.

@@ -1,8 +1,8 @@
-namespace Astrolabed.Utilities;
-
 using System;
 using System.Collections;
 using System.Collections.Generic;
+
+namespace Astrolabed.Utilities;
 
 /// <summary>
 /// Read-only concrete implementation of <see cref="IPagedEnumerable{T}"/>.

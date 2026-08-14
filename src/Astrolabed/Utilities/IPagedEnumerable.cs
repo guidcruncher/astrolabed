@@ -1,6 +1,6 @@
-namespace Infrastructure.Pagination;
-
 using System.Collections.Generic;
+
+namespace Astrolabed.Utilities;
 
 /// <summary>
 /// Represents a paginated sequence of items with pagination metadata.
