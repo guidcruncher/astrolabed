@@ -15,11 +15,15 @@ public static class ApiServiceCollectionExtensions
         // 1. Options Binding
         services.Configure<NtpServerOptions>(configuration.GetSection("Ntp"));
         services.Configure<DhcpOptions>(configuration.GetSection("Dhcp"));
+	services.Configure<DnsForwarderOptions>(configuration.GetSection("Dns"));
 
         // 2. DHCP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
-        //5. NTP Services
+	// 3. DNS Services
+	services.AddTransient<IDnsService, DnsService>();
+
+        // 4. NTP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<INtpRequestHandler>());
         services.AddTransient<INtpService, NtpService>();
 
