@@ -6,10 +6,10 @@ using Astrolabed.Data;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Events;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Astrolabed.Api.Controllers;
 
