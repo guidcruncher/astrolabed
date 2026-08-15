@@ -1,15 +1,18 @@
 using System.Data;
 using System.Net;
-using Dapper;
-using Microsoft.Data.Sqlite;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Npgsql;
 
 using Astrolabed;
 using Astrolabed.Data.Entities;
-using Astrolabed.Events;
 using Astrolabed.Data.Repositories;
+using Astrolabed.Events;
+
+using Dapper;
+
+using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using Npgsql;
 
 namespace Astrolabed.Data.Repositories;
 

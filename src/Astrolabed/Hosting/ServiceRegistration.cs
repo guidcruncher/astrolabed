@@ -1,11 +1,11 @@
 using Astrolabed.Configuration;
+using Astrolabed.Data;
 using Astrolabed.Dhcp.Bootstrap;
 using Astrolabed.Dns.Bootstrap;
 using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Events.Bootstrap;
 using Astrolabed.Metrics.Bootstrap;
 using Astrolabed.Ntp.Bootstrap;
-using Astrolabed.Data;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +31,7 @@ public static class ServiceRegistration
 
         services.AddSingleton<ConfigurationWriter>();
 
-services.AddDataServices(ctx.Configuration);
+        services.AddDataServices(ctx.Configuration);
 
         services.AddEventBus(ctx.Configuration);
         services.AddDnsForwarder(ctx.Configuration, SharedDnsCache);

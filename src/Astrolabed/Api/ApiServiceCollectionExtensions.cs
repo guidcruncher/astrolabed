@@ -21,7 +21,7 @@ public static class ApiServiceCollectionExtensions
         services.Configure<DhcpOptions>(configuration.GetSection(DhcpOptions.SectionName));
         services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
 
-	services.AddDataServices(configuration);
+        services.AddDataServices(configuration);
 
         // 2. DHCP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());

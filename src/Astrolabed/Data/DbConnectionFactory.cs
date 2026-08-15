@@ -1,6 +1,8 @@
 using System.Data;
+
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Options;
+
 using Npgsql;
 
 namespace Astrolabed.Data;
@@ -26,8 +28,8 @@ public class DbConnectionFactory : IDbConnectionFactory
 
     private IDbConnection CreatePostgres()
     {
-	var conn = new NpgsqlConnection(_options.ConnectionString);
-	return conn;
+        var conn = new NpgsqlConnection(_options.ConnectionString);
+        return conn;
     }
 
     private IDbConnection CreateSqlite()

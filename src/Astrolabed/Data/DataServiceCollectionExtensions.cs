@@ -1,10 +1,11 @@
 using System;
 
+using Astrolabed;
+using Astrolabed.Data.Repositories;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
-using Astrolabed;
-using Astrolabed.Data.Repositories;
 
 namespace Astrolabed.Data;
 
@@ -20,8 +21,8 @@ public static class DataServiceCollectionExtensions
         var dbSection = config.GetSection(DbOptions.SectionName);
         services.Configure<DbOptions>(dbSection);
 
-services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
-services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
+        services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+        services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
 
         return services;
     }
