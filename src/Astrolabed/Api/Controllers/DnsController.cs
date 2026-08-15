@@ -7,12 +7,14 @@ using Astrolabed.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Astrolabed.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces("application/json")]
+[Authorize]
 public class DnsController : ControllerBase
 {
     private readonly IDnsService _dnsService;

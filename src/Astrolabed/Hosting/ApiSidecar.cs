@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json.Nodes;
+using System.Threading.Tasks;
 
 using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
@@ -9,8 +10,10 @@ using Astrolabed.Dhcp;
 using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Serialization;
 
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -76,6 +79,29 @@ public static class ApiSidecar
                         options.JsonSerializerOptions.Converters.Add(new PhysicalAddressJsonConverter());
                     });
 
+                // Configure Cookie Authentication
+                services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                    .AddCookie(options =>
+                    {
+                        options.Cookie.Name = "Astrolabed.Auth";
+                        options.Cookie.HttpOnly = true;
+                        options.Cookie.SameSite = SameSiteMode.Strict;
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        // Return HTTP status codes instead of redirecting (since this is a Web API)
+                        options.Events.OnRedirectToLogin = context =>
+                        {
+                            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                            return Task.CompletedTask;
+                        };
+                        options.Events.OnRedirectToAccessDenied = context =>
+                        {
+                            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                            return Task.CompletedTask;
+                        };
+                    });
+
+                services.AddAuthorization();
+
                 services.AddOpenApi(options =>
                 {
                     options.AddSchemaTransformer((schema, context, cancellationToken) =>
@@ -120,6 +146,10 @@ public static class ApiSidecar
                     app.UseRouting();
                     app.UseStaticFiles();
 
+                    // Authentication and Authorization middleware registered on IApplicationBuilder
+                    app.UseAuthentication();
+                    app.UseAuthorization();
+
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
@@ -128,6 +158,7 @@ public static class ApiSidecar
                         {
                             endpoints.MapOpenApi();
                             endpoints.MapScalarApiReference("/docs/");
+
                             logger.LogInformation("OpenApi Documentation enabled at /openapi/v1.json and /scalar");
                         }
                         else
@@ -152,4 +183,3 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
-

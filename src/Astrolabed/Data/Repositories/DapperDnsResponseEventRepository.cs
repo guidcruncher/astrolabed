@@ -1,18 +1,17 @@
+using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
-using Astrolabed;
 using Astrolabed.Data.Entities;
-using Astrolabed.Data.Repositories;
 using Astrolabed.Events;
 
 using Dapper;
 
-using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-
-using Npgsql;
 
 namespace Astrolabed.Data.Repositories;
 
@@ -29,6 +28,9 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         IDbConnectionFactory factory,
         ILogger<DapperDnsResponseEventRepository> logger)
     {
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(logger);
+
         _factory = factory;
         _logger = logger;
     }
@@ -86,7 +88,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
             QueryType = e.QueryType,
             Status = e.Status,
             ResponseIp = e.ResponseIp?.ToString()
-        });
+        }).ConfigureAwait(false);
 
         _logger.LogDebug("Saved DNS response event asynchronously for domain {QueryName}", e.QueryName);
     }
@@ -132,84 +134,133 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
     // ----------------------------------------------------------------------
     // QUERIES
     // ----------------------------------------------------------------------
-    public IEnumerable<DnsResponseEvent> GetByTimeRange(DateTimeOffset start, DateTimeOffset end, int limit = 100)
+    public PagedResult<DnsResponseEvent> GetByTimeRange(
+        DateTimeOffset start,
+        DateTimeOffset end,
+        int pageNumber = 1,
+        int pageSize = 100)
     {
+        NormalizePagination(ref pageNumber, ref pageSize);
+
         using var conn = _factory.Create();
 
         const string sql = """
+            SELECT COUNT(1) FROM dns_response_events WHERE Timestamp >= @Start AND Timestamp <= @End;
+
             SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
             FROM dns_response_events
             WHERE Timestamp >= @Start AND Timestamp <= @End
             ORDER BY Timestamp DESC
-            LIMIT @Limit
+            LIMIT @Limit OFFSET @Offset;
         """;
 
-        var rows = conn.Query<DnsResponseEventRaw>(sql, new
+        using var multi = conn.QueryMultiple(sql, new
         {
             Start = start.ToString("o"),
             End = end.ToString("o"),
-            Limit = limit
+            Limit = pageSize,
+            Offset = (pageNumber - 1) * pageSize
         });
 
-        return rows.Select(Map);
+        int totalCount = multi.ReadFirst<int>();
+        var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
+
+        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
     }
 
-    public IEnumerable<DnsResponseEvent> GetByClientIp(IPAddress clientIp, int limit = 100)
+    public PagedResult<DnsResponseEvent> GetByClientIp(
+        IPAddress clientIp,
+        int pageNumber = 1,
+        int pageSize = 100)
     {
+        ArgumentNullException.ThrowIfNull(clientIp);
+        NormalizePagination(ref pageNumber, ref pageSize);
+
         using var conn = _factory.Create();
 
         const string sql = """
+            SELECT COUNT(1) FROM dns_response_events WHERE ClientIp = @ClientIp;
+
             SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
             FROM dns_response_events
             WHERE ClientIp = @ClientIp
             ORDER BY Timestamp DESC
-            LIMIT @Limit
+            LIMIT @Limit OFFSET @Offset;
         """;
 
-        var rows = conn.Query<DnsResponseEventRaw>(sql, new
+        using var multi = conn.QueryMultiple(sql, new
         {
             ClientIp = clientIp.ToString(),
-            Limit = limit
+            Limit = pageSize,
+            Offset = (pageNumber - 1) * pageSize
         });
 
-        return rows.Select(Map);
+        int totalCount = multi.ReadFirst<int>();
+        var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
+
+        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
     }
 
-    public IEnumerable<DnsResponseEvent> GetByStatus(string status, int limit = 100)
+    public PagedResult<DnsResponseEvent> GetByStatus(
+        string status,
+        int pageNumber = 1,
+        int pageSize = 100)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(status);
+        NormalizePagination(ref pageNumber, ref pageSize);
+
         using var conn = _factory.Create();
 
         const string sql = """
+            SELECT COUNT(1) FROM dns_response_events WHERE Status = @Status;
+
             SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
             FROM dns_response_events
             WHERE Status = @Status
             ORDER BY Timestamp DESC
-            LIMIT @Limit
+            LIMIT @Limit OFFSET @Offset;
         """;
 
-        var rows = conn.Query<DnsResponseEventRaw>(sql, new
+        using var multi = conn.QueryMultiple(sql, new
         {
             Status = status,
-            Limit = limit
+            Limit = pageSize,
+            Offset = (pageNumber - 1) * pageSize
         });
 
-        return rows.Select(Map);
+        int totalCount = multi.ReadFirst<int>();
+        var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
+
+        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
     }
 
-    public IEnumerable<DnsResponseEvent> GetAll(int limit = 1000)
+    public PagedResult<DnsResponseEvent> GetAll(
+        int pageNumber = 1,
+        int pageSize = 100)
     {
+        NormalizePagination(ref pageNumber, ref pageSize);
+
         using var conn = _factory.Create();
 
         const string sql = """
+            SELECT COUNT(1) FROM dns_response_events;
+
             SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
             FROM dns_response_events
             ORDER BY Timestamp DESC
-            LIMIT @Limit
+            LIMIT @Limit OFFSET @Offset;
         """;
 
-        var rows = conn.Query<DnsResponseEventRaw>(sql, new { Limit = limit });
+        using var multi = conn.QueryMultiple(sql, new
+        {
+            Limit = pageSize,
+            Offset = (pageNumber - 1) * pageSize
+        });
 
-        return rows.Select(Map);
+        int totalCount = multi.ReadFirst<int>();
+        var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
+
+        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
     }
 
     // ----------------------------------------------------------------------
@@ -231,8 +282,25 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
     }
 
     // ----------------------------------------------------------------------
-    // MAPPING
+    // HELPERS & MAPPING
     // ----------------------------------------------------------------------
+    private static void NormalizePagination(ref int pageNumber, ref int pageSize)
+    {
+        if (pageNumber < 1)
+        {
+            pageNumber = 1;
+        }
+
+        if (pageSize < 1)
+        {
+            pageSize = 10;
+        }
+        else if (pageSize > 1000)
+        {
+            pageSize = 1000;
+        }
+    }
+
     private static DnsResponseEvent Map(DnsResponseEventRaw r)
     {
         return new DnsResponseEvent(

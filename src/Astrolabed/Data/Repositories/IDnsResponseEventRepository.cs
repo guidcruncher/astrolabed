@@ -1,13 +1,16 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
-using Astrolabed;
 using Astrolabed.Data.Entities;
 using Astrolabed.Events;
 
 namespace Astrolabed.Data.Repositories;
 
 /// <summary>
-/// Data access abstraction for persisting and querying DNS response events using LiteDB.
+/// Data access abstraction for persisting and querying DNS response events using LiteDB or relational stores.
 /// </summary>
 public interface IDnsResponseEventRepository
 {
@@ -27,24 +30,24 @@ public interface IDnsResponseEventRepository
     void AddBatch(IEnumerable<DnsResponseEvent> responseEvents);
 
     /// <summary>
-    /// Retrieves records matching the specified time frame.
+    /// Retrieves records matching the specified time frame with pagination.
     /// </summary>
-    IEnumerable<DnsResponseEvent> GetByTimeRange(DateTimeOffset start, DateTimeOffset end, int limit = 100);
+    PagedResult<DnsResponseEvent> GetByTimeRange(DateTimeOffset start, DateTimeOffset end, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
-    /// Retrieves records filtered by the requesting client's IP address.
+    /// Retrieves records filtered by the requesting client's IP address with pagination.
     /// </summary>
-    IEnumerable<DnsResponseEvent> GetByClientIp(IPAddress clientIp, int limit = 100);
+    PagedResult<DnsResponseEvent> GetByClientIp(IPAddress clientIp, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
-    /// Retrieves records matching a specific DNS response status (e.g. NOERROR, NXDOMAIN).
+    /// Retrieves records matching a specific DNS response status (e.g. NOERROR, NXDOMAIN) with pagination.
     /// </summary>
-    IEnumerable<DnsResponseEvent> GetByStatus(string status, int limit = 100);
+    PagedResult<DnsResponseEvent> GetByStatus(string status, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
-    /// Retrieves all records
+    /// Retrieves all records with pagination.
     /// </summary>
-    IEnumerable<DnsResponseEvent> GetAll(int limit = 100);
+    PagedResult<DnsResponseEvent> GetAll(int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
     /// Purges events older than the specified cutoff timestamp.
