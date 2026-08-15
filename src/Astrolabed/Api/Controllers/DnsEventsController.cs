@@ -9,12 +9,14 @@ using Astrolabed.Events;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Astrolabed.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/dns-events")]
 [Produces("application/json")]
+[Authorize]
 public sealed class DnsEventsController : ControllerBase
 {
     private readonly IDnsResponseEventRepository _repository;

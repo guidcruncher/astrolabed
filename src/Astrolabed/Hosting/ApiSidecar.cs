@@ -146,6 +146,10 @@ public static class ApiSidecar
                     app.UseRouting();
                     app.UseStaticFiles();
 
+                    // Authentication and Authorization middleware registered on IApplicationBuilder
+                    app.UseAuthentication();
+                    app.UseAuthorization();
+
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
@@ -154,10 +158,6 @@ public static class ApiSidecar
                         {
                             endpoints.MapOpenApi();
                             endpoints.MapScalarApiReference("/docs/");
-
-                            // Authentication and Authorization middleware
-                            endpoints.UseAuthentication();
-                            endpoints.UseAuthorization();
 
                             logger.LogInformation("OpenApi Documentation enabled at /openapi/v1.json and /scalar");
                         }
@@ -183,4 +183,3 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
-
