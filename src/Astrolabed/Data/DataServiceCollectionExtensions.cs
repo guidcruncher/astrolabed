@@ -22,7 +22,7 @@ public static class DataServiceCollectionExtensions
         services.Configure<DbOptions>(dbSection);
 
         services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
-        services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
+        services.AddSingleton<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
 
         return services;
     }

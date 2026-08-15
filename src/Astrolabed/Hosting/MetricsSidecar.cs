@@ -46,7 +46,7 @@ public static class MetricsSidecar
             {
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
-                services.AddDataServices(ctx.Configuration);
+                services.AddDataServices(mainConfig);
                 services.AddSingleton(sp => mainHost.Services.GetRequiredService<MetricsRegistry>());
             })
             .ConfigureWebHostDefaults(web =>
