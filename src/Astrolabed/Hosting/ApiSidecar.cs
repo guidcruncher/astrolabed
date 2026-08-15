@@ -146,13 +146,19 @@ public static class ApiSidecar
                 web.Configure((context, app) =>
                 {
                     app.UseRouting();
-                    var contentPath = Path.Combine(builder.Environment.ContentRootPath, "clientui");
+                    var contentPath = "/app/ClientUI";
+
+                    if (context.HostingEnvironment.IsDevelopment())
+                    {
+                        contentPath = Path.GetFullPath(Path.Combine(context.HostingEnvironment.ContentRootPath, "../ClientUI/dist/"));
+                    }
+
                     logger.LogInformation($"Kestrel is serving Client from {contentPath}");
 
                     app.UseStaticFiles(new StaticFileOptions
                     {
                         FileProvider = new PhysicalFileProvider(contentPath),
-                        RequestPath = "/"
+                        RequestPath = ""
                     });
 
                     // Authentication and Authorization middleware registered on IApplicationBuilder
