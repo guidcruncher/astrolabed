@@ -1,13 +1,14 @@
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Net;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging;
 
 using Astrolabed.Data;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Events;
+
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Api.Controllers;
 

@@ -16,6 +16,13 @@ trim_trailing_whitespace = true
 dotnet_sort_system_directives_first = true
 dotnet_separate_import_directive_groups = true
 
+# Code Style Rules
+# IDE0005: Remove unnecessary usings
+dotnet_diagnostic.IDE0005.severity = warn
+
+# Ensure code style rules are analyzed during build/format
+dotnet_analyzer_diagnostic.category-Style.severity = warn
+
 # C# formatting
 csharp_new_line_before_open_brace = all
 csharp_new_line_between_methods = true
