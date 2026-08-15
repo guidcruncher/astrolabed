@@ -1,5 +1,5 @@
 using Astrolabed.Api.Services;
-using Astrolabed.Data.Repositories;
+using Astrolabed.Data;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
 using Astrolabed.Dns.Core;
