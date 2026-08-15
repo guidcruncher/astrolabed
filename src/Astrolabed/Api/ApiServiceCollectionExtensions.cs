@@ -21,11 +21,10 @@ public static class ApiServiceCollectionExtensions
         services.Configure<DhcpOptions>(configuration.GetSection(DhcpOptions.SectionName));
         services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
 
+	services.AddDataServices(configuration);
+
         // 2. DHCP Services
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
-
-        // 3. DNS Services
-        services.AddSingleton<IDnsResponseEventRepository, SqliteDnsResponseEventRepository>();
 
         services.AddSingleton<IDnsCache>(sharedCache);
         services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
