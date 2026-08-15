@@ -18,10 +18,10 @@ dotnet_separate_import_directive_groups = true
 
 # Code Style Rules
 # IDE0005: Remove unnecessary usings
-dotnet_diagnostic.IDE0005.severity = warn
+dotnet_diagnostic.IDE0005.severity = warning
 
 # Ensure code style rules are analyzed during build/format
-dotnet_analyzer_diagnostic.category-Style.severity = warn
+dotnet_analyzer_diagnostic.category-Style.severity = warning
 
 # C# formatting
 csharp_new_line_before_open_brace = all
