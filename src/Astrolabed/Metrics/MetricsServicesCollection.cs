@@ -12,8 +12,6 @@ public static class MetricsServiceCollectionExtensions
         this IServiceCollection services, IConfiguration config)
     {
 
-        services.AddSingleton<IDnsResponseEventRepository, SqliteDnsResponseEventRepository>();
-
         services.AddSingleton<MetricsRepository>();
         services.AddSingleton<MetricsRegistry>();
         services.AddSingleton<IEventConsumer, MetricsEventConsumer>();

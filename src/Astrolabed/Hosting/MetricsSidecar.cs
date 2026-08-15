@@ -1,5 +1,6 @@
 using System.Net;
 
+using Astrolabed.Data;
 using Astrolabed.Metrics;
 
 using Microsoft.AspNetCore.Builder;
@@ -45,6 +46,7 @@ public static class MetricsSidecar
             {
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
+                services.AddDataServices(mainConfig);
                 services.AddSingleton(sp => mainHost.Services.GetRequiredService<MetricsRegistry>());
             })
             .ConfigureWebHostDefaults(web =>

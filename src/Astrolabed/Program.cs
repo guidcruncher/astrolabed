@@ -1,3 +1,4 @@
+using Astrolabed.Data;
 using Astrolabed.Hosting;
 
 using Microsoft.Extensions.Configuration;
@@ -23,6 +24,12 @@ public class Program
         await RuntimeLoader.LoadAsync(host);
 
         var serverOptions = host.Services.GetRequiredService<ServerOptions>();
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var initializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
+            initializer.Initialize();
+        }
 
         MetricsSidecar.StartIfEnabled(host, serverOptions, args);
 
