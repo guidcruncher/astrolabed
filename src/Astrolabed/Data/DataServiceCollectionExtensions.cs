@@ -22,6 +22,8 @@ public static class DataServiceCollectionExtensions
         services.Configure<DbOptions>(dbSection);
 
         services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+        services.AddSingleton<IDatabaseInitializer, DatabaseBuilder>();
+
         services.AddSingleton<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
 
         return services;
