@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json.Nodes;
@@ -16,6 +17,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -144,7 +146,14 @@ public static class ApiSidecar
                 web.Configure((context, app) =>
                 {
                     app.UseRouting();
-                    app.UseStaticFiles();
+                    var contentPath = Path.Combine(builder.Environment.ContentRootPath, "clientui");
+                    logger.LogInformation($"Kestrel is serving Client from {contentPath}");
+
+                    app.UseStaticFiles(new StaticFileOptions
+                    {
+                        FileProvider = new PhysicalFileProvider(contentPath),
+                        RequestPath = "/"
+                    });
 
                     // Authentication and Authorization middleware registered on IApplicationBuilder
                     app.UseAuthentication();
@@ -173,12 +182,12 @@ public static class ApiSidecar
             .Build();
 
         _ = apiHost.RunAsync(lifetime.ApplicationStopping).ContinueWith(t =>
-        {
-            if (t.IsFaulted && t.Exception is not null)
             {
-                logger.LogError(t.Exception, "API sidecar encountered an error during execution.");
-            }
-        });
+                if (t.IsFaulted && t.Exception is not null)
+                {
+                    logger.LogError(t.Exception, "API sidecar encountered an error during execution.");
+                }
+            });
 
         logger.LogInformation("API sidecar started successfully.");
     }
