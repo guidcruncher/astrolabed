@@ -4,11 +4,11 @@ using System.Net.NetworkInformation;
 using Astrolabed;
 using Astrolabed.Dhcp;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.Authorization;
 
 namespace Astrolabed.Api.Controllers;
 

@@ -5,10 +5,11 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 using Astrolabed.Api.Services;
+
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Utilities;
 
@@ -53,7 +54,7 @@ public class CrossPlatformLanScannerService : ICrossPlatformLanScannerService
                 string? hostName = null;
                 try
                 {
-                    var hostEntry = await System.Net.Dns.GetHostEntryAsync(targetIp, cancellationToken);
+                    var hostEntry = await System.Net.Dns.GetHostEntryAsync(targetIp.ToString(), cancellationToken);
                     hostName = hostEntry.HostName;
                 }
                 catch (SocketException)

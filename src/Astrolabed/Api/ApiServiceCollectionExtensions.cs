@@ -6,6 +6,7 @@ using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Ntp;
+using Astrolabed.Utilities;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,9 @@ public static class ApiServiceCollectionExtensions
         services.Configure<NtpServerOptions>(configuration.GetSection(NtpServerOptions.SectionName));
         services.Configure<DhcpOptions>(configuration.GetSection(DhcpOptions.SectionName));
         services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
+        services.Configure<CrossPlatformScannerOptions>(configuration.GetSection(CrossPlatformScannerOptions.SectionName));
+
+        services.AddTransient<ICrossPlatformLanScannerService, CrossPlatformLanScannerService>();
 
         services.AddDataServices(configuration);
 

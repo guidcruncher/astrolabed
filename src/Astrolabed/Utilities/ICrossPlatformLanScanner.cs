@@ -5,6 +5,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -14,6 +15,8 @@ public record DiscoveredLanDevice(IPAddress IpAddress, string MacAddress, string
 
 public class CrossPlatformScannerOptions
 {
+    public const string SectionName = "NetworkScanner";
+
     public int MaxDegreeOfParallelism { get; set; } = 100;
     public int PingTimeoutMs { get; set; } = 200;
 }
