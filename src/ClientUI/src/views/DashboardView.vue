@@ -5,6 +5,7 @@ import {
     type DiscoveredLanDeviceDto,
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
+import { logout } from '../composables/useAuth'
 import WhiptailCombobox from '../components/WhiptailCombobox.vue'
 import WhiptailButton from '../components/WhiptailButton.vue'
 import type { WhiptailOption } from '../components/types'
@@ -45,7 +46,7 @@ const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
     const dynamic = lanDevices.value.map((device) => ({
         label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
         value: device.ipAddress,
-    }))
+ /   }))
     return [...defaults, ...dynamic]
 })
 
@@ -62,6 +63,11 @@ const parsedAnswers = computed(() => {
     }
 
     return []
+})
+
+const handleLogout = (async() => {
+await logout()
+window.location.href='/'
 })
 
 // Fetch initial dashboard metrics
@@ -117,8 +123,8 @@ onMounted(() => {
 </script>
 
 <template>
-    <!-- Header Dialog -->
-    <header class="wt-dialog">
+    <!-- Header Dialog (Full Width) -->
+    <header class="wt-dialog wt-full-width wt-mt">
         <div class="wt-title wt-header-title">
             <span>[ Astrolabed Control Center ]</span>
             <span class="wt-status-indicator" :class="{ 'wt-status-busy': loading }">
@@ -130,11 +136,12 @@ onMounted(() => {
             <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
                 Flush Cache
             </WhiptailButton>
+            <WhiptailButton class="wt-btn-cancel" @click="handleLogout"> Logout </WhiptailButton>
         </div>
     </header>
 
-    <!-- Error Banner -->
-    <div v-if="error" class="wt-dialog wt-alert-error">
+    <!-- Error Banner (Full Width) -->
+    <div v-if="error" class="wt-dialog wt-alert-error wt-full-width">
         <div class="wt-title wt-title-error">SYSTEM ERROR</div>
         <div class="wt-body">
             {{
@@ -161,10 +168,10 @@ onMounted(() => {
         </div>
     </div>
 
-    <!-- Main Content Layout -->
+    <!-- Two-Column Section: Quick DNS Lookup & LAN Network Devices -->
     <div class="wt-dashboard-body">
-        <!-- Left Column: Interactive DNS Query Sandbox (DIG Terminal Style) -->
-        <section class="wt-dialog">
+        <!-- Column 1: Quick DNS Lookup -->
+        <section class="wt-dialog wt-column-panel">
             <div class="wt-title">Quick DNS Lookup</div>
             <div class="wt-body">
                 <div class="wt-form-group">
@@ -184,6 +191,7 @@ onMounted(() => {
                             <option value="AAAA">AAAA (IPv6)</option>
                             <option value="CNAME">CNAME</option>
                             <option value="MX">MX</option>
+                            <option value="PTR">PTR</option>
                             <option value="TXT">TXT</option>
                         </select>
                     </div>
@@ -197,7 +205,7 @@ onMounted(() => {
                 </div>
 
                 <!-- DIG Output Console -->
-                <div v-if="queryResult" class="terminal-terminal">
+                <div v-if="queryResult" class="terminal">
                     <div class="terminal-header">
                         <span class="terminal-cmd"
                             >$ dig {{ selectedDomain }} {{ selectedRecordType }}</span
@@ -272,7 +280,9 @@ onMounted(() => {
                         ><br />
                         <span class="terminal-comment">;; SERVER: 127.0.0.1#53(astrolabed-dns)</span
                         ><br />
-                        <span class="terminal-comment">;; WHEN: {{ new Date().toUTCString() }}</span>
+                        <span class="terminal-comment"
+                            >;; WHEN: {{ new Date().toUTCString() }}</span
+                        >
                     </div>
 
                     <!-- RAW JSON EXPANDER -->
@@ -284,8 +294,8 @@ onMounted(() => {
             </div>
         </section>
 
-        <!-- Right Column: Discovered Devices Table -->
-        <section class="wt-dialog">
+        <!-- Column 2: LAN Network Devices -->
+        <section class="wt-dialog wt-column-panel">
             <div class="wt-title">LAN Network Devices</div>
             <div class="wt-body wt-table-wrapper">
                 <table class="wt-table">
@@ -313,8 +323,8 @@ onMounted(() => {
         </section>
     </div>
 
-    <!-- Recent DNS Response Events Feed -->
-    <section class="wt-dialog wt-mt">
+    <!-- Recent DNS Response Events Feed (Single Column, Full Width) -->
+    <div class="wt-dialog wt-full-width wt-mt">
         <div class="wt-title wt-box-header">
             <span>Recent DNS Activity</span>
             <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
@@ -359,16 +369,30 @@ onMounted(() => {
                 </tbody>
             </table>
         </div>
-    </section>
+    </div>
 </template>
 
 <style scoped>
+.wt-screen {
+    overflow-x: hidden;
+}
+
+/* Full Width Utility */
+.wt-full-width {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    margin-right: 0;
+    box-sizing: border-box;
+}
+
 /* Stats Layout */
 .wt-stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
     margin-bottom: 20px;
+    width: 100%;
 }
 
 .wt-stat-box {
@@ -382,11 +406,19 @@ onMounted(() => {
     text-align: center;
 }
 
-/* Main Body Layout */
+/* Side-by-Side 2-Column Dashboard Grid */
 .wt-dashboard-body {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 20px;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.wt-column-panel {
+    width: 100%;
+    margin: 0;
+    box-sizing: border-box;
 }
 
 @media (max-width: 900px) {
