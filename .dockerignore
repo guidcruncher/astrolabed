@@ -67,3 +67,132 @@ tests/TestData/*.bin
 
 # Ignore Configuration files
 appsettings.*
+
+# Dependencies
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs (if building in Docker)
+
+run/
+dist/
+build/
+out/
+.next/
+.nuxt/
+
+# Git
+
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+
+Dockerfile
+docker-compose.yml
+docker-compose*.yml
+.dockerignore
+.docker/
+
+# CI/CD
+
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+jenkinsfile
+Jenkinsfile
+
+# Documentation
+
+*.md
+README*
+CHANGELOG*
+LICENSE
+docs/
+documentation/
+
+# Testing
+
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+.jest-cache/
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+**/**tests**/
+**/**mocks**/
+
+# IDE and editors
+
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.settings/
+.vs/
+
+# OS files
+
+Thumbs.db
+Desktop.ini
+.AppleDouble
+.LSOverride
+
+# Environment files (keep .env.example if needed)
+
+*.secret
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# Logs
+
+logs/
+*.log
+
+# Temporary files
+
+tmp/
+temp/
+*.tmp
+.temp/
+
+# Cache directories
+
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+.npm/
+.yarn/cache
+
+# Optional files
+
+.prettierignore
+.eslintignore
+.editorconfig
+
+# Misc
+
+*.tsbuildinfo
+.turbo/
+.vercel/
+.serverless/

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text.Json.Nodes;
@@ -16,6 +17,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -42,7 +44,7 @@ public static class ApiSidecar
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
 
-        logger.LogInformation($"System Shared DNS Cache Instance Identifier {sharedCache.InstanceId}");
+        logger.LogInformation("System Shared DNS Cache Instance Identifier {SharedCacheInstanceId}", sharedCache.InstanceId);
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
@@ -86,8 +88,8 @@ public static class ApiSidecar
                         options.Cookie.Name = "Astrolabed.Auth";
                         options.Cookie.HttpOnly = true;
                         options.Cookie.SameSite = SameSiteMode.Strict;
-                        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                        // Return HTTP status codes instead of redirecting (since this is a Web API)
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+
                         options.Events.OnRedirectToLogin = context =>
                         {
                             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -123,9 +125,23 @@ public static class ApiSidecar
             })
             .ConfigureWebHostDefaults(web =>
             {
+                var hostEnv = mainHost.Services.GetRequiredService<IHostEnvironment>();
+                web.UseSetting(WebHostDefaults.EnvironmentKey, hostEnv.EnvironmentName);
+
+                var contentPath = "/app/ClientUI";
+                if (hostEnv.IsDevelopment())
+                {
+                    contentPath = Path.GetFullPath(
+                        Path.Combine(hostEnv.ContentRootPath, "../ClientUI/dist/"));
+                }
+
+                // Configure Web Root path at builder level before middleware initialization
+                web.UseWebRoot(contentPath);
+
                 web.UseKestrel(options =>
                 {
                     options.AddServerHeader = false;
+
                     if (IPAddress.TryParse(serverOptions.WebUI.ListenAddress, out var ip))
                     {
                         options.Listen(ip, serverOptions.WebUI.ListenPort);
@@ -143,13 +159,37 @@ public static class ApiSidecar
 
                 web.Configure((context, app) =>
                 {
-                    app.UseRouting();
-                    app.UseStaticFiles();
+                    logger.LogInformation("Kestrel is serving Client from {ContentPath}", contentPath);
 
-                    // Authentication and Authorization middleware registered on IApplicationBuilder
+                    if (!Directory.Exists(contentPath))
+                    {
+                        logger.LogWarning("Configured WebRoot directory does not exist: {ContentPath}", contentPath);
+                    }
+
+                    var fileProvider = new PhysicalFileProvider(contentPath);
+
+                    // Ensure IWebHostEnvironment uses the custom static file provider
+                    context.HostingEnvironment.WebRootFileProvider = fileProvider;
+
+                    // 1. Static file handling must be configured BEFORE routing for root requests
+                    app.UseDefaultFiles(new DefaultFilesOptions
+                    {
+                        FileProvider = fileProvider
+                    });
+
+                    app.UseStaticFiles(new StaticFileOptions
+                    {
+                        FileProvider = fileProvider
+                    });
+
+                    // 2. Routing setup
+                    app.UseRouting();
+
+                    // 3. Security Middlewares
                     app.UseAuthentication();
                     app.UseAuthorization();
 
+                    // 4. Endpoints map
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
@@ -165,6 +205,12 @@ public static class ApiSidecar
                         {
                             logger.LogWarning("OpenApi Documentation disabled");
                         }
+
+                        // SPA fallback with specific file provider mapping
+                        endpoints.MapFallbackToFile("index.html", new StaticFileOptions
+                        {
+                            FileProvider = fileProvider
+                        });
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");

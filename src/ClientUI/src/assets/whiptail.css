@@ -1,0 +1,387 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
+
+/* Base Reset & Typography */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+    font-size: 16px;
+}
+
+body {
+    background-color: #000;
+    color: #e0e0e0;
+}
+
+/* Screen & Outer Containers */
+.wt-screen {
+    width: 100%;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Modal Dialog Component */
+.wt-dialog {
+    background-color: #1b1b1b;
+    border: 2px solid #c0c0c0;
+    box-shadow:
+        0 0 0 1px #000,
+        0 0 10px #000;
+    margin: 20px auto;
+    max-width: 600px;
+}
+
+/* Header & Title Variants */
+.wt-title {
+    background-color: #005f87;
+    color: #fff;
+    padding: 6px 10px;
+    font-weight: bold;
+    border-bottom: 1px solid #000;
+}
+
+.wt-title-error {
+    background-color: #870000;
+}
+
+.wt-header-title,
+.wt-header-body,
+.wt-box-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* Status Indicators */
+.wt-status-indicator {
+    color: #00ff00;
+    font-weight: bold;
+}
+
+.wt-status-busy {
+    color: #ffff00;
+}
+
+/* Dialog Layout Sections */
+.wt-body {
+    padding: 12px 14px;
+    line-height: 1.4;
+}
+
+.wt-footer {
+    padding: 8px 10px;
+    border-top: 1px solid #000;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background-color: #1b1b1b;
+}
+
+/* Form & Input Styles */
+.wt-form-group {
+    margin-bottom: 12px;
+}
+
+.wt-form-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+}
+
+.wt-label {
+    display: block;
+    font-size: 0.9rem;
+    color: #c0c0c0;
+    margin-bottom: 4px;
+}
+
+.wt-input {
+    width: 100%;
+    padding: 4px 6px;
+    background-color: #000;
+    border: 1px solid #5f5f5f;
+    color: #e0e0e0;
+}
+
+.wt-input:focus {
+    outline: none;
+    border-color: #ffff00;
+}
+
+.wt-select {
+    cursor: pointer;
+}
+
+/* Button UI Components */
+.wt-btn {
+    min-width: 90px;
+    padding: 6px 14px;
+    font-size: 1rem;
+    font-family: inherit;
+    border: 1px solid #c0c0c0;
+    background-color: #3a3a3a;
+    color: #fff;
+    cursor: pointer;
+    text-align: center;
+}
+
+.wt-btn:hover:not(:disabled) {
+    background-color: #4f4f4f;
+}
+
+.wt-btn:active:not(:disabled) {
+    background-color: #2a2a2a;
+}
+
+.wt-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.wt-btn-ok {
+    border-color: #00ff00;
+}
+
+.wt-btn-cancel {
+    border-color: #ff0000;
+}
+
+/* Custom Interactive Controls (Lists, Checkboxes, Radios) */
+.wt-list {
+    margin-top: 10px;
+    border: 1px solid #5f5f5f;
+    background-color: #000;
+    padding: 6px;
+}
+
+.wt-list-item {
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wt-list-item:hover,
+.wt-list-item-selected {
+    background-color: #333;
+}
+
+.wt-checkbox {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #c0c0c0;
+    background-color: #000;
+}
+
+.wt-checkbox-checked {
+    background-color: #00ff00;
+}
+
+.wt-radio {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #c0c0c0;
+    border-radius: 50%;
+    background-color: #000;
+}
+
+.wt-radio-checked {
+    background-color: #00ff00;
+}
+
+.wt-menu-arrow {
+    margin-left: auto;
+    color: #ffff00;
+}
+
+/* Progress / Gauge Bar */
+.wt-gauge {
+    margin-top: 10px;
+    border: 1px solid #5f5f5f;
+    background-color: #000;
+    height: 20px;
+    position: relative;
+}
+
+.wt-gauge-fill {
+    background-color: #00af00;
+    height: 100%;
+}
+
+/* Messages & Alerts */
+.wt-message {
+    padding: 10px;
+    background-color: #000;
+    border: 1px solid #5f5f5f;
+    margin-top: 10px;
+}
+
+.wt-alert-error {
+    border-color: #ff0000;
+}
+
+/* Data Tables */
+.wt-table-wrapper {
+    overflow-x: auto;
+}
+
+.wt-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.9rem;
+}
+
+.wt-table th {
+    border-bottom: 1px solid #c0c0c0;
+    padding: 6px;
+    color: #ffff00;
+}
+
+.wt-table td {
+    border-bottom: 1px solid #333333;
+    padding: 6px;
+}
+
+.wt-table tr:hover {
+    background-color: #333;
+}
+
+/* Utility / Helpers */
+.wt-text-ok {
+    color: #00ff00;
+}
+
+.wt-text-err {
+    color: #ff0000;
+}
+
+.wt-text-muted {
+    color: #5f5f5f;
+    text-align: center;
+}
+
+.wt-mt {
+    margin-top: 20px;
+}
+
+/* Code Output */
+.wt-code-block {
+    margin: 6px 0 0 0;
+    color: #00ff00;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    white-space: pre;
+    font-family: inherit;
+    background-color: #000;
+    padding: 8px;
+    border: 1px solid #333;
+}
+
+/* Terminal Styling */
+.terminal {
+    margin-top: 16px;
+    padding: 12px;
+    background-color: #0a0a0a;
+    border: 1px solid #005f87;
+    font-family: inherit;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: #d0d0d0;
+    overflow-x: auto;
+    overflow-y: auto;
+    white-space: nowrap;
+    max-width: 100%;
+}
+
+.terminal-terminal::-webkit-scrollbar {
+    height: 8px;
+}
+
+.terminal-terminal::-webkit-scrollbar-track {
+    background: #000;
+}
+
+.terminal-terminal::-webkit-scrollbar-thumb {
+    background: #005f87;
+}
+
+.terminal-header {
+    border-bottom: 1px dashed #333;
+    padding-bottom: 6px;
+    margin-bottom: 8px;
+}
+
+.terminal-cmd {
+    color: #ffff00;
+    font-weight: bold;
+}
+
+.terminal-section {
+    margin-bottom: 10px;
+}
+
+.terminal-section-header {
+    color: #00d7ff;
+    font-weight: bold;
+}
+
+.terminal-comment {
+    color: #626262;
+}
+
+.terminal-highlight {
+    color: #00ff00;
+    font-weight: bold;
+}
+
+.terminal-record-row {
+    display: flex;
+    gap: 16px;
+    padding: 2px 0;
+    white-space: nowrap;
+    min-width: max-content;
+}
+
+.terminal-name {
+    color: #ffffff;
+    min-width: 180px;
+}
+
+.terminal-ttl {
+    color: #87d7ff;
+    min-width: 60px;
+}
+
+.terminal-class {
+    color: #af87ff;
+    min-width: 40px;
+}
+
+.terminal-type {
+    color: #ff8700;
+    font-weight: bold;
+    min-width: 60px;
+}
+
+.terminal-data {
+    color: #00ff00;
+}
+
+.terminal-footer {
+    border-top: 1px dashed #333;
+    padding-top: 6px;
+    margin-bottom: 4px;
+}
+
+.terminal-raw-toggle {
+    margin-top: 8px;
+    cursor: pointer;
+}
+
+.terminal-raw-toggle summary {
+    outline: none;
+    user-select: none;
+}
