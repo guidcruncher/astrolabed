@@ -44,7 +44,7 @@ public static class ApiSidecar
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
 
-        logger.LogInformation($"System Shared DNS Cache Instance Identifier {sharedCache.InstanceId}");
+        logger.LogInformation("System Shared DNS Cache Instance Identifier {SharedCacheInstanceId}", sharedCache.InstanceId);
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
@@ -125,8 +125,18 @@ public static class ApiSidecar
             })
             .ConfigureWebHostDefaults(web =>
             {
-                web.UseSetting(WebHostDefaults.EnvironmentKey,
-                    mainHost.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
+                var hostEnv = mainHost.Services.GetRequiredService<IHostEnvironment>();
+                web.UseSetting(WebHostDefaults.EnvironmentKey, hostEnv.EnvironmentName);
+
+                var contentPath = "/app/ClientUI";
+                if (hostEnv.IsDevelopment())
+                {
+                    contentPath = Path.GetFullPath(
+                        Path.Combine(hostEnv.ContentRootPath, "../ClientUI/dist/"));
+                }
+
+                // Configure Web Root path at builder level before middleware initialization
+                web.UseWebRoot(contentPath);
 
                 web.UseKestrel(options =>
                 {
@@ -149,42 +159,40 @@ public static class ApiSidecar
 
                 web.Configure((context, app) =>
                 {
-                    app.UseRouting();
+                    logger.LogInformation("Kestrel is serving Client from {ContentPath}", contentPath);
 
-                    var contentPath = "/app/ClientUI";
-
-                    if (context.HostingEnvironment.IsDevelopment())
+                    if (!Directory.Exists(contentPath))
                     {
-                        contentPath = Path.GetFullPath(
-                            Path.Combine(context.HostingEnvironment.ContentRootPath, "../ClientUI/dist/"));
+                        logger.LogWarning("Configured WebRoot directory does not exist: {ContentPath}", contentPath);
                     }
-
-                    logger.LogInformation($"Kestrel is serving Client from {contentPath}");
-                    web.UseWebRoot(contentPath);
 
                     var fileProvider = new PhysicalFileProvider(contentPath);
 
+                    // Ensure IWebHostEnvironment uses the custom static file provider
+                    context.HostingEnvironment.WebRootFileProvider = fileProvider;
+
+                    // 1. Static file handling must be configured BEFORE routing for root requests
                     app.UseDefaultFiles(new DefaultFilesOptions
                     {
-                        FileProvider = fileProvider,
-                        RequestPath = ""
+                        FileProvider = fileProvider
                     });
 
                     app.UseStaticFiles(new StaticFileOptions
                     {
-                        FileProvider = fileProvider,
-                        RequestPath = ""
+                        FileProvider = fileProvider
                     });
 
+                    // 2. Routing setup
+                    app.UseRouting();
+
+                    // 3. Security Middlewares
                     app.UseAuthentication();
                     app.UseAuthorization();
 
+                    // 4. Endpoints map
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
-
-                        // Vue SPA fallback routing
-                        endpoints.MapFallbackToFile("index.html");
 
                         if (context.HostingEnvironment.IsDevelopment())
                         {
@@ -197,6 +205,12 @@ public static class ApiSidecar
                         {
                             logger.LogWarning("OpenApi Documentation disabled");
                         }
+
+                        // SPA fallback with specific file provider mapping
+                        endpoints.MapFallbackToFile("index.html", new StaticFileOptions
+                        {
+                            FileProvider = fileProvider
+                        });
                     });
 
                     logger.LogInformation("API sidecar controllers registered successfully.");
