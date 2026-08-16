@@ -7,6 +7,7 @@ import AppLayout from '../layouts/AppLayout.vue'
 import LoginView from '../views/LoginView.vue'
 import HomeView from '../views/HomeView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import DemoView from '../views/DemoView.vue'
 
 const routes: RouteRecordRaw[] = [
     {
@@ -26,6 +27,14 @@ const routes: RouteRecordRaw[] = [
                 path: '',
                 name: 'home',
                 component: HomeView,
+                meta: {
+                    anonymous: true,
+                },
+            },
+            {
+                path: 'demo',
+                name: 'demo',
+                component: DemoView,
                 meta: {
                     anonymous: true,
                 },

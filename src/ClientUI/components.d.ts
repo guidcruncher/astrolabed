@@ -13,6 +13,8 @@ declare module 'vue' {
   export interface GlobalComponents {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WhiptailCheckbox: typeof import('./src/components/WhiptailCheckbox.vue')['default']
+    WhiptailCheckboxGroup: typeof import('./src/components/WhiptailCheckboxGroup.vue')['default']
     WhiptailChecklist: typeof import('./src/components/WhiptailChecklist.vue')['default']
     WhiptailDialog: typeof import('./src/components/WhiptailDialog.vue')['default']
     WhiptailGauge: typeof import('./src/components/WhiptailGauge.vue')['default']
@@ -20,6 +22,7 @@ declare module 'vue' {
     WhiptailLoginBox: typeof import('./src/components/WhiptailLoginBox.vue')['default']
     WhiptailMenuList: typeof import('./src/components/WhiptailMenuList.vue')['default']
     WhiptailMessageBox: typeof import('./src/components/WhiptailMessageBox.vue')['default']
+    WhiptailRadioGroup: typeof import('./src/components/WhiptailRadioGroup.vue')['default']
     WhiptailRadiolist: typeof import('./src/components/WhiptailRadiolist.vue')['default']
     WhiptailYesNo: typeof import('./src/components/WhiptailYesNo.vue')['default']
   }

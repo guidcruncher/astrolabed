@@ -69,17 +69,13 @@ const handleCancel = (): void => {
         </div>
 
         <div class="wt-footer">
-            <button type="button" class="wt-btn wt-btn-ok" @click="handleSubmit">
+            <WhiptailButton variant="ok" @click="handleSubmit">
                 {{ okText }}
-            </button>
-            <button
-                v-if="showCancel"
-                type="button"
-                class="wt-btn wt-btn-cancel"
-                @click="handleCancel"
-            >
+            </WhiptailButton>
+
+            <WhiptailButton variant="cancel" @click="handleCancel">
                 {{ cancelText }}
-            </button>
+            </WhiptailButton>
         </div>
     </div>
 </template>

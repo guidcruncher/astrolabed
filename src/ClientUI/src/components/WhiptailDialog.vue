@@ -27,17 +27,13 @@ const emit = defineEmits<{
             <slot></slot>
         </div>
         <div class="wt-footer">
-            <button v-if="showOk" type="button" class="wt-btn wt-btn-ok" @click="emit('ok')">
+            <WhiptailButton v-if="showOk" variant="ok" @click="emit('ok')">
                 {{ okText }}
-            </button>
-            <button
-                v-if="showCancel"
-                type="button"
-                class="wt-btn wt-btn-cancel"
-                @click="emit('cancel')"
-            >
+            </WhiptailButton>
+
+            <WhiptailButton v-if="showCancel" variant="cancel" @click="emit('cancel')">
                 {{ cancelText }}
-            </button>
+            </WhiptailButton>
         </div>
     </div>
 </template>
