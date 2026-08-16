@@ -5,7 +5,7 @@ import {
     type DiscoveredLanDeviceDto,
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
-import { logout } from '../composables/useAuth'
+import { useAuth } from '../composables/useAuth'
 import WhiptailCombobox from '../components/WhiptailCombobox.vue'
 import WhiptailButton from '../components/WhiptailButton.vue'
 import type { WhiptailOption } from '../components/types'
@@ -20,6 +20,8 @@ const {
     getLeases,
     clearDnsCache,
 } = useAstrolabedApi()
+
+const { logout } = useAuth()
 
 // Reactive State
 const selectedDomain = ref('')
@@ -46,7 +48,7 @@ const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
     const dynamic = lanDevices.value.map((device) => ({
         label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
         value: device.ipAddress,
- /   }))
+    }))
     return [...defaults, ...dynamic]
 })
 
@@ -65,10 +67,9 @@ const parsedAnswers = computed(() => {
     return []
 })
 
-const handleLogout = (async() => {
-await logout()
-window.location.href='/'
-})
+const handleLogout = async (): Promise<void> => {
+    await logout()
+}
 
 // Fetch initial dashboard metrics
 const refreshDashboardData = async (): Promise<void> => {
@@ -132,11 +133,17 @@ onMounted(() => {
             </span>
         </div>
         <div class="wt-body wt-header-body">
-            <span>System Diagnostics & Status Overview</span>
-            <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
-                Flush Cache
-            </WhiptailButton>
-            <WhiptailButton class="wt-btn-cancel" @click="handleLogout"> Logout </WhiptailButton>
+            <div style="float: left">
+                <span>System Diagnostics & Status Overview</span>
+            </div>
+            <div style="float: right">
+                <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
+                    Flush Cache </WhiptailButton
+                >&nbsp;
+                <WhiptailButton class="wt-btn-cancel" @click="handleLogout">
+                    Logout
+                </WhiptailButton>
+            </div>
         </div>
     </header>
 
@@ -179,7 +186,7 @@ onMounted(() => {
                     <WhiptailCombobox
                         v-model="selectedDomain"
                         :options="deviceComboboxOptions"
-                        placeholder="< Type or select option >"
+                        placeholder="&lt; Type or select option &gt;"
                     />
                 </div>
 
@@ -308,7 +315,7 @@ onMounted(() => {
                     </thead>
                     <tbody>
                         <tr v-for="dev in lanDevices" :key="dev.macAddress">
-                            <td>{{ dev.hostName || '< Unknown >' }}</td>
+                            <td>{{ dev.hostName || '&lt; Unknown &gt;' }}</td>
                             <td>{{ dev.ipAddress }}</td>
                             <td>{{ dev.macAddress }}</td>
                         </tr>
