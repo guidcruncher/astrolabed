@@ -79,13 +79,12 @@ const handleKeyDown = (event: KeyboardEvent): void => {
                 filteredOptions.value.length
         }
     } else if (event.key === 'Enter') {
-        if (
-            isOpen.value &&
-            highlightedIndex.value >= 0 &&
-            filteredOptions.value[highlightedIndex.value]
-        ) {
-            event.preventDefault()
-            selectOption(filteredOptions.value[highlightedIndex.value])
+        if (isOpen.value && highlightedIndex.value >= 0) {
+            const selectedOption = filteredOptions.value[highlightedIndex.value]
+            if (selectedOption) {
+                event.preventDefault()
+                selectOption(selectedOption)
+            }
         }
     } else if (event.key === 'Escape') {
         isOpen.value = false

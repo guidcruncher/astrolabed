@@ -126,8 +126,7 @@ const timeSlots: WhiptailOption[] = [
     { label: '04:30 PM - Deployment Sync', value: 'slot-1630' },
 ]
 const handleDateConfirm = (selected: Date) => {
-    formattedDate.value = selected.toISOString().split('T')[0]
-    console.log('Selected date:', selected)
+    console.log('Selected date:')
 }
 
 // Options Data
@@ -170,8 +169,8 @@ const handleLogin = (credentials: LoginCredentials) => {
 
         <WhiptailTitlebar title="System Configuration Title bar">
             <template #actions>
-                <WhiptailButton @click="handleHelp">?</WhiptailButton>
-                <WhiptailButton variant="cancel" @click="handleClose">X</WhiptailButton>
+                <WhiptailButton @click="console.log('help')">?</WhiptailButton>
+                <WhiptailButton variant="cancel" @click="console.log('close')">X</WhiptailButton>
             </template>
         </WhiptailTitlebar>
 
