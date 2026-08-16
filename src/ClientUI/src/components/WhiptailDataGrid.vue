@@ -57,7 +57,7 @@ const hasNextPage = computed(() => {
 
 const pageSizeSelectOptions = computed<WhiptailOption[]>(() =>
     props.pageSizeOptions.map((size) => ({
-        label: `${size} / page`,
+        label: `${size}`,
         value: size,
     })),
 )

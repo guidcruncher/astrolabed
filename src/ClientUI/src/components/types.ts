@@ -1,3 +1,8 @@
+export interface TabItem {
+    id: string
+    label: string
+}
+
 export interface WhiptailOption {
     label: string
     value: string | number
