@@ -344,7 +344,7 @@ const onTabChange = (tabId: string) => {
         </div>
     </div>
 
-  <div style="max-width: 600px; margin: 2rem auto;">
+  <div style="margin: 2rem auto;">
     <WhiptailTabs v-model="activeTab" :tabs="tabList" @change="onTabChange">
       <template #general>
         <h3>General Settings</h3>

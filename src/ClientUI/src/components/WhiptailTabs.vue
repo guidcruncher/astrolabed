@@ -1,32 +1,32 @@
 <template>
-  <div class="whiptail-tabs-container">
+  <div class="wt-dialog wt-tabs-container">
     <div 
       ref="tabListRef"
-      class="whiptail-tab-bar" 
+      class="wt-tab-bar" 
       role="tablist" 
       aria-label="Tab Navigation"
       @keydown="handleKeyDown"
     >
       <button
-        v-for="(tab, index) in tabs"
+        v-for="tab in tabs"
         :key="tab.id"
         :ref="(el) => setTabRef(el, tab.id)"
         type="button"
         role="tab"
-        :class="['whiptail-tab-button', { active: modelValue === tab.id }]"
+        :class="['wt-tab-button', { active: modelValue === tab.id }]"
         :aria-selected="modelValue === tab.id"
         :aria-controls="`tab-panel-${tab.id}`"
         :id="`tab-btn-${tab.id}`"
         :tabindex="modelValue === tab.id ? 0 : -1"
         @click="selectTab(tab.id)"
       >
-        <span class="whiptail-tab-label">
-          <span class="whiptail-hotkey">{{ tab.label.charAt(0) }}</span>{{ tab.label.slice(1) }}
+        <span class="wt-tab-label">
+          <span class="wt-hotkey">{{ tab.label.charAt(0) }}</span>{{ tab.label.slice(1) }}
         </span>
       </button>
     </div>
 
-    <div class="whiptail-tab-body">
+    <div class="wt-body wt-tab-body">
       <div
         v-for="tab in tabs"
         v-show="modelValue === tab.id"
@@ -34,7 +34,7 @@
         :id="`tab-panel-${tab.id}`"
         role="tabpanel"
         :aria-labelledby="`tab-btn-${tab.id}`"
-        class="whiptail-tab-panel"
+        class="wt-tab-panel"
         tabindex="0"
       >
         <slot :name="tab.id" />
@@ -133,95 +133,89 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* Whiptail / Newt TUI Theme Tokens */
-.whiptail-tabs-container {
-  --wt-bg: #c0c0c0;
-  --wt-fg: #000000;
-  --wt-box-bg: #0000a8;
-  --wt-active-bg: #00aaaa;
-  --wt-active-fg: #ffffff;
-  --wt-border-light: #ffffff;
-  --wt-border-dark: #808080;
-  --wt-shadow: #555555;
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
-  font-family: 'Courier New', Courier, monospace;
-  background-color: var(--wt-box-bg);
-  color: var(--wt-fg);
-  padding: 8px;
-  border: 2px solid var(--wt-border-light);
-  box-shadow: 4px 4px 0px var(--wt-shadow);
+/* Dialog Container */
+.wt-dialog.wt-tabs-container {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  background-color: #1b1b1b;
+  border: 2px solid #c0c0c0;
+  box-shadow: 0 0 0 1px #000, 0 0 10px #000;
+  margin: 20px auto;
+  max-width: 600px;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
 }
 
-/* Tab Bar Layout */
-.whiptail-tab-bar {
+/* Tab Bar Header */
+.wt-tab-bar {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  background-color: var(--wt-bg);
-  padding: 4px 4px 0 4px;
-  border-bottom: 2px solid var(--wt-border-dark);
+  background-color: #000;
+  padding: 6px 6px 0 6px;
+  border-bottom: 1px solid #c0c0c0;
 }
 
 /* Tab Buttons */
-.whiptail-tab-button {
+.wt-tab-button {
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.9rem;
   font-weight: bold;
-  background-color: var(--wt-bg);
-  color: var(--wt-fg);
-  border-top: 2px solid var(--wt-border-light);
-  border-left: 2px solid var(--wt-border-light);
-  border-right: 2px solid var(--wt-border-dark);
+  background-color: #3a3a3a;
+  color: #e0e0e0;
+  border: 1px solid #5f5f5f;
   border-bottom: none;
-  padding: 4px 12px;
+  padding: 6px 12px;
   cursor: pointer;
   outline: none;
-  margin-bottom: -2px;
+  margin-bottom: -1px;
 }
 
-.whiptail-tab-button:hover {
-  background-color: #d4d4d4;
+.wt-tab-button:hover:not(.active) {
+  background-color: #4f4f4f;
+  color: #fff;
 }
 
-.whiptail-tab-button:focus-visible {
-  outline: 2px dotted #000000;
-  outline-offset: -4px;
+.wt-tab-button:focus-visible {
+  border-color: #ffff00;
+  outline: 1px solid #ffff00;
 }
 
-.whiptail-tab-button.active {
-  background-color: var(--wt-active-bg);
-  color: var(--wt-active-fg);
-  border-top: 2px solid var(--wt-border-light);
-  border-left: 2px solid var(--wt-border-light);
-  border-right: 2px solid var(--wt-border-dark);
+.wt-tab-button.active {
+  background-color: #005f87;
+  color: #ffffff;
+  border-color: #c0c0c0;
+  border-bottom: 1px solid #005f87;
 }
 
-.whiptail-hotkey {
+.wt-hotkey {
+  color: #ffff00;
   text-decoration: underline;
 }
 
-/* Content Area */
-.whiptail-tab-body {
-  background-color: var(--wt-bg);
-  border-left: 2px solid var(--wt-border-light);
-  border-right: 2px solid var(--wt-border-dark);
-  border-bottom: 2px solid var(--wt-border-dark);
-  padding: 12px;
-  min-height: 100px;
+.wt-tab-button.active .wt-hotkey {
+  color: #00ff00;
 }
 
-.whiptail-tab-panel {
-  color: var(--wt-fg);
-  font-size: 14px;
+/* Content Area */
+.wt-tab-body {
+  background-color: #1b1b1b;
+  padding: 14px;
+  min-height: 120px;
+}
+
+.wt-tab-panel {
+  color: #e0e0e0;
+  font-size: 16px;
   line-height: 1.4;
   outline: none;
 }
 
-.whiptail-tab-panel:focus-visible {
-  outline: 1px dashed var(--wt-fg);
-  outline-offset: -2px;
+.wt-tab-panel:focus-visible {
+  border: 1px dashed #ffff00;
+  padding: 4px;
 }
 </style>
+
