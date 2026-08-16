@@ -117,248 +117,194 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="wt-screen">
-        <!-- Header Dialog -->
-        <header class="wt-dialog">
-            <div class="wt-title wt-header-title">
-                <span>[ Astrolabed Control Center ]</span>
-                <span class="wt-status-indicator" :class="{ 'wt-status-busy': loading }">
-                    &lt; {{ loading ? 'PROCESSING' : 'ONLINE' }} &gt;
-                </span>
-            </div>
-            <div class="wt-body wt-header-body">
-                <span>System Diagnostics & Status Overview</span>
-                <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
-                    Flush Cache
-                </WhiptailButton>
-            </div>
-        </header>
+    <!-- Header Dialog -->
+    <header class="wt-dialog">
+        <div class="wt-title wt-header-title">
+            <span>[ Astrolabed Control Center ]</span>
+            <span class="wt-status-indicator" :class="{ 'wt-status-busy': loading }">
+                &lt; {{ loading ? 'PROCESSING' : 'ONLINE' }} &gt;
+            </span>
+        </div>
+        <div class="wt-body wt-header-body">
+            <span>System Diagnostics & Status Overview</span>
+            <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
+                Flush Cache
+            </WhiptailButton>
+        </div>
+    </header>
 
-        <!-- Error Banner -->
-        <div v-if="error" class="wt-dialog wt-alert-error">
-            <div class="wt-title wt-title-error">SYSTEM ERROR</div>
+    <!-- Error Banner -->
+    <div v-if="error" class="wt-dialog wt-alert-error">
+        <div class="wt-title wt-title-error">SYSTEM ERROR</div>
+        <div class="wt-body">
+            {{
+                typeof error === 'string'
+                    ? error
+                    : error.detail || error.title || 'An API error occurred'
+            }}
+        </div>
+    </div>
+
+    <!-- Stat Cards Grid -->
+    <div class="wt-stats-grid">
+        <div class="wt-dialog wt-stat-box">
+            <div class="wt-title">DNS Events</div>
+            <div class="wt-body wt-stat-value">{{ totalEventsCount }}</div>
+        </div>
+        <div class="wt-dialog wt-stat-box">
+            <div class="wt-title">DHCP Leases</div>
+            <div class="wt-body wt-stat-value">{{ activeLeasesCount }}</div>
+        </div>
+        <div class="wt-dialog wt-stat-box">
+            <div class="wt-title">LAN Devices</div>
+            <div class="wt-body wt-stat-value">{{ lanDevices.length }}</div>
+        </div>
+    </div>
+
+    <!-- Main Content Layout -->
+    <div class="wt-dashboard-body">
+        <!-- Left Column: Interactive DNS Query Sandbox (DIG Terminal Style) -->
+        <section class="wt-dialog">
+            <div class="wt-title">Quick DNS Lookup</div>
             <div class="wt-body">
-                {{
-                    typeof error === 'string'
-                        ? error
-                        : error.detail || error.title || 'An API error occurred'
-                }}
-            </div>
-        </div>
+                <div class="wt-form-group">
+                    <label class="wt-label">Target Domain / IP</label>
+                    <WhiptailCombobox
+                        v-model="selectedDomain"
+                        :options="deviceComboboxOptions"
+                        placeholder="< Type or select option >"
+                    />
+                </div>
 
-        <!-- Stat Cards Grid -->
-        <div class="wt-stats-grid">
-            <div class="wt-dialog wt-stat-box">
-                <div class="wt-title">DNS Events</div>
-                <div class="wt-body wt-stat-value">{{ totalEventsCount }}</div>
-            </div>
-            <div class="wt-dialog wt-stat-box">
-                <div class="wt-title">DHCP Leases</div>
-                <div class="wt-body wt-stat-value">{{ activeLeasesCount }}</div>
-            </div>
-            <div class="wt-dialog wt-stat-box">
-                <div class="wt-title">LAN Devices</div>
-                <div class="wt-body wt-stat-value">{{ lanDevices.length }}</div>
-            </div>
-        </div>
-
-        <!-- Main Content Layout -->
-        <div class="wt-dashboard-body">
-            <!-- Left Column: Interactive DNS Query Sandbox (DIG Terminal Style) -->
-            <section class="wt-dialog">
-                <div class="wt-title">Quick DNS Lookup</div>
-                <div class="wt-body">
+                <div class="wt-form-row">
                     <div class="wt-form-group">
-                        <label class="wt-label">Target Domain / IP</label>
-                        <WhiptailCombobox
-                            v-model="selectedDomain"
-                            :options="deviceComboboxOptions"
-                            placeholder="< Type or select option >"
-                        />
+                        <label class="wt-label">Record Type</label>
+                        <select v-model="selectedRecordType" class="wt-input wt-select">
+                            <option value="A">A (IPv4)</option>
+                            <option value="AAAA">AAAA (IPv6)</option>
+                            <option value="CNAME">CNAME</option>
+                            <option value="MX">MX</option>
+                            <option value="TXT">TXT</option>
+                        </select>
                     </div>
+                    <WhiptailButton
+                        class="wt-btn-ok"
+                        :disabled="loading || !selectedDomain"
+                        @click="handleDnsLookup"
+                    >
+                        Query
+                    </WhiptailButton>
+                </div>
 
-                    <div class="wt-form-row">
-                        <div class="wt-form-group">
-                            <label class="wt-label">Record Type</label>
-                            <select v-model="selectedRecordType" class="wt-input wt-select">
-                                <option value="A">A (IPv4)</option>
-                                <option value="AAAA">AAAA (IPv6)</option>
-                                <option value="CNAME">CNAME</option>
-                                <option value="MX">MX</option>
-                                <option value="TXT">TXT</option>
-                            </select>
-                        </div>
-                        <WhiptailButton
-                            class="wt-btn-ok"
-                            :disabled="loading || !selectedDomain"
-                            @click="handleDnsLookup"
+                <!-- DIG Output Console -->
+                <div v-if="queryResult" class="terminal">
+                    <div class="terminal-header">
+                        <span class="terminal-cmd"
+                            >$ dig {{ selectedDomain }} {{ selectedRecordType }}</span
                         >
-                            Query
-                        </WhiptailButton>
                     </div>
 
-                    <!-- DIG Output Console -->
-                    <div v-if="queryResult" class="dig-terminal">
-                        <div class="dig-header">
-                            <span class="dig-cmd"
-                                >$ dig {{ selectedDomain }} {{ selectedRecordType }}</span
-                            >
-                        </div>
-
-                        <div class="dig-section">
-                            <span class="dig-comment"
-                                >; &lt;&lt;&gt;&gt; DiG 9.18.12 &lt;&lt;&gt;&gt;
-                                {{ selectedDomain }} {{ selectedRecordType }}</span
-                            ><br />
-                            <span class="dig-comment">;; global options: +cmd</span><br />
-                            <span class="dig-comment">;; Got answer:</span><br />
-                            <span class="dig-comment"
-                                >;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status:
-                                <span class="dig-highlight">{{ queryResult.responseCode }}</span
-                                >, id: {{ Math.floor(Math.random() * 60000) }}</span
-                            >
-                        </div>
-
-                        <!-- QUESTION SECTION -->
-                        <div class="dig-section">
-                            <div class="dig-section-header">;; QUESTION SECTION:</div>
-                            <div class="dig-record-row">
-                                <span class="dig-name"
-                                    >;{{
-                                        selectedDomain.endsWith('.')
-                                            ? selectedDomain
-                                            : selectedDomain + '.'
-                                    }}</span
-                                >
-                                <span class="dig-class">IN</span>
-                                <span class="dig-type">{{ selectedRecordType }}</span>
-                            </div>
-                        </div>
-
-                        <!-- ANSWER SECTION -->
-                        <div class="dig-section">
-                            <div class="dig-section-header">;; ANSWER SECTION:</div>
-                            <template v-if="parsedAnswers.length > 0">
-                                <div
-                                    v-for="(ans, idx) in parsedAnswers"
-                                    :key="idx"
-                                    class="dig-record-row"
-                                >
-                                    <span class="dig-name">{{
-                                        ans.name ||
-                                        ans.domain ||
-                                        (selectedDomain.endsWith('.')
-                                            ? selectedDomain
-                                            : selectedDomain + '.')
-                                    }}</span>
-                                    <span class="dig-ttl">{{ ans.ttl ?? ans.TTL ?? 300 }}</span>
-                                    <span class="dig-class">IN</span>
-                                    <span class="dig-type">{{
-                                        ans.type || ans.typeStr || selectedRecordType
-                                    }}</span>
-                                    <span class="dig-data">{{
-                                        ans.data || ans.value || ans.address || ans
-                                    }}</span>
-                                </div>
-                            </template>
-                            <div v-else class="dig-comment">
-                                ;; (No records returned or custom raw data format)
-                            </div>
-                        </div>
-
-                        <!-- DIG FOOTER METADATA -->
-                        <div class="dig-section dig-footer">
-                            <span class="dig-comment"
-                                >;; Query time: {{ queryDurationMs ?? 12 }} msec</span
-                            ><br />
-                            <span class="dig-comment">;; SERVER: 127.0.0.1#53(astrolabed-dns)</span
-                            ><br />
-                            <span class="dig-comment">;; WHEN: {{ new Date().toUTCString() }}</span>
-                        </div>
-
-                        <!-- RAW JSON EXPANDER -->
-                        <details class="dig-raw-toggle">
-                            <summary class="dig-comment">[ + View Raw Payload ]</summary>
-                            <pre class="wt-code-block">{{
-                                JSON.stringify(queryResult, null, 2)
-                            }}</pre>
-                        </details>
+                    <div class="terminal-section">
+                        <span class="terminal-comment"
+                            >; &lt;&lt;&gt;&gt; DiG 9.18.12 &lt;&lt;&gt;&gt; {{ selectedDomain }}
+                            {{ selectedRecordType }}</span
+                        ><br />
+                        <span class="terminal-comment">;; global options: +cmd</span><br />
+                        <span class="terminal-comment">;; Got answer:</span><br />
+                        <span class="terminal-comment"
+                            >;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status:
+                            <span class="terminal-highlight">{{ queryResult.responseCode }}</span
+                            >, id: {{ Math.floor(Math.random() * 60000) }}</span
+                        >
                     </div>
-                </div>
-            </section>
 
-            <!-- Right Column: Discovered Devices Table -->
-            <section class="wt-dialog">
-                <div class="wt-title">LAN Network Devices</div>
-                <div class="wt-body wt-table-wrapper">
-                    <table class="wt-table">
-                        <thead>
-                            <tr>
-                                <th>Host Name</th>
-                                <th>IP Address</th>
-                                <th>MAC Address</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="dev in lanDevices" :key="dev.macAddress">
-                                <td>{{ dev.hostName || '< Unknown >' }}</td>
-                                <td>{{ dev.ipAddress }}</td>
-                                <td>{{ dev.macAddress }}</td>
-                            </tr>
-                            <tr v-if="lanDevices.length === 0">
-                                <td colspan="3" class="wt-text-muted">
-                                    &lt; No devices discovered &gt;
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </div>
+                    <!-- QUESTION SECTION -->
+                    <div class="terminal-section">
+                        <div class="terminal-section-header">;; QUESTION SECTION:</div>
+                        <div class="terminal-record-row">
+                            <span class="terminal-name"
+                                >;{{
+                                    selectedDomain.endsWith('.')
+                                        ? selectedDomain
+                                        : selectedDomain + '.'
+                                }}</span
+                            >
+                            <span class="terminal-class">IN</span>
+                            <span class="terminal-type">{{ selectedRecordType }}</span>
+                        </div>
+                    </div>
 
-        <!-- Recent DNS Response Events Feed -->
-        <section class="wt-dialog wt-mt">
-            <div class="wt-title wt-box-header">
-                <span>Recent DNS Activity</span>
-                <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
+                    <!-- ANSWER SECTION -->
+                    <div class="terminal-section">
+                        <div class="terminal-section-header">;; ANSWER SECTION:</div>
+                        <template v-if="parsedAnswers.length > 0">
+                            <div
+                                v-for="(ans, idx) in parsedAnswers"
+                                :key="idx"
+                                class="terminal-record-row"
+                            >
+                                <span class="terminal-name">{{
+                                    ans.name ||
+                                    ans.domain ||
+                                    (selectedDomain.endsWith('.')
+                                        ? selectedDomain
+                                        : selectedDomain + '.')
+                                }}</span>
+                                <span class="terminal-ttl">{{ ans.ttl ?? ans.TTL ?? 300 }}</span>
+                                <span class="terminal-class">IN</span>
+                                <span class="terminal-type">{{
+                                    ans.type || ans.typeStr || selectedRecordType
+                                }}</span>
+                                <span class="terminal-data">{{
+                                    ans.data || ans.value || ans.address || ans
+                                }}</span>
+                            </div>
+                        </template>
+                        <div v-else class="terminal-comment">
+                            ;; (No records returned or custom raw data format)
+                        </div>
+                    </div>
+
+                    <!-- DIG FOOTER METADATA -->
+                    <div class="terminal-section terminal-footer">
+                        <span class="terminal-comment"
+                            >;; Query time: {{ queryDurationMs ?? 12 }} msec</span
+                        ><br />
+                        <span class="terminal-comment">;; SERVER: 127.0.0.1#53(astrolabed-dns)</span
+                        ><br />
+                        <span class="terminal-comment">;; WHEN: {{ new Date().toUTCString() }}</span>
+                    </div>
+
+                    <!-- RAW JSON EXPANDER -->
+                    <details class="terminal-raw-toggle">
+                        <summary class="terminal-comment">[ + View Raw Payload ]</summary>
+                        <pre class="wt-code-block">{{ JSON.stringify(queryResult, null, 2) }}</pre>
+                    </details>
+                </div>
             </div>
+        </section>
 
+        <!-- Right Column: Discovered Devices Table -->
+        <section class="wt-dialog">
+            <div class="wt-title">LAN Network Devices</div>
             <div class="wt-body wt-table-wrapper">
                 <table class="wt-table">
                     <thead>
                         <tr>
-                            <th>Timestamp</th>
-                            <th>Client</th>
-                            <th>Query Name</th>
-                            <th>Type</th>
-                            <th>Status</th>
-                            <th>Resolved IP</th>
+                            <th>Host Name</th>
+                            <th>IP Address</th>
+                            <th>MAC Address</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="evt in recentEvents" :key="evt.timestamp + evt.queryName">
-                            <td>{{ new Date(evt.timestamp).toLocaleTimeString() }}</td>
-                            <td>
-                                {{
-                                    evt.clientName
-                                        ? `${evt.clientName} (${evt.clientIp})`
-                                        : evt.clientIp
-                                }}
-                            </td>
-                            <td>{{ evt.queryName }}</td>
-                            <td>[{{ evt.queryType }}]</td>
-                            <td>
-                                <span
-                                    :class="evt.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'"
-                                >
-                                    {{ evt.status }}
-                                </span>
-                            </td>
-                            <td>{{ evt.responseIp || '-' }}</td>
+                        <tr v-for="dev in lanDevices" :key="dev.macAddress">
+                            <td>{{ dev.hostName || '< Unknown >' }}</td>
+                            <td>{{ dev.ipAddress }}</td>
+                            <td>{{ dev.macAddress }}</td>
                         </tr>
-                        <tr v-if="recentEvents.length === 0">
-                            <td colspan="6" class="wt-text-muted">
-                                &lt; No recent DNS logs found &gt;
+                        <tr v-if="lanDevices.length === 0">
+                            <td colspan="3" class="wt-text-muted">
+                                &lt; No devices discovered &gt;
                             </td>
                         </tr>
                     </tbody>
@@ -366,10 +312,58 @@ onMounted(() => {
             </div>
         </section>
     </div>
+
+    <!-- Recent DNS Response Events Feed -->
+    <section class="wt-dialog wt-mt">
+        <div class="wt-title wt-box-header">
+            <span>Recent DNS Activity</span>
+            <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
+        </div>
+
+        <div class="wt-body wt-table-wrapper">
+            <table class="wt-table">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Client</th>
+                        <th>Query Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Resolved IP</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-for="evt in recentEvents" :key="evt.timestamp + evt.queryName">
+                        <td>{{ new Date(evt.timestamp).toLocaleTimeString() }}</td>
+                        <td>
+                            {{
+                                evt.clientName
+                                    ? `${evt.clientName} (${evt.clientIp})`
+                                    : evt.clientIp
+                            }}
+                        </td>
+                        <td>{{ evt.queryName }}</td>
+                        <td>[{{ evt.queryType }}]</td>
+                        <td>
+                            <span :class="evt.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'">
+                                {{ evt.status }}
+                            </span>
+                        </td>
+                        <td>{{ evt.responseIp || '-' }}</td>
+                    </tr>
+                    <tr v-if="recentEvents.length === 0">
+                        <td colspan="6" class="wt-text-muted">
+                            &lt; No recent DNS logs found &gt;
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+	@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
 
 .wt-screen {
     width: 100vw;
@@ -514,7 +508,7 @@ onMounted(() => {
 }
 
 /* DIG Output Terminal Styling */
-.dig-terminal {
+.terminal-terminal {
     margin-top: 16px;
     padding: 12px;
     background-color: #0a0a0a;
@@ -529,48 +523,48 @@ onMounted(() => {
     max-width: 100%;
 }
 
-.dig-terminal::-webkit-scrollbar {
+.terminal-terminal::-webkit-scrollbar {
     height: 8px;
 }
 
-.dig-terminal::-webkit-scrollbar-track {
+.terminal-terminal::-webkit-scrollbar-track {
     background: #000;
 }
 
-.dig-terminal::-webkit-scrollbar-thumb {
+.terminal-terminal::-webkit-scrollbar-thumb {
     background: #005f87;
 }
 
-.dig-header {
+.terminal-header {
     border-bottom: 1px dashed #333;
     padding-bottom: 6px;
     margin-bottom: 8px;
 }
 
-.dig-cmd {
+.terminal-cmd {
     color: #ffff00;
     font-weight: bold;
 }
 
-.dig-section {
+.terminal-section {
     margin-bottom: 10px;
 }
 
-.dig-section-header {
+.terminal-section-header {
     color: #00d7ff;
     font-weight: bold;
 }
 
-.dig-comment {
+.terminal-comment {
     color: #626262;
 }
 
-.dig-highlight {
+.terminal-highlight {
     color: #00ff00;
     font-weight: bold;
 }
 
-.dig-record-row {
+.terminal-record-row {
     display: flex;
     gap: 16px;
     padding: 2px 0;
@@ -578,43 +572,43 @@ onMounted(() => {
     min-width: max-content;
 }
 
-.dig-name {
+.terminal-name {
     color: #ffffff;
     min-width: 180px;
 }
 
-.dig-ttl {
+.terminal-ttl {
     color: #87d7ff;
     min-width: 60px;
 }
 
-.dig-class {
+.terminal-class {
     color: #af87ff;
     min-width: 40px;
 }
 
-.dig-type {
+.terminal-type {
     color: #ff8700;
     font-weight: bold;
     min-width: 60px;
 }
 
-.dig-data {
+.terminal-data {
     color: #00ff00;
 }
 
-.dig-footer {
+.terminal-footer {
     border-top: 1px dashed #333;
     padding-top: 6px;
     margin-bottom: 4px;
 }
 
-.dig-raw-toggle {
+.terminal-raw-toggle {
     margin-top: 8px;
     cursor: pointer;
 }
 
-.dig-raw-toggle summary {
+.terminal-raw-toggle summary {
     outline: none;
     user-select: none;
 }
