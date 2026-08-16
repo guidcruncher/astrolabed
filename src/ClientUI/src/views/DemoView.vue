@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import type { WhiptailOption, LoginCredentials } from '../components/types'
+import type { ColumnDef, PagedResult, WhiptailOption, LoginCredentials } from '../components/types'
 
 // Reactive States
 const inputName = ref<string>('John Doe')
@@ -25,6 +25,76 @@ const envOptions: WhiptailOption[] = [
     { label: 'Staging', value: 'stage' },
     { label: 'Development', value: 'dev' },
 ]
+interface UserDto {
+    id: number
+    username: string
+    email: string
+    role: string
+    isActive: boolean
+}
+const columns: ColumnDef<UserDto>[] = [
+    { key: 'id', header: 'ID', width: '60px', align: 'center' },
+    { key: 'username', header: 'Username' },
+    { key: 'email', header: 'Email Address' },
+    { key: 'role', header: 'Role', align: 'center' },
+    { key: 'isActive', header: 'Status', align: 'center' },
+]
+const isLoading = ref(false)
+// Reactive state matching the C# PagedResult<T> JSON response
+const pagedData = ref<PagedResult<UserDto>>({
+    items: [
+        {
+            id: 101,
+            username: 'admin',
+            email: 'admin@astrolabed.local',
+            role: 'SysAdmin',
+            isActive: true,
+        },
+        {
+            id: 102,
+            username: 'jdoe',
+            email: 'jdoe@astrolabed.local',
+            role: 'Operator',
+            isActive: true,
+        },
+        {
+            id: 103,
+            username: 'mbuilder',
+            email: 'mbuilder@astrolabed.local',
+            role: 'Developer',
+            isActive: false,
+        },
+        {
+            id: 104,
+            username: 'astrolabe_svc',
+            email: 'svc@astrolabed.local',
+            role: 'Service',
+            isActive: true,
+        },
+    ],
+    totalCount: 42,
+    pageNumber: 1,
+    pageSize: 10,
+    totalPages: 11,
+    hasPreviousPage: false,
+    hasNextPage: true,
+})
+
+const handlePageChange = (newPage: number): void => {
+    isLoading.value = true
+    pagedData.value.pageNumber = newPage
+    // Simulate API fetch delay
+    setTimeout(() => {
+        pagedData.value.hasPreviousPage = newPage > 1
+        pagedData.value.hasNextPage = newPage < pagedData.value.totalPages!
+        isLoading.value = false
+    }, 300)
+}
+
+const handleRowClick = (row: UserDto): void => {
+    console.log('Selected user:', row)
+}
+
 const handleSave = (): void => {
     if (!serverName.value.trim()) {
         errorMessage.value = 'Server Name cannot be empty.'
@@ -240,6 +310,26 @@ const handleLogin = (credentials: LoginCredentials) => {
             <div class="wt-footer">
                 <WhiptailButton variant="ok" @click="handleSave"> Submit </WhiptailButton>
             </div>
+        </div>
+    </div>
+
+    <div class="wt-dialog" style="max-width: 700px">
+        <div class="wt-title">User Accounts Registry</div>
+        <div class="wt-body">
+            <WhiptailDataGrid
+                :data="pagedData"
+                :columns="columns"
+                :loading="isLoading"
+                @page-change="handlePageChange"
+                @row-click="handleRowClick"
+            >
+                <!-- Custom Template for Status Cell -->
+                <template #cell-isActive="{ value }">
+                    <span :style="{ color: value ? '#00ff00' : '#ff5555' }">
+                        {{ value ? '[ ACTIVE ]' : '[ DISABLED ]' }}
+                    </span>
+                </template>
+            </WhiptailDataGrid>
         </div>
     </div>
 </template>
