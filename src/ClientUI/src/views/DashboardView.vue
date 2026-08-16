@@ -6,7 +6,7 @@ import {
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { WhiptailOption, TabItem } from '../components/types'
+import type { WhiptailOption, TabItem, GridColumn } from '../components/types'
 
 // Initialize API Composable
 const {
@@ -37,6 +37,26 @@ const dashboardTabs: TabItem[] = [
     { id: 'dns-lookup', label: 'DNS Lookup' },
     { id: 'lan-devices', label: 'LAN Devices' },
     { id: 'dns-logs', label: 'DNS Activity' },
+]
+
+// Grid Column Configurations
+const lanDeviceColumns: GridColumn[] = [
+    { key: 'hostName', label: 'Host Name', formatter: (val: any) => val || '< Unknown >' },
+    { key: 'ipAddress', label: 'IP Address' },
+    { key: 'macAddress', label: 'MAC Address' },
+]
+
+const dnsLogColumns: GridColumn[] = [
+    {
+        key: 'timestamp',
+        label: 'Timestamp',
+        formatter: (val: any) => (val ? new Date(val).toLocaleTimeString() : '-'),
+    },
+    { key: 'clientIp', label: 'Client' },
+    { key: 'queryName', label: 'Query Name' },
+    { key: 'queryType', label: 'Type', formatter: (val: any) => `[${val}]` },
+    { key: 'status', label: 'Status' },
+    { key: 'responseIp', label: 'Resolved IP', formatter: (val: any) => val || '-' },
 ]
 
 // Predefined option list for WhiptailCombobox
@@ -304,82 +324,39 @@ onMounted(() => {
             </div>
         </template>
 
-        <!-- Tab 2: LAN Network Devices -->
+        <!-- Tab 2: LAN Network Devices Grid -->
         <template #lan-devices>
-            <div class="wt-table-wrapper">
-                <table class="wt-table">
-                    <thead>
-                        <tr>
-                            <th>Host Name</th>
-                            <th>IP Address</th>
-                            <th>MAC Address</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="dev in lanDevices" :key="dev.macAddress">
-                            <td>{{ dev.hostName || '&lt; Unknown &gt;' }}</td>
-                            <td>{{ dev.ipAddress }}</td>
-                            <td>{{ dev.macAddress }}</td>
-                        </tr>
-                        <tr v-if="lanDevices.length === 0">
-                            <td colspan="3" class="wt-text-muted">
-                                &lt; No devices discovered &gt;
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <WhiptailGrid
+                :columns="lanDeviceColumns"
+                :items="lanDevices"
+                empty-text="< No devices discovered >"
+            />
         </template>
 
-        <!-- Tab 3: DNS Activity -->
-       <template #dns-logs>
-    <div class="wt-dialog wt-full-width wt-mt">
-        <div class="wt-title wt-box-header">
-            <span>Recent DNS Activity</span>
-            <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
-        </div>
-
-        <div class="wt-body wt-table-wrapper">
-            <table class="wt-table">
-                <thead>
-                    <tr>
-                        <th>Timestamp</th>
-                        <th>Client</th>
-                        <th>Query Name</th>
-                        <th>Type</th>
-                        <th>Status</th>
-                        <th>Resolved IP</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr v-for="evt in recentEvents" :key="evt.timestamp + evt.queryName">
-                        <td>{{ new Date(evt.timestamp).toLocaleTimeString() }}</td>
-                        <td>
-                            {{
-                                evt.clientName
-                                    ? `${evt.clientName} (${evt.clientIp})`
-                                    : evt.clientIp
-                            }}
-                        </td>
-                        <td>{{ evt.queryName }}</td>
-                        <td>[{{ evt.queryType }}]</td>
-                        <td>
-                            <span :class="evt.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'">
-                                {{ evt.status }}
-                            </span>
-                        </td>
-                        <td>{{ evt.responseIp || '-' }}</td>
-                    </tr>
-                    <tr v-if="recentEvents.length === 0">
-                        <td colspan="6" class="wt-text-muted">
-                            &lt; No recent DNS logs found &gt;
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    </div>
-</template>
+        <!-- Tab 3: DNS Activity Grid -->
+        <template #dns-logs>
+            <div class="wt-logs-header">
+                <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
+            </div>
+            <WhiptailGrid
+                :columns="dnsLogColumns"
+                :items="recentEvents"
+                empty-text="< No recent DNS logs found >"
+            >
+                <template #cell-clientIp="{ row }">
+                    {{
+                        row.clientName
+                            ? `${row.clientName} (${row.clientIp})`
+                            : row.clientIp
+                    }}
+                </template>
+                <template #cell-status="{ row }">
+                    <span :class="row.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'">
+                        {{ row.status }}
+                    </span>
+                </template>
+            </WhiptailGrid>
+        </template>
     </WhiptailTabs>
 </template>
 
@@ -415,5 +392,11 @@ onMounted(() => {
     color: #fff;
     font-weight: bold;
     text-align: center;
+}
+
+.wt-logs-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 12px;
 }
 </style>
