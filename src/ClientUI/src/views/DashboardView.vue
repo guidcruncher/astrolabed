@@ -6,7 +6,7 @@ import {
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { WhiptailOption, TabItem, GridColumn } from '../components/types'
+import type { WhiptailOption, TabItem, ColumnDef } from '../components/types'
 
 // Initialize API Composable
 const {
@@ -40,13 +40,13 @@ const dashboardTabs: TabItem[] = [
 ]
 
 // Grid Column Configurations
-const lanDeviceColumns: GridColumn[] = [
+const lanDeviceColumns: ColumnDef[] = [
     { key: 'hostName', label: 'Host Name', formatter: (val: any) => val || '< Unknown >' },
     { key: 'ipAddress', label: 'IP Address' },
     { key: 'macAddress', label: 'MAC Address' },
 ]
 
-const dnsLogColumns: GridColumn[] = [
+const dnsLogColumns: ColumnDef[] = [
     {
         key: 'timestamp',
         label: 'Timestamp',
