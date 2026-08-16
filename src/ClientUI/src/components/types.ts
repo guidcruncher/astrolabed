@@ -1,6 +1,6 @@
 export interface TabItem {
-  id: string;
-  label: string;
+    id: string
+    label: string
 }
 
 export interface WhiptailOption {

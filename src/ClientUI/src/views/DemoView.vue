@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import type { TabItem, ColumnDef, PagedResult, WhiptailOption, LoginCredentials } from '../components/types'
+import type {
+    TabItem,
+    ColumnDef,
+    PagedResult,
+    WhiptailOption,
+    LoginCredentials,
+} from '../components/types'
 
 // Reactive States
 const inputName = ref<string>('John Doe')
@@ -159,17 +165,17 @@ const handleLogin = (credentials: LoginCredentials) => {
     )
 }
 
-const activeTab = ref('general');
+const activeTab = ref('general')
 
 const tabList: TabItem[] = [
-  { id: 'general', label: 'General' },
-  { id: 'network', label: 'Network' },
-  { id: 'system', label: 'System' }
-];
+    { id: 'general', label: 'General' },
+    { id: 'network', label: 'Network' },
+    { id: 'system', label: 'System' },
+]
 
 const onTabChange = (tabId: string) => {
-  console.log(`Active tab changed to: ${tabId}`);
-};
+    console.log(`Active tab changed to: ${tabId}`)
+}
 </script>
 
 <template>
@@ -344,25 +350,27 @@ const onTabChange = (tabId: string) => {
         </div>
     </div>
 
-  <div style="margin: 2rem auto;">
-    <WhiptailTabs v-model="activeTab" :tabs="tabList" @change="onTabChange">
-      <template #general>
-        <h3>General Settings</h3>
-        <p>Use <strong>Alt + G</strong> to switch to this tab at any time.</p>
-        <p>Press <strong>Left/Right Arrows</strong> when focused on a tab to switch tabs.</p>
-      </template>
+    <div style="margin: 2rem auto">
+        <WhiptailTabs v-model="activeTab" :tabs="tabList" @change="onTabChange">
+            <template #general>
+                <h3>General Settings</h3>
+                <p>Use <strong>Alt + G</strong> to switch to this tab at any time.</p>
+                <p>
+                    Press <strong>Left/Right Arrows</strong> when focused on a tab to switch tabs.
+                </p>
+            </template>
 
-      <template #network>
-        <h3>Network Configuration</h3>
-        <p>Use <strong>Alt + N</strong> to jump directly here.</p>
-      </template>
+            <template #network>
+                <h3>Network Configuration</h3>
+                <p>Use <strong>Alt + N</strong> to jump directly here.</p>
+            </template>
 
-      <template #system>
-        <h3>System Status</h3>
-        <p>Use <strong>Alt + S</strong> to jump directly here.</p>
-      </template>
-    </WhiptailTabs>
-  </div>
+            <template #system>
+                <h3>System Status</h3>
+                <p>Use <strong>Alt + S</strong> to jump directly here.</p>
+            </template>
+        </WhiptailTabs>
+    </div>
 </template>
 
 <style scoped>

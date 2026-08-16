@@ -1,114 +1,53 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import {
     useAstrolabedApi,
     type DiscoveredLanDeviceDto,
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { WhiptailOption, TabItem, ColumnDef } from '../components/types'
+import type { TabItem, PagedResult } from '../components/types'
 
-// Initialize API Composable
-const {
-    loading,
-    error,
-    queryDns,
-    getDnsEvents,
-    getDiscoveredNetworkDevices,
-    getLeases,
-    clearDnsCache,
-} = useAstrolabedApi()
+const { loading, error, getDnsEvents, getDiscoveredNetworkDevices, getLeases, clearDnsCache } =
+    useAstrolabedApi()
 
 const { logout } = useAuth()
 
-// Reactive State
 const activeTab = ref('dns-lookup')
-const selectedDomain = ref('')
-const selectedRecordType = ref('A')
-const queryResult = ref<any>(null)
-const queryDurationMs = ref<number | null>(null)
-const recentEvents = ref<DnsResponseEvent[]>([])
+
+const recentEvents = ref<PagedResult<DnsResponseEvent>>({
+    items: [],
+    pageNumber: 1,
+    pageSize: 10,
+    totalCount: 0,
+})
+
 const lanDevices = ref<DiscoveredLanDeviceDto[]>([])
 const activeLeasesCount = ref<number>(0)
-const totalEventsCount = ref<number>(0)
 
-// Tab Definitions
 const dashboardTabs: TabItem[] = [
     { id: 'dns-lookup', label: 'DNS Lookup' },
     { id: 'lan-devices', label: 'LAN Devices' },
     { id: 'dns-logs', label: 'DNS Activity' },
 ]
 
-// Grid Column Configurations
-const lanDeviceColumns: ColumnDef[] = [
-    { key: 'hostName', label: 'Host Name', formatter: (val: any) => val || '< Unknown >' },
-    { key: 'ipAddress', label: 'IP Address' },
-    { key: 'macAddress', label: 'MAC Address' },
-]
-
-const dnsLogColumns: ColumnDef[] = [
-    {
-        key: 'timestamp',
-        label: 'Timestamp',
-        formatter: (val: any) => (val ? new Date(val).toLocaleTimeString() : '-'),
-    },
-    { key: 'clientIp', label: 'Client' },
-    { key: 'queryName', label: 'Query Name' },
-    { key: 'queryType', label: 'Type', formatter: (val: any) => `[${val}]` },
-    { key: 'status', label: 'Status' },
-    { key: 'responseIp', label: 'Resolved IP', formatter: (val: any) => val || '-' },
-]
-
-// Predefined option list for WhiptailCombobox
-const commonDomains: WhiptailOption[] = [
-    { label: 'google.com', value: 'google.com' },
-    { label: 'cloudflare.com', value: 'cloudflare.com' },
-    { label: 'github.com', value: 'github.com' },
-    { label: 'microsoft.com', value: 'microsoft.com' },
-    { label: 'astrolabed.local', value: 'astrolabed.local' },
-]
-
-// Convert LAN devices to Combobox options dynamically
-const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
-    const defaults = [...commonDomains]
-    const dynamic = lanDevices.value.map((device) => ({
-        label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
-        value: device.ipAddress,
-    }))
-    return [...defaults, ...dynamic]
-})
-
-// Normalize raw API response into structured DNS records
-const parsedAnswers = computed(() => {
-    if (!queryResult.value) return []
-    const res = queryResult.value
-
-    if (Array.isArray(res.answers)) return res.answers
-    if (Array.isArray(res.Answer)) return res.Answer
-    if (Array.isArray(res)) return res
-    if (typeof res === 'object' && res.data) {
-        return Array.isArray(res.data) ? res.data : [res.data]
-    }
-
-    return []
-})
-
 const handleLogout = async (): Promise<void> => {
     await logout()
 }
 
-// Fetch initial dashboard metrics
 const refreshDashboardData = async (): Promise<void> => {
     try {
         const [eventsData, devicesData, leasesData] = await Promise.allSettled([
-            getDnsEvents({ pageNumber: 1, pageSize: 10 }),
+            getDnsEvents({
+                pageNumber: recentEvents.value.pageNumber,
+                pageSize: recentEvents.value.pageSize,
+            }),
             getDiscoveredNetworkDevices(),
             getLeases(true),
         ])
 
         if (eventsData.status === 'fulfilled') {
-            recentEvents.value = eventsData.value.items ?? []
-            totalEventsCount.value = eventsData.value.totalCount ?? 0
+            recentEvents.value = eventsData.value
         }
 
         if (devicesData.status === 'fulfilled') {
@@ -123,20 +62,24 @@ const refreshDashboardData = async (): Promise<void> => {
     }
 }
 
-// Handler: Perform DNS Lookup via API
-const handleDnsLookup = async (): Promise<void> => {
-    if (!selectedDomain.value) return
-    const startTime = performance.now()
-    try {
-        queryResult.value = await queryDns(selectedDomain.value, selectedRecordType.value)
-        queryDurationMs.value = Math.round(performance.now() - startTime)
-    } catch (err) {
-        queryResult.value = null
-        queryDurationMs.value = null
+const handleDnsPageChange = async (page: number): Promise<void> => {
+    recentEvents.value.pageNumber = page
+    const eventsData = await getDnsEvents({
+        pageNumber: page,
+        pageSize: recentEvents.value.pageSize,
+    })
+    recentEvents.value = eventsData
+}
+
+const handleDnsPageSizeChange = async (size: number): Promise<void> => {
+    const eventsData = await getDnsEvents({ pageNumber: 1, pageSize: size })
+    recentEvents.value = {
+        ...eventsData,
+        pageNumber: 1,
+        pageSize: size,
     }
 }
 
-// Handler: Clear DNS Cache action
 const handleFlushCache = async (): Promise<void> => {
     if (confirm('Are you sure you want to flush the system DNS cache?')) {
         await clearDnsCache()
@@ -150,7 +93,7 @@ onMounted(() => {
 </script>
 
 <template>
-    <!-- Header Dialog (Full Width) -->
+    <!-- Header Dialog -->
     <header class="wt-dialog wt-full-width wt-mt">
         <div class="wt-title wt-header-title">
             <span>[ Astrolabed Control Center ]</span>
@@ -164,8 +107,8 @@ onMounted(() => {
             </div>
             <div style="float: right">
                 <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
-                    Flush Cache
-                </WhiptailButton>&nbsp;
+                    Flush Cache </WhiptailButton
+                >&nbsp;
                 <WhiptailButton class="wt-btn-cancel" @click="handleLogout">
                     Logout
                 </WhiptailButton>
@@ -173,7 +116,7 @@ onMounted(() => {
         </div>
     </header>
 
-    <!-- Error Banner (Full Width) -->
+    <!-- Error Banner -->
     <div v-if="error" class="wt-dialog wt-alert-error wt-full-width">
         <div class="wt-title wt-title-error">SYSTEM ERROR</div>
         <div class="wt-body">
@@ -189,7 +132,7 @@ onMounted(() => {
     <div class="wt-stats-grid">
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DNS Events</div>
-            <div class="wt-body wt-stat-value">{{ totalEventsCount }}</div>
+            <div class="wt-body wt-stat-value">{{ recentEvents.totalCount }}</div>
         </div>
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DHCP Leases</div>
@@ -201,171 +144,29 @@ onMounted(() => {
         </div>
     </div>
 
-    <!-- Whiptail Tabs Component -->
+    <!-- Modularized Tab Navigation -->
     <WhiptailTabs v-model="activeTab" :tabs="dashboardTabs" class="wt-full-width">
-        <!-- Tab 1: Quick DNS Lookup -->
         <template #dns-lookup>
-            <div class="wt-form-group">
-                <label class="wt-label">Target Domain / IP</label>
-                <WhiptailCombobox
-                    v-model="selectedDomain"
-                    :options="deviceComboboxOptions"
-                    placeholder="&lt; Type or select option &gt;"
-                />
-            </div>
-
-            <div class="wt-form-row">
-                <div class="wt-form-group">
-                    <label class="wt-label">Record Type</label>
-                    <select v-model="selectedRecordType" class="wt-input wt-select">
-                        <option value="A">A (IPv4)</option>
-                        <option value="AAAA">AAAA (IPv6)</option>
-                        <option value="CNAME">CNAME</option>
-                        <option value="MX">MX</option>
-                        <option value="PTR">PTR</option>
-                        <option value="TXT">TXT</option>
-                    </select>
-                </div>
-                <WhiptailButton
-                    class="wt-btn-ok"
-                    :disabled="loading || !selectedDomain"
-                    @click="handleDnsLookup"
-                >
-                    Query
-                </WhiptailButton>
-            </div>
-
-            <!-- DIG Output Console -->
-            <div v-if="queryResult" class="terminal">
-                <div class="terminal-header">
-                    <span class="terminal-cmd"
-                        >$ dig {{ selectedDomain }} {{ selectedRecordType }}</span
-                    >
-                </div>
-
-                <div class="terminal-section">
-                    <span class="terminal-comment"
-                        >; &lt;&lt;&gt;&gt; DiG 9.18.12 &lt;&lt;&gt;&gt; {{ selectedDomain }}
-                        {{ selectedRecordType }}</span
-                    ><br />
-                    <span class="terminal-comment">;; global options: +cmd</span><br />
-                    <span class="terminal-comment">;; Got answer:</span><br />
-                    <span class="terminal-comment"
-                        >;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status:
-                        <span class="terminal-highlight">{{ queryResult.responseCode }}</span
-                        >, id: {{ Math.floor(Math.random() * 60000) }}</span
-                    >
-                </div>
-
-                <!-- QUESTION SECTION -->
-                <div class="terminal-section">
-                    <div class="terminal-section-header">;; QUESTION SECTION:</div>
-                    <div class="terminal-record-row">
-                        <span class="terminal-name"
-                            >;{{
-                                selectedDomain.endsWith('.')
-                                    ? selectedDomain
-                                    : selectedDomain + '.'
-                            }}</span
-                        >
-                        <span class="terminal-class">IN</span>
-                        <span class="terminal-type">{{ selectedRecordType }}</span>
-                    </div>
-                </div>
-
-                <!-- ANSWER SECTION -->
-                <div class="terminal-section">
-                    <div class="terminal-section-header">;; ANSWER SECTION:</div>
-                    <template v-if="parsedAnswers.length > 0">
-                        <div
-                            v-for="(ans, idx) in parsedAnswers"
-                            :key="idx"
-                            class="terminal-record-row"
-                        >
-                            <span class="terminal-name">{{
-                                ans.name ||
-                                ans.domain ||
-                                (selectedDomain.endsWith('.')
-                                    ? selectedDomain
-                                    : selectedDomain + '.')
-                            }}</span>
-                            <span class="terminal-ttl">{{ ans.ttl ?? ans.TTL ?? 300 }}</span>
-                            <span class="terminal-class">IN</span>
-                            <span class="terminal-type">{{
-                                ans.type || ans.typeStr || selectedRecordType
-                            }}</span>
-                            <span class="terminal-data">{{
-                                ans.data || ans.value || ans.address || ans
-                            }}</span>
-                        </div>
-                    </template>
-                    <div v-else class="terminal-comment">
-                        ;; (No records returned or custom raw data format)
-                    </div>
-                </div>
-
-                <!-- DIG FOOTER METADATA -->
-                <div class="terminal-section terminal-footer">
-                    <span class="terminal-comment"
-                        >;; Query time: {{ queryDurationMs ?? 12 }} msec</span
-                    ><br />
-                    <span class="terminal-comment">;; SERVER: 127.0.0.1#53(astrolabed-dns)</span
-                    ><br />
-                    <span class="terminal-comment"
-                        >;; WHEN: {{ new Date().toUTCString() }}</span
-                    >
-                </div>
-
-                <!-- RAW JSON EXPANDER -->
-                <details class="terminal-raw-toggle">
-                    <summary class="terminal-comment">[ + View Raw Payload ]</summary>
-                    <pre class="wt-code-block">{{ JSON.stringify(queryResult, null, 2) }}</pre>
-                </details>
-            </div>
+            <DnsLookupTab :lan-devices="lanDevices" />
         </template>
 
-        <!-- Tab 2: LAN Network Devices Grid -->
         <template #lan-devices>
-            <WhiptailGrid
-                :columns="lanDeviceColumns"
-                :items="lanDevices"
-                empty-text="< No devices discovered >"
-            />
+            <LanDevicesTab :devices="lanDevices" :loading="loading" />
         </template>
 
-        <!-- Tab 3: DNS Activity Grid -->
         <template #dns-logs>
-            <div class="wt-logs-header">
-                <WhiptailButton @click="refreshDashboardData"> Refresh Logs </WhiptailButton>
-            </div>
-            <WhiptailGrid
-                :columns="dnsLogColumns"
-                :items="recentEvents"
-                empty-text="< No recent DNS logs found >"
-            >
-                <template #cell-clientIp="{ row }">
-                    {{
-                        row.clientName
-                            ? `${row.clientName} (${row.clientIp})`
-                            : row.clientIp
-                    }}
-                </template>
-                <template #cell-status="{ row }">
-                    <span :class="row.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'">
-                        {{ row.status }}
-                    </span>
-                </template>
-            </WhiptailGrid>
+            <DnsLogsTab
+                :events="recentEvents"
+                :loading="loading"
+                @refresh="refreshDashboardData"
+                @page-change="handleDnsPageChange"
+                @page-size-change="handleDnsPageSizeChange"
+            />
         </template>
     </WhiptailTabs>
 </template>
 
 <style scoped>
-.wt-screen {
-    overflow-x: hidden;
-}
-
-/* Full Width Utility */
 .wt-full-width {
     width: 100%;
     max-width: 100%;
@@ -374,7 +175,6 @@ onMounted(() => {
     box-sizing: border-box;
 }
 
-/* Stats Layout */
 .wt-stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -392,11 +192,5 @@ onMounted(() => {
     color: #fff;
     font-weight: bold;
     text-align: center;
-}
-
-.wt-logs-header {
-    display: flex;
-    justify-content: flex-end;
-    margin-bottom: 12px;
 }
 </style>
