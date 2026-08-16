@@ -32,6 +32,7 @@ declare module 'vue' {
     WhiptailRadiolist: typeof import('./src/components/WhiptailRadiolist.vue')['default']
     WhiptailSelect: typeof import('./src/components/WhiptailSelect.vue')['default']
     WhiptailTextarea: typeof import('./src/components/WhiptailTextarea.vue')['default']
+    WhiptailTitlebar: typeof import('./src/components/WhiptailTitlebar.vue')['default']
     WhiptailYesNo: typeof import('./src/components/WhiptailYesNo.vue')['default']
   }
 }

@@ -98,6 +98,13 @@ const handleLogin = (credentials: LoginCredentials) => {
             <p>Retro TUI components powered by Vue 3 and TypeScript</p>
         </div>
 
+        <WhiptailTitlebar title="System Configuration Title bar">
+            <template #actions>
+                <WhiptailButton @click="handleHelp">?</WhiptailButton>
+                <WhiptailButton variant="cancel" @click="handleClose">X</WhiptailButton>
+            </template>
+        </WhiptailTitlebar>
+
         <!-- Output Event Console -->
         <div class="wt-dialog console-dialog">
             <div class="wt-title">Event Log Output</div>
