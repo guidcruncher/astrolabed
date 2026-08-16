@@ -105,7 +105,10 @@ const handleKeyDown = (event: KeyboardEvent): void => {
 
   event.preventDefault();
   if (targetIndex !== -1) {
-    focusTab(props.tabs[targetIndex].id);
+    const targetTab = props.tabs[targetIndex];
+    if (targetTab?.id) {
+      focusTab(targetTab.id);
+    }
   }
 };
 
@@ -218,3 +221,4 @@ onBeforeUnmount(() => {
   padding: 4px;
 }
 </style>
+
