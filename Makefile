@@ -32,12 +32,15 @@ metrics:
 	curl -v http://127.0.0.1:1080/metrics
 
 restore:
+	cd ./src/ClientUI && npm install
 	dotnet restore $(SOLUTION)
 
 build:
+	cd ./src/ClientUI && npm run build
 	dotnet build $(SOLUTION) -c Release
 
 format:
+	cd ./src/ClientUI && npm run format
 	dotnet format $(SOLUTION)
 
 format-json:
@@ -48,11 +51,13 @@ format-json:
 	done
 
 run:
+	cd ./src/ClientUI && npm run build
 	ASPNETCORE_ENVIRONMENT=Production \
 	DOTNET_ENVIRONMENT=Production \
 	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
 
 dev:
+	cd ./src/ClientUI && npm run dev
 	ASPNETCORE_ENVIRONMENT=Development \
 	DOTNET_ENVIRONMENT=Development \
 	dotnet run --project $(PROJECT) -c Debug -- --config appsettings.Development.json
@@ -64,6 +69,7 @@ test:
 	dotnet test $(SOLUTION) -c Release
 
 clean:
+	cd ./src/ClientUI && npm run clean
 	dotnet clean $(SOLUTION)
 	rm -rf $(BUILD_DIR) publish/ BenchmarkDotNet.Artifacts
 	find . -type d \( -name "bin" -o -name "obj" \) -exec rm -rf {} +

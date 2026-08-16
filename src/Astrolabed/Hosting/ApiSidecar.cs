@@ -155,11 +155,15 @@ public static class ApiSidecar
 
                     logger.LogInformation($"Kestrel is serving Client from {contentPath}");
 
+		    app.UseDefaultFiles();
+
                     app.UseStaticFiles(new StaticFileOptions
                     {
                         FileProvider = new PhysicalFileProvider(contentPath),
                         RequestPath = ""
                     });
+
+		    app.MapFallbackToFile("index.html");
 
                     // Authentication and Authorization middleware registered on IApplicationBuilder
                     app.UseAuthentication();

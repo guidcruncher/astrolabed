@@ -1,0 +1,145 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: "DejaVu Sans Mono", "Courier New", monospace;
+}
+
+body {
+    background-color: #000;
+    color: #e0e0e0;
+}
+
+.wt-screen {
+    width: 100vw;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.wt-dialog {
+    background-color: #1b1b1b;
+    border: 2px solid #c0c0c0;
+    box-shadow: 0 0 0 1px #000, 0 0 10px #000;
+    margin: 20px auto;
+    max-width: 600px;
+}
+
+.wt-title {
+    background-color: #005f87;
+    color: #fff;
+    padding: 6px 10px;
+    font-weight: bold;
+    border-bottom: 1px solid #000;
+}
+
+.wt-body {
+    padding: 12px 14px;
+    line-height: 1.4;
+}
+
+.wt-footer {
+    padding: 8px 10px;
+    border-top: 1px solid #000;
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    background-color: #1b1b1b;
+}
+
+.wt-btn {
+    min-width: 80px;
+    padding: 3px 10px;
+    border: 1px solid #c0c0c0;
+    background-color: #3a3a3a;
+    color: #fff;
+    cursor: pointer;
+    text-align: center;
+}
+.wt-btn:hover { background-color: #4f4f4f; }
+.wt-btn:active { background-color: #2a2a2a; }
+
+.wt-btn-ok { border-color: #00ff00; }
+.wt-btn-cancel { border-color: #ff0000; }
+
+.wt-input {
+    width: 100%;
+    padding: 4px 6px;
+    background-color: #000;
+    border: 1px solid #5f5f5f;
+    color: #e0e0e0;
+}
+.wt-input:focus {
+    outline: none;
+    border-color: #ffff00;
+}
+
+.wt-list {
+    margin-top: 10px;
+    border: 1px solid #5f5f5f;
+    background-color: #000;
+    padding: 6px;
+}
+
+.wt-list-item {
+    padding: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wt-list-item:hover {
+    background-color: #333;
+}
+
+.wt-list-item-selected {
+    background-color: #333;
+}
+
+.wt-checkbox {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #c0c0c0;
+    background-color: #000;
+}
+
+.wt-checkbox-checked {
+    background-color: #00ff00;
+}
+
+.wt-radio {
+    width: 14px;
+    height: 14px;
+    border: 1px solid #c0c0c0;
+    border-radius: 50%;
+    background-color: #000;
+}
+
+.wt-radio-checked {
+    background-color: #00ff00;
+}
+
+.wt-menu-arrow {
+    margin-left: auto;
+    color: #ffff00;
+}
+
+.wt-gauge {
+    margin-top: 10px;
+    border: 1px solid #5f5f5f;
+    background-color: #000;
+    height: 20px;
+    position: relative;
+}
+
+.wt-gauge-fill {
+    background-color: #00af00;
+    height: 100%;
+}
+
+.wt-message {
+    padding: 10px;
+    background-color: #000;
+    border: 1px solid #5f5f5f;
+    margin-top: 10px;
+}
