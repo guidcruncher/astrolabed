@@ -19,18 +19,18 @@ const handleClick = (event: MouseEvent): void => {
 </script>
 
 <template>
-!!
   <button
     type="button"
-    :class="{
+    :class="[
       'wt-btn',
-      'wt-btn-ok': variant === 'ok',
-      'wt-btn-cancel': variant === 'cancel'
-    }"
+      {
+        'wt-btn-ok': variant === 'ok',
+        'wt-btn-cancel': variant === 'cancel'
+      }
+    ]"
     :disabled="disabled"
     @click="handleClick"
   >
     <slot></slot>
   </button>
 </template>
-

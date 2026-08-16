@@ -51,20 +51,27 @@ body {
     background-color: #1b1b1b;
 }
 
+/* Consolidated Button Styles */
 .wt-btn {
-    min-width: 80px;
-    padding: 3px 10px;
+    min-width: 90px;
+    padding: 6px 14px;
+    font-size: 1rem;
+    font-family: inherit;
     border: 1px solid #c0c0c0;
     background-color: #3a3a3a;
     color: #fff;
     cursor: pointer;
     text-align: center;
 }
-.wt-btn:hover {
+.wt-btn:hover:not(:disabled) {
     background-color: #4f4f4f;
 }
-.wt-btn:active {
+.wt-btn:active:not(:disabled) {
     background-color: #2a2a2a;
+}
+.wt-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .wt-btn-ok {
@@ -155,32 +162,4 @@ body {
     background-color: #000;
     border: 1px solid #5f5f5f;
     margin-top: 10px;
-}
-
-.wt-btn {
-    min-width: 90px;
-    padding: 6px 14px;
-    font-size: 1rem;
-    font-family: inherit;
-    border: 1px solid #c0c0c0;
-    background-color: #3a3a3a;
-    color: #fff;
-    cursor: pointer;
-    text-align: center;
-}
-.wt-btn:hover:not(:disabled) {
-    background-color: #4f4f4f;
-}
-.wt-btn:active:not(:disabled) {
-    background-color: #2a2a2a;
-}
-.wt-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-.wt-btn-ok {
-    border-color: #00ff00;
-}
-.wt-btn-cancel {
-    border-color: #ff0000;
 }
