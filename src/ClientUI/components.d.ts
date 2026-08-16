@@ -29,6 +29,7 @@ declare module 'vue' {
     WhiptailInput: typeof import('./src/components/WhiptailInput.vue')['default']
     WhiptailInputBox: typeof import('./src/components/WhiptailInputBox.vue')['default']
     WhiptailLabel: typeof import('./src/components/WhiptailLabel.vue')['default']
+    WhiptailList: typeof import('./src/components/WhiptailList.vue')['default']
     WhiptailLoginBox: typeof import('./src/components/WhiptailLoginBox.vue')['default']
     WhiptailMenuList: typeof import('./src/components/WhiptailMenuList.vue')['default']
     WhiptailMessageBox: typeof import('./src/components/WhiptailMessageBox.vue')['default']

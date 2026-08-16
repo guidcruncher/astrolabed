@@ -1,3 +1,11 @@
+export interface WhiptailListItem<TValue = any> {
+    label: string
+    value: TValue
+    tag?: string
+    description?: string
+    disabled?: boolean
+}
+
 export interface TabItem {
     id: string
     label: string
