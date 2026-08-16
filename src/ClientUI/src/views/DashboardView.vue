@@ -44,7 +44,7 @@ const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
   const dynamic = lanDevices.value.map((device) => ({
     label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
     value: device.ipAddress,
-  })
+  }))
   return [...defaults, ...dynamic]
 })
 
