@@ -13,6 +13,7 @@ declare module 'vue' {
   export interface GlobalComponents {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']
     WhiptailCheckbox: typeof import('./src/components/WhiptailCheckbox.vue')['default']
     WhiptailCheckboxGroup: typeof import('./src/components/WhiptailCheckboxGroup.vue')['default']
     WhiptailChecklist: typeof import('./src/components/WhiptailChecklist.vue')['default']
