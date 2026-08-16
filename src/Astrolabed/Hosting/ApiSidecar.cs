@@ -89,7 +89,7 @@ public static class ApiSidecar
                         options.Cookie.HttpOnly = true;
                         options.Cookie.SameSite = SameSiteMode.Strict;
                         options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                        // Return HTTP status codes instead of redirecting (since this is a Web API)
+
                         options.Events.OnRedirectToLogin = context =>
                         {
                             context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -125,9 +125,13 @@ public static class ApiSidecar
             })
             .ConfigureWebHostDefaults(web =>
             {
+                web.UseSetting(WebHostDefaults.EnvironmentKey,
+                    mainHost.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
+	
                 web.UseKestrel(options =>
                 {
                     options.AddServerHeader = false;
+
                     if (IPAddress.TryParse(serverOptions.WebUI.ListenAddress, out var ip))
                     {
                         options.Listen(ip, serverOptions.WebUI.ListenPort);
@@ -146,16 +150,18 @@ public static class ApiSidecar
                 web.Configure((context, app) =>
                 {
                     app.UseRouting();
+
                     var contentPath = "/app/ClientUI";
 
                     if (context.HostingEnvironment.IsDevelopment())
                     {
-                        contentPath = Path.GetFullPath(Path.Combine(context.HostingEnvironment.ContentRootPath, "../ClientUI/dist/"));
+                        contentPath = Path.GetFullPath(
+                            Path.Combine(context.HostingEnvironment.ContentRootPath, "../ClientUI/dist/"));
                     }
 
                     logger.LogInformation($"Kestrel is serving Client from {contentPath}");
 
-		    app.UseDefaultFiles();
+                    app.UseDefaultFiles();
 
                     app.UseStaticFiles(new StaticFileOptions
                     {
@@ -163,15 +169,17 @@ public static class ApiSidecar
                         RequestPath = ""
                     });
 
-		    app.MapFallbackToFile("index.html");
-
-                    // Authentication and Authorization middleware registered on IApplicationBuilder
+                    // ❌ WRONG BEFORE: app.MapFallbackToFile("index.html");
+                    // ✅ FIXED: must be inside UseEndpoints
                     app.UseAuthentication();
                     app.UseAuthorization();
 
                     app.UseEndpoints(endpoints =>
                     {
                         endpoints.MapControllers();
+
+                        // Vue SPA fallback routing
+                        endpoints.MapFallbackToFile("index.html");
 
                         if (context.HostingEnvironment.IsDevelopment())
                         {
@@ -192,13 +200,14 @@ public static class ApiSidecar
             .Build();
 
         _ = apiHost.RunAsync(lifetime.ApplicationStopping).ContinueWith(t =>
+        {
+            if (t.IsFaulted && t.Exception is not null)
             {
-                if (t.IsFaulted && t.Exception is not null)
-                {
-                    logger.LogError(t.Exception, "API sidecar encountered an error during execution.");
-                }
-            });
+                logger.LogError(t.Exception, "API sidecar encountered an error during execution.");
+            }
+        });
 
         logger.LogInformation("API sidecar started successfully.");
     }
 }
+
