@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import WhiptailDialog from './WhiptailDialog.vue'
+import WhiptailFormGroup from './WhiptailFormGroup.vue'
+import WhiptailInput from './WhiptailInput.vue'
 
 const modelValue = defineModel<string>({ default: '' })
 
@@ -38,13 +40,13 @@ const handleSubmit = (): void => {
         @ok="handleSubmit"
         @cancel="emit('cancel')"
     >
-        <label v-if="label">{{ label }}</label>
-        <input
-            v-model="modelValue"
-            type="text"
-            class="wt-input"
-            :placeholder="placeholder"
-            @keyup.enter="handleSubmit"
-        />
+        <WhiptailFormGroup :label="label">
+            <WhiptailInput
+                v-model="modelValue"
+                :placeholder="placeholder"
+                autofocus
+                @enter="handleSubmit"
+            />
+        </WhiptailFormGroup>
     </WhiptailDialog>
 </template>
