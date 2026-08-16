@@ -45,7 +45,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, type ComponentPublicInstance } from 'vue';
-import type { TabItem } from "./types"
+import type { TabItem } from "./types";
 
 interface Props {
   tabs: TabItem[];
@@ -135,14 +135,14 @@ onBeforeUnmount(() => {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
-/* Dialog Container */
+/* Dialog Container - Updated to fill container width */
 .wt-dialog.wt-tabs-container {
   font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
   background-color: #1b1b1b;
   border: 2px solid #c0c0c0;
   box-shadow: 0 0 0 1px #000, 0 0 10px #000;
-  margin: 20px auto;
-  max-width: 600px;
+  margin: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -218,4 +218,3 @@ onBeforeUnmount(() => {
   padding: 4px;
 }
 </style>
-
