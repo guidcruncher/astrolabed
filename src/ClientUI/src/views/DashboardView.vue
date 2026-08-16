@@ -6,6 +6,7 @@ import {
   type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
 import WhiptailCombobox from '../components/WhiptailCombobox.vue'
+import WhiptailButton from '../components/WhiptailButton.vue'
 import type { WhiptailOption } from '../components/types'
 
 // Initialize API Composable
@@ -43,7 +44,7 @@ const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
   const dynamic = lanDevices.value.map((device) => ({
     label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
     value: device.ipAddress,
-  }))
+  })
   return [...defaults, ...dynamic]
 })
 
@@ -97,89 +98,93 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="wt-dashboard">
-    <!-- Header -->
-    <header class="wt-header">
-      <div class="wt-header-title">
-        <h1>Astrolabed Control Center</h1>
-        <span class="wt-badge" :class="{ 'wt-badge-active': !loading }">
-          {{ loading ? 'SYSTEM BUSY' : 'ONLINE' }}
+  <div class="wt-screen">
+    <!-- Header Dialog -->
+    <header class="wt-dialog">
+      <div class="wt-title wt-header-title">
+        <span>[ Astrolabed Control Center ]</span>
+        <span class="wt-status-indicator" :class="{ 'wt-status-busy': loading }">
+          &lt; {{ loading ? 'PROCESSING' : 'ONLINE' }} &gt;
         </span>
       </div>
-      <button type="button" class="wt-button wt-button-danger" @click="handleFlushCache">
-        Flush DNS Cache
-      </button>
+      <div class="wt-body wt-header-body">
+        <span>System Diagnostics & Status Overview</span>
+        <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
+          Flush Cache
+        </WhiptailButton>
+      </div>
     </header>
 
     <!-- Error Banner -->
-    <div v-if="error" class="wt-alert-error">
-      <strong>System Alert:</strong>
-      {{ typeof error === 'string' ? error : error.detail || error.title || 'An API error occurred' }}
+    <div v-if="error" class="wt-dialog wt-alert-error">
+      <div class="wt-title wt-title-error">SYSTEM ERROR</div>
+      <div class="wt-body">
+        {{ typeof error === 'string' ? error : error.detail || error.title || 'An API error occurred' }}
+      </div>
     </div>
 
     <!-- Stat Cards Grid -->
     <div class="wt-stats-grid">
-      <div class="wt-card">
-        <div class="wt-card-label">Total DNS Events</div>
-        <div class="wt-card-value">{{ totalEventsCount }}</div>
+      <div class="wt-dialog wt-stat-box">
+        <div class="wt-title">DNS Events</div>
+        <div class="wt-body wt-stat-value">{{ totalEventsCount }}</div>
       </div>
-      <div class="wt-card">
-        <div class="wt-card-label">Active DHCP Leases</div>
-        <div class="wt-card-value">{{ activeLeasesCount }}</div>
+      <div class="wt-dialog wt-stat-box">
+        <div class="wt-title">DHCP Leases</div>
+        <div class="wt-body wt-stat-value">{{ activeLeasesCount }}</div>
       </div>
-      <div class="wt-card">
-        <div class="wt-card-label">Discovered Network Devices</div>
-        <div class="wt-card-value">{{ lanDevices.length }}</div>
+      <div class="wt-dialog wt-stat-box">
+        <div class="wt-title">LAN Devices</div>
+        <div class="wt-body wt-stat-value">{{ lanDevices.length }}</div>
       </div>
     </div>
 
     <!-- Main Content Layout -->
     <div class="wt-dashboard-body">
       <!-- Left Column: Interactive DNS Query Sandbox -->
-      <section class="wt-card wt-panel">
-        <h2>Quick DNS Lookup</h2>
-        <div class="wt-form-group">
-          <label class="wt-label">Target Domain / IP</label>
-          <!-- Custom Whiptail Combobox -->
-          <WhiptailCombobox
-            v-model="selectedDomain"
-            :options="deviceComboboxOptions"
-            placeholder="Type or select domain..."
-          />
-        </div>
-
-        <div class="wt-form-row">
+      <section class="wt-dialog">
+        <div class="wt-title">Quick DNS Lookup</div>
+        <div class="wt-body">
           <div class="wt-form-group">
-            <label class="wt-label">Record Type</label>
-            <select v-model="selectedRecordType" class="wt-select">
-              <option value="A">A (IPv4)</option>
-              <option value="AAAA">AAAA (IPv6)</option>
-              <option value="CNAME">CNAME</option>
-              <option value="MX">MX</option>
-              <option value="TXT">TXT</option>
-            </select>
+            <label class="wt-label">Target Domain / IP</label>
+            <WhiptailCombobox
+              v-model="selectedDomain"
+              :options="deviceComboboxOptions"
+              placeholder="< Type or select option >"
+            />
           </div>
-          <button
-            type="button"
-            class="wt-button wt-button-primary"
-            :disabled="loading || !selectedDomain"
-            @click="handleDnsLookup"
-          >
-            Query
-          </button>
-        </div>
 
-        <!-- Raw JSON Query Result -->
-        <div v-if="queryResult" class="wt-result-box">
-          <div class="wt-result-header">Response Data:</div>
-          <pre class="wt-code-block">{{ JSON.stringify(queryResult, null, 2) }}</pre>
+          <div class="wt-form-row">
+            <div class="wt-form-group">
+              <label class="wt-label">Record Type</label>
+              <select v-model="selectedRecordType" class="wt-input wt-select">
+                <option value="A">A (IPv4)</option>
+                <option value="AAAA">AAAA (IPv6)</option>
+                <option value="CNAME">CNAME</option>
+                <option value="MX">MX</option>
+                <option value="TXT">TXT</option>
+              </select>
+            </div>
+            <WhiptailButton
+              class="wt-btn-ok"
+              :disabled="loading || !selectedDomain"
+              @click="handleDnsLookup"
+            >
+              Query
+            </WhiptailButton>
+          </div>
+
+          <!-- Raw JSON Query Result -->
+          <div v-if="queryResult" class="wt-message wt-result-box">
+            <pre class="wt-code-block">{{ JSON.stringify(queryResult, null, 2) }}</pre>
+          </div>
         </div>
       </section>
 
       <!-- Right Column: Discovered Devices Table -->
-      <section class="wt-card wt-panel">
-        <h2>LAN Network Devices</h2>
-        <div class="wt-table-wrapper">
+      <section class="wt-dialog">
+        <div class="wt-title">LAN Network Devices</div>
+        <div class="wt-body wt-table-wrapper">
           <table class="wt-table">
             <thead>
               <tr>
@@ -191,11 +196,11 @@ onMounted(() => {
             <tbody>
               <tr v-for="dev in lanDevices" :key="dev.macAddress">
                 <td>{{ dev.hostName || '< Unknown >' }}</td>
-                <td class="wt-code-text">{{ dev.ipAddress }}</td>
-                <td class="wt-code-text">{{ dev.macAddress }}</td>
+                <td>{{ dev.ipAddress }}</td>
+                <td>{{ dev.macAddress }}</td>
               </tr>
               <tr v-if="lanDevices.length === 0">
-                <td colspan="3" class="wt-text-muted">No devices discovered yet.</td>
+                <td colspan="3" class="wt-text-muted">&lt; No devices discovered &gt;</td>
               </tr>
             </tbody>
           </table>
@@ -204,18 +209,20 @@ onMounted(() => {
     </div>
 
     <!-- Recent DNS Response Events Feed -->
-    <section class="wt-card wt-panel wt-mt">
-      <div class="wt-panel-header">
-        <h2>Recent DNS Activity</h2>
-        <button type="button" class="wt-button-link" @click="refreshDashboardData">Refresh Logs</button>
+    <section class="wt-dialog wt-mt">
+      <div class="wt-title wt-box-header">
+        <span>Recent DNS Activity</span>
+        <WhiptailButton @click="refreshDashboardData">
+          Refresh Logs
+        </WhiptailButton>
       </div>
 
-      <div class="wt-table-wrapper">
+      <div class="wt-body wt-table-wrapper">
         <table class="wt-table">
           <thead>
             <tr>
               <th>Timestamp</th>
-              <th>Client IP</th>
+              <th>Client</th>
               <th>Query Name</th>
               <th>Type</th>
               <th>Status</th>
@@ -226,20 +233,17 @@ onMounted(() => {
             <tr v-for="evt in recentEvents" :key="evt.timestamp + evt.queryName">
               <td>{{ new Date(evt.timestamp).toLocaleTimeString() }}</td>
               <td>{{ evt.clientName ? `${evt.clientName} (${evt.clientIp})` : evt.clientIp }}</td>
-              <td class="wt-code-text">{{ evt.queryName }}</td>
-              <td><span class="wt-tag">{{ evt.queryType }}</span></td>
+              <td>{{ evt.queryName }}</td>
+              <td>[{{ evt.queryType }}]</td>
               <td>
-                <span
-                  class="wt-status"
-                  :class="evt.status === 'NOERROR' ? 'wt-status-ok' : 'wt-status-err'"
-                >
+                <span :class="evt.status === 'NOERROR' ? 'wt-text-ok' : 'wt-text-err'">
                   {{ evt.status }}
                 </span>
               </td>
-              <td class="wt-code-text">{{ evt.responseIp || '-' }}</td>
+              <td>{{ evt.responseIp || '-' }}</td>
             </tr>
             <tr v-if="recentEvents.length === 0">
-              <td colspan="6" class="wt-text-muted">No recent DNS query logs found.</td>
+              <td colspan="6" class="wt-text-muted">&lt; No recent DNS logs found &gt;</td>
             </tr>
           </tbody>
         </table>
@@ -249,84 +253,102 @@ onMounted(() => {
 </template>
 
 <style scoped>
-.wt-dashboard {
-  padding: 24px;
-  background-color: #0d1117;
-  color: #c9d1d9;
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+.wt-screen {
+  width: 100vw;
   min-height: 100vh;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  padding: 20px;
+  background-color: #000;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  font-size: 16px;
+  box-sizing: border-box;
 }
 
-.wt-header {
+.wt-dialog {
+  background-color: #1b1b1b;
+  border: 2px solid #c0c0c0;
+  box-shadow:
+    0 0 0 1px #000,
+    0 0 10px #000;
+  margin: 0 0 20px 0;
+  max-width: 100%;
+}
+
+.wt-title {
+  background-color: #005f87;
+  color: #fff;
+  padding: 6px 10px;
+  font-weight: bold;
+  border-bottom: 1px solid #000;
+}
+
+.wt-title-error {
+  background-color: #870000;
+}
+
+.wt-body {
+  padding: 12px 14px;
+  line-height: 1.4;
+}
+
+.wt-footer {
+  padding: 8px 10px;
+  border-top: 1px solid #000;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  background-color: #1b1b1b;
+}
+
+/* Header & Title Adjustments */
+.wt-header-title {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #30363d;
-  padding-bottom: 16px;
 }
 
-.wt-header-title {
+.wt-header-body {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
 }
 
-.wt-header h1 {
-  margin: 0;
-  font-size: 1.5rem;
-  color: #f0f6fc;
-}
-
-.wt-badge {
-  padding: 2px 8px;
-  font-size: 0.75rem;
-  border-radius: 12px;
-  background-color: #30363d;
-  color: #8b949e;
+.wt-status-indicator {
+  color: #00ff00;
   font-weight: bold;
 }
 
-.wt-badge-active {
-  background-color: #238636;
-  color: #ffffff;
+.wt-status-busy {
+  color: #ffff00;
 }
 
-.wt-alert-error {
-  background-color: #3c1e1e;
-  border: 1px solid #f85149;
-  color: #ff7b72;
-  padding: 12px;
-  border-radius: 6px;
+/* Stats Layout */
+.wt-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
   margin-bottom: 20px;
 }
 
-.wt-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+.wt-stat-box {
+  margin: 0;
 }
 
-.wt-card {
-  background-color: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  padding: 16px;
-}
-
-.wt-card-label {
-  font-size: 0.85rem;
-  color: #8b949e;
-  margin-bottom: 8px;
-}
-
-.wt-card-value {
-  font-size: 1.8rem;
+.wt-stat-value {
+  font-size: 2rem;
+  color: #fff;
   font-weight: bold;
-  color: #f0f6fc;
+  text-align: center;
 }
 
+/* Alert Error Override */
+.wt-alert-error {
+  border-color: #ff0000;
+}
+
+/* Main Body Layout */
 .wt-dashboard-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -339,22 +361,9 @@ onMounted(() => {
   }
 }
 
-.wt-panel h2 {
-  margin-top: 0;
-  font-size: 1.1rem;
-  color: #f0f6fc;
-  margin-bottom: 16px;
-}
-
-.wt-panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
+/* Form Styles using standard .wt-input and .wt-label */
 .wt-form-group {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .wt-form-row {
@@ -365,67 +374,51 @@ onMounted(() => {
 
 .wt-label {
   display: block;
-  font-size: 0.85rem;
-  margin-bottom: 6px;
-  color: #8b949e;
+  font-size: 0.9rem;
+  color: #c0c0c0;
+  margin-bottom: 4px;
+}
+
+.wt-input {
+  width: 100%;
+  padding: 4px 6px;
+  background-color: #000;
+  border: 1px solid #5f5f5f;
+  color: #e0e0e0;
+  font-family: inherit;
+}
+
+.wt-input:focus {
+  outline: none;
+  border-color: #ffff00;
 }
 
 .wt-select {
-  width: 100%;
-  padding: 8px;
-  background-color: #0d1117;
-  border: 1px solid #30363d;
-  color: #c9d1d9;
-  border-radius: 4px;
-}
-
-.wt-button {
-  padding: 8px 16px;
-  border-radius: 6px;
-  font-weight: 600;
   cursor: pointer;
-  border: none;
 }
 
-.wt-button-primary {
-  background-color: #238636;
-  color: #ffffff;
-}
-
-.wt-button-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.wt-button-danger {
-  background-color: #da3633;
-  color: #ffffff;
-}
-
-.wt-button-link {
-  background: none;
-  border: none;
-  color: #58a6ff;
-  cursor: pointer;
-  text-decoration: underline;
+/* Code Output */
+.wt-message {
+  padding: 10px;
+  background-color: #000;
+  border: 1px solid #5f5f5f;
+  margin-top: 10px;
 }
 
 .wt-result-box {
-  margin-top: 16px;
-  background-color: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 4px;
-  padding: 12px;
+  margin-top: 12px;
 }
 
 .wt-code-block {
-  margin: 8px 0 0;
-  font-family: monospace;
-  font-size: 0.85rem;
-  color: #7ee787;
+  margin: 0;
+  color: #00ff00;
+  font-size: 0.9rem;
   overflow-x: auto;
+  white-space: pre-wrap;
+  font-family: inherit;
 }
 
+/* Table Design matching Whiptail aesthetics */
 .wt-table-wrapper {
   overflow-x: auto;
 }
@@ -438,38 +431,37 @@ onMounted(() => {
 }
 
 .wt-table th {
-  border-bottom: 1px solid #30363d;
-  padding: 8px;
-  color: #8b949e;
+  border-bottom: 1px solid #c0c0c0;
+  padding: 6px;
+  color: #ffff00;
 }
 
 .wt-table td {
-  border-bottom: 1px solid #21262d;
-  padding: 10px 8px;
+  border-bottom: 1px solid #333333;
+  padding: 6px;
 }
 
-.wt-code-text {
-  font-family: monospace;
+.wt-table tr:hover {
+  background-color: #333;
 }
 
-.wt-tag {
-  background-color: #21262d;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 0.75rem;
+.wt-text-ok {
+  color: #00ff00;
 }
 
-.wt-status-ok {
-  color: #7ee787;
-}
-
-.wt-status-err {
-  color: #ff7b72;
+.wt-text-err {
+  color: #ff0000;
 }
 
 .wt-text-muted {
-  color: #8b949e;
+  color: #5f5f5f;
   text-align: center;
+}
+
+.wt-box-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .wt-mt {

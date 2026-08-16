@@ -88,7 +88,7 @@ public static class ApiSidecar
                         options.Cookie.Name = "Astrolabed.Auth";
                         options.Cookie.HttpOnly = true;
                         options.Cookie.SameSite = SameSiteMode.Strict;
-                        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 
                         options.Events.OnRedirectToLogin = context =>
                         {

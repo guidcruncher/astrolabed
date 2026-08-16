@@ -105,6 +105,6 @@ public sealed class AuthController : ControllerBase
     private static bool ValidateCredentials(string username, string password)
     {
         // Static validation stub - replace with secure password hashing verification (e.g. BCrypt, Argon2, Identity PasswordHasher)
-        return username.Equals("admin", StringComparison.OrdinalIgnoreCase) && password == "Secret123!";
+        return username.Equals("admin", StringComparison.OrdinalIgnoreCase) && password == "password";
     }
 }
