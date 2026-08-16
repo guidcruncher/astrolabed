@@ -51,8 +51,8 @@ public static class MetricsSidecar
             })
             .ConfigureWebHostDefaults(web =>
             {
-web.UseSetting(WebHostDefaults.EnvironmentKey,
-                    mainHost.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
+                web.UseSetting(WebHostDefaults.EnvironmentKey,
+                                    mainHost.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
 
                 web.UseKestrel(options =>
                 {

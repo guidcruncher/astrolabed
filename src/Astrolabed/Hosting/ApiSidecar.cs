@@ -127,7 +127,7 @@ public static class ApiSidecar
             {
                 web.UseSetting(WebHostDefaults.EnvironmentKey,
                     mainHost.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
-	
+
                 web.UseKestrel(options =>
                 {
                     options.AddServerHeader = false;
@@ -160,17 +160,22 @@ public static class ApiSidecar
                     }
 
                     logger.LogInformation($"Kestrel is serving Client from {contentPath}");
+                    web.UseWebRoot(contentPath);
 
-                    app.UseDefaultFiles();
+                    var fileProvider = new PhysicalFileProvider(contentPath);
 
-                    app.UseStaticFiles(new StaticFileOptions
+                    app.UseDefaultFiles(new DefaultFilesOptions
                     {
-                        FileProvider = new PhysicalFileProvider(contentPath),
+                        FileProvider = fileProvider,
                         RequestPath = ""
                     });
 
-                    // ❌ WRONG BEFORE: app.MapFallbackToFile("index.html");
-                    // ✅ FIXED: must be inside UseEndpoints
+                    app.UseStaticFiles(new StaticFileOptions
+                    {
+                        FileProvider = fileProvider,
+                        RequestPath = ""
+                    });
+
                     app.UseAuthentication();
                     app.UseAuthorization();
 
@@ -210,4 +215,3 @@ public static class ApiSidecar
         logger.LogInformation("API sidecar started successfully.");
     }
 }
-
