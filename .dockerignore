@@ -129,7 +129,7 @@ playwright-report/
 **/*.test.tsx
 **/*.spec.ts
 **/*.spec.tsx
-**/**tests**/
+# **/**tests**/
 **/**mocks**/
 
 # IDE and editors
