@@ -17,7 +17,7 @@ const levelOptions: WhiptailOption[] = [
     <div class="wt-section-body">
         <div class="wt-form-group">
             <label class="wt-label">Logging Level</label>
-            <WhiptailCombobox v-model="config.Level" :options="levelOptions" />
+            <WhiptailCombobox v-model="config.level" :options="levelOptions" />
         </div>
     </div>
 </template>

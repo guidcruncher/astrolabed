@@ -7,15 +7,15 @@ const config = defineModel<WebUiOptions>({ required: true })
     <div class="wt-section-body">
         <div class="wt-form-row wt-form-group">
             <div style="flex: 1">
-                <WhiptailCheckbox v-model="config.Enabled" label="Enable Web UI" />
+                <WhiptailCheckbox v-model="config.enabled" label="Enable Web UI" />
             </div>
             <div style="flex: 2">
                 <label class="wt-label">Listen Address</label>
-                <input v-model="config.ListenAddress" type="text" class="wt-input" />
+                <input v-model="config.listenAddress" type="text" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Listen Port</label>
-                <input v-model.number="config.ListenPort" type="number" class="wt-input" />
+                <input v-model.number="config.listenPort" type="number" class="wt-input" />
             </div>
         </div>
     </div>

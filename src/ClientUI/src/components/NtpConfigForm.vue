@@ -3,11 +3,11 @@ import { type NtpOptions } from '../composables/useServerOptions'
 const config = defineModel<NtpOptions>({ required: true })
 
 const addUpstreamServer = (): void => {
-    config.value.Upstream.Servers.push('')
+    config.value.upstream.servers.push('')
 }
 
 const removeUpstreamServer = (index: number): void => {
-    config.value.Upstream.Servers.splice(index, 1)
+    config.value.upstream.servers.splice(index, 1)
 }
 </script>
 
@@ -15,30 +15,30 @@ const removeUpstreamServer = (index: number): void => {
     <div class="wt-section-body">
         <div class="wt-form-row wt-form-group">
             <div style="flex: 1">
-                <WhiptailCheckbox v-model="config.Enabled" label="Enable NTP Service" />
+                <WhiptailCheckbox v-model="config.enabled" label="Enable NTP Service" />
             </div>
             <div style="flex: 2">
                 <label class="wt-label">Listen Address</label>
-                <input v-model="config.ListenAddress" type="text" class="wt-input" />
+                <input v-model="config.listenAddress" type="text" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Port</label>
-                <input v-model.number="config.Port" type="number" class="wt-input" />
+                <input v-model.number="config.port" type="number" class="wt-input" />
             </div>
         </div>
 
         <div class="wt-form-row wt-form-group">
             <div style="flex: 1">
                 <label class="wt-label">Buffer Size</label>
-                <input v-model.number="config.BufferSize" type="number" class="wt-input" />
+                <input v-model.number="config.bufferSize" type="number" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Stratum Level</label>
-                <input v-model.number="config.Stratum" type="number" class="wt-input" />
+                <input v-model.number="config.stratum" type="number" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Reference ID</label>
-                <input v-model="config.ReferenceId" type="text" class="wt-input" />
+                <input v-model="config.referenceId" type="text" class="wt-input" />
             </div>
         </div>
 
@@ -50,14 +50,14 @@ const removeUpstreamServer = (index: number): void => {
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <WhiptailCheckbox
-                        v-model="config.Upstream.Enabled"
+                        v-model="config.upstream.enabled"
                         label="Sync with Upstream"
                     />
                 </div>
                 <div style="flex: 2">
                     <label class="wt-label">Poll Interval (Seconds)</label>
                     <input
-                        v-model.number="config.Upstream.PollIntervalSeconds"
+                        v-model.number="config.upstream.pollIntervalSeconds"
                         type="number"
                         class="wt-input"
                     />
@@ -70,12 +70,12 @@ const removeUpstreamServer = (index: number): void => {
                     <WhiptailButton @click="addUpstreamServer">+ Add Server</WhiptailButton>
                 </div>
                 <div
-                    v-for="(_, idx) in config.Upstream.Servers"
+                    v-for="(_, idx) in config.upstream.servers"
                     :key="idx"
                     class="wt-form-row"
                     style="margin-bottom: 6px"
                 >
-                    <input v-model="config.Upstream.Servers[idx]" type="text" class="wt-input" />
+                    <input v-model="config.upstream.servers[idx]" type="text" class="wt-input" />
                     <WhiptailButton variant="cancel" @click="removeUpstreamServer(Number(idx))"
                         >X</WhiptailButton
                     >

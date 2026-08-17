@@ -1,132 +1,132 @@
 import { ref, readonly, type Ref } from 'vue'
 
 export interface ServerOptions {
-    Dns: DnsOptions
-    Dhcp: DhcpOptions
-    Ntp: NtpOptions
-    Metrics: MetricsOptions
-    WebUI: WebUiOptions
-    DbOptions: DbOptions
-    NetworkScanner: NetworkScannerOptions
-    Logging: LoggingOptions
+    dns: DnsOptions
+    dhcp: DhcpOptions
+    ntp: NtpOptions
+    metrics: MetricsOptions
+    webUi: WebUiOptions
+    dbOptions: DbOptions
+    networkScanner: NetworkScannerOptions
+    logging: LoggingOptions
 }
 
 export interface DnsOptions {
-    Listen: Listen
-    UpstreamTimeoutMs: number
-    DefaultResolvers: DefaultResolver[]
-    Resolvers: Resolver[]
-    Blocklists: any[]
-    Allowlists: any[]
-    HostsFiles: string[]
-    Caching: Caching
-    BlockResponse: BlockResponse
-    ConditionalForwarding: ConditionalForwarding
+    listen: Listen
+    upstreamTimeoutMs: number
+    defaultResolvers: DefaultResolver[]
+    resolvers: Resolver[]
+    blocklists: any[]
+    allowlists: any[]
+    hostsFiles: string[]
+    caching: Caching
+    blockResponse: BlockResponse
+    conditionalForwarding: ConditionalForwarding
 }
 
 export interface Listen {
-    Address: string
-    Port: number
+    address: string
+    port: number
 }
 
 export interface DefaultResolver {
-    Name: string
-    Address: string
-    Port: number
+    name: string
+    address: string
+    port: number
 }
 
 export interface Resolver {
-    Name: string
-    Address?: string
-    Port?: number
-    Rule: string
-    Block: boolean
+    name: string
+    address?: string
+    port?: number
+    rule: string
+    block: boolean
 }
 
 export interface Caching {
-    Enabled: boolean
-    TtlSeconds: number
-    MaxEntries: number
-    CleanupIntervalMinutes: number
+    enabled: boolean
+    ttlSeconds: number
+    maxEntries: number
+    cleanupIntervalMinutes: number
 }
 
 export interface BlockResponse {
-    Mode: string
-    StaticIp: string
-    Ttl: number
+    mode: string
+    staticIp: string
+    ttl: number
 }
 
 export interface ConditionalForwarding {
-    Enabled: boolean
-    DhcpServerIp: string
-    DhcpServerPort: number
-    LocalDomain: string
-    LocalSubnetCidr: string
-    ForwardNonFqdn: boolean
+    enabled: boolean
+    dhcpServerIp: string
+    dhcpServerPort: number
+    localDomain: string
+    localSubnetCidr: string
+    forwardNonFqdn: boolean
 }
 
 export interface DhcpOptions {
-    Enabled: boolean
-    ListenAddress: string
-    ListenPort: number
-    LeaseStorePath: string
-    BadIpStorePath: string
-    PoolCidr: string
-    ServerIdentifier: string
-    Router: string
-    DnsServer: string
-    NtpServer: string
-    DomainName: string
-    InterfaceMtu: number
-    TftpServerName: string
-    BootfileName: string
-    WebProxyServerUrl: string
-    LeaseHours: number
-    ArpTimeoutMs: number
+    enabled: boolean
+    listenAddress: string
+    listenPort: number
+    leaseStorePath: string
+    badIpStorePath: string
+    poolCidr: string
+    serverIdentifier: string
+    router: string
+    dnsServer: string
+    ntpServer: string
+    domainName: string
+    interfaceMtu: number
+    tftpServerName: string
+    bootfileName: string
+    webProxyServerUrl: string
+    leaseHours: number
+    arpTimeoutMs: number
 }
 
 export interface NtpOptions {
-    Enabled: boolean
-    ListenAddress: string
-    Port: number
-    BufferSize: number
-    Stratum: number
-    ReferenceId: string
-    Upstream: Upstream
+    enabled: boolean
+    listenAddress: string
+    port: number
+    bufferSize: number
+    stratum: number
+    referenceId: string
+    upstream: Upstream
 }
 
 export interface Upstream {
-    Enabled: boolean
-    Servers: string[]
-    PollIntervalSeconds: number
+    enabled: boolean
+    servers: string[]
+    pollIntervalSeconds: number
 }
 
 export interface MetricsOptions {
-    Enabled: boolean
-    StorageEngine: string
-    Location: string
-    ListenAddress: string
-    ListenPort: number
+    enabled: boolean
+    storageEngine: string
+    location: string
+    listenAddress: string
+    listenPort: number
 }
 
 export interface WebUiOptions {
-    Enabled: boolean
-    ListenAddress: string
-    ListenPort: number
+    enabled: boolean
+    listenAddress: string
+    listenPort: number
 }
 
 export interface DbOptions {
-    DatabaseProvider: string
-    ConnectionString: string
+    databaseProvider: string
+    connectionString: string
 }
 
 export interface NetworkScannerOptions {
-    MaxDegreeOfParallelism: number
-    PingTimeoutMs: number
+    maxDegreeOfParallelism: number
+    pingTimeoutMs: number
 }
 
 export interface LoggingOptions {
-    Level: string
+    level: string
 }
 
 export function useServerOptions(apiBaseUrl: string = '/api/configuration') {

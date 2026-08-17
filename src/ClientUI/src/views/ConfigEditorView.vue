@@ -55,35 +55,35 @@ onMounted(async () => {
             <!-- Tabbed Configuration Sections -->
             <WhiptailTabs v-model="activeTab" :tabs="tabs">
                 <template #dns>
-                    <DnsConfigForm v-model="configData.Dns" />
+                    <DnsConfigForm v-model="configData.dns" />
                 </template>
 
                 <template #dhcp>
-                    <DhcpConfigForm v-model="configData.Dhcp" />
+                    <DhcpConfigForm v-model="configData.dhcp" />
                 </template>
 
                 <template #ntp>
-                    <NtpConfigForm v-model="configData.Ntp" />
+                    <NtpConfigForm v-model="configData.ntp" />
                 </template>
 
                 <template #metrics>
-                    <MetricsConfigForm v-model="configData.Metrics" />
+                    <MetricsConfigForm v-model="configData.metrics" />
                 </template>
 
                 <template #webui>
-                    <WebUiConfigForm v-model="configData.WebUI" />
+                    <WebUiConfigForm v-model="configData.webUi" />
                 </template>
 
                 <template #db>
-                    <DbOptionsConfigForm v-model="configData.DbOptions" />
+                    <DbOptionsConfigForm v-model="configData.dbOptions" />
                 </template>
 
                 <template #scanner>
-                    <NetworkScannerConfigForm v-model="configData.NetworkScanner" />
+                    <NetworkScannerConfigForm v-model="configData.networkScanner" />
                 </template>
 
                 <template #logging>
-                    <LoggingConfigForm v-model="configData.Logging" />
+                    <LoggingConfigForm v-model="configData.logging" />
                 </template>
             </WhiptailTabs>
 

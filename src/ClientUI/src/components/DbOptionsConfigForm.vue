@@ -14,11 +14,11 @@ const providerOptions: WhiptailOption[] = [
     <div class="wt-section-body">
         <div class="wt-form-group">
             <label class="wt-label">Database Provider</label>
-            <WhiptailCombobox v-model="config.DatabaseProvider" :options="providerOptions" />
+            <WhiptailCombobox v-model="config.databaseProvider" :options="providerOptions" />
         </div>
         <div class="wt-form-group">
             <label class="wt-label">Connection String</label>
-            <input v-model="config.ConnectionString" type="text" class="wt-input" />
+            <input v-model="config.connectionString" type="text" class="wt-input" />
         </div>
     </div>
 </template>

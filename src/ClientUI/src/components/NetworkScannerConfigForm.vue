@@ -9,14 +9,14 @@ const config = defineModel<NetworkScannerOptions>({ required: true })
             <div style="flex: 1">
                 <label class="wt-label">Max Degree Of Parallelism</label>
                 <input
-                    v-model.number="config.MaxDegreeOfParallelism"
+                    v-model.number="config.maxDegreeOfParallelism"
                     type="number"
                     class="wt-input"
                 />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Ping Timeout (ms)</label>
-                <input v-model.number="config.PingTimeoutMs" type="number" class="wt-input" />
+                <input v-model.number="config.pingTimeoutMs" type="number" class="wt-input" />
             </div>
         </div>
     </div>

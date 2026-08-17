@@ -3,37 +3,33 @@ import type { WhiptailOption } from './types'
 import { type MetricsOptions } from '../composables/useServerOptions'
 const config = defineModel<MetricsOptions>({ required: true })
 
-const engineOptions: WhiptailOption[] = [
-    { label: 'Prometheus', value: 'prometheus' },
-    { label: 'InfluxDB', value: 'influxdb' },
-    { label: 'StatsD', value: 'statsd' },
-]
+const engineOptions: WhiptailOption[] = [{ label: 'Prometheus', value: 'prometheus' }]
 </script>
 
 <template>
     <div class="wt-section-body">
         <div class="wt-form-row wt-form-group">
             <div style="flex: 1">
-                <WhiptailCheckbox v-model="config.Enabled" label="Enable Metrics" />
+                <WhiptailCheckbox v-model="config.enabled" label="Enable Metrics" />
             </div>
             <div style="flex: 2">
                 <label class="wt-label">Storage Engine</label>
-                <WhiptailCombobox v-model="config.StorageEngine" :options="engineOptions" />
+                <WhiptailCombobox v-model="config.storageEngine" :options="engineOptions" />
             </div>
         </div>
 
         <div class="wt-form-row wt-form-group">
             <div style="flex: 2">
                 <label class="wt-label">Listen Address</label>
-                <input v-model="config.ListenAddress" type="text" class="wt-input" />
+                <input v-model="config.listenAddress" type="text" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Listen Port</label>
-                <input v-model.number="config.ListenPort" type="number" class="wt-input" />
+                <input v-model.number="config.listenPort" type="number" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Metrics Endpoint Location</label>
-                <input v-model="config.Location" type="text" class="wt-input" />
+                <input v-model="config.location" type="text" class="wt-input" />
             </div>
         </div>
     </div>

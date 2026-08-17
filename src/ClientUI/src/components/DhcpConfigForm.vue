@@ -7,15 +7,15 @@ const config = defineModel<DhcpOptions>({ required: true })
     <div class="wt-section-body">
         <div class="wt-form-row wt-form-group">
             <div style="flex: 1">
-                <WhiptailCheckbox v-model="config.Enabled" label="Enable DHCP Server" />
+                <WhiptailCheckbox v-model="config.enabled" label="Enable DHCP Server" />
             </div>
             <div style="flex: 2">
                 <label class="wt-label">Listen Address</label>
-                <input v-model="config.ListenAddress" type="text" class="wt-input" />
+                <input v-model="config.listenAddress" type="text" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Listen Port</label>
-                <input v-model.number="config.ListenPort" type="number" class="wt-input" />
+                <input v-model.number="config.listenPort" type="number" class="wt-input" />
             </div>
         </div>
 
@@ -27,29 +27,29 @@ const config = defineModel<DhcpOptions>({ required: true })
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <label class="wt-label">Pool CIDR</label>
-                    <input v-model="config.PoolCidr" type="text" class="wt-input" />
+                    <input v-model="config.poolCidr" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Server Identifier</label>
-                    <input v-model="config.ServerIdentifier" type="text" class="wt-input" />
+                    <input v-model="config.serverIdentifier" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Router / Gateway</label>
-                    <input v-model="config.Router" type="text" class="wt-input" />
+                    <input v-model="config.router" type="text" class="wt-input" />
                 </div>
             </div>
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <label class="wt-label">DNS Server</label>
-                    <input v-model="config.DnsServer" type="text" class="wt-input" />
+                    <input v-model="config.dnsServer" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">NTP Server</label>
-                    <input v-model="config.NtpServer" type="text" class="wt-input" />
+                    <input v-model="config.ntpServer" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Domain Name</label>
-                    <input v-model="config.DomainName" type="text" class="wt-input" />
+                    <input v-model="config.domainName" type="text" class="wt-input" />
                 </div>
             </div>
         </div>
@@ -62,41 +62,41 @@ const config = defineModel<DhcpOptions>({ required: true })
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <label class="wt-label">Lease Duration (Hours)</label>
-                    <input v-model.number="config.LeaseHours" type="number" class="wt-input" />
+                    <input v-model.number="config.leaseHours" type="number" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">ARP Timeout (ms)</label>
-                    <input v-model.number="config.ArpTimeoutMs" type="number" class="wt-input" />
+                    <input v-model.number="config.arpTimeoutMs" type="number" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Interface MTU</label>
-                    <input v-model.number="config.InterfaceMtu" type="number" class="wt-input" />
+                    <input v-model.number="config.interfaceMtu" type="number" class="wt-input" />
                 </div>
             </div>
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <label class="wt-label">TFTP Server Name</label>
-                    <input v-model="config.TftpServerName" type="text" class="wt-input" />
+                    <input v-model="config.tftpServerName" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Bootfile Name</label>
-                    <input v-model="config.BootfileName" type="text" class="wt-input" />
+                    <input v-model="config.bootfileName" type="text" class="wt-input" />
                 </div>
             </div>
             <div class="wt-form-group" style="margin-top: 8px">
                 <label class="wt-label">Web Proxy Auto-Discovery (WPAD) URL</label>
-                <input v-model="config.WebProxyServerUrl" type="text" class="wt-input" />
+                <input v-model="config.webProxyServerUrl" type="text" class="wt-input" />
             </div>
         </div>
 
         <!-- Path Storage Storage Locations -->
         <div class="wt-form-group">
             <label class="wt-label">Lease Store Path</label>
-            <input v-model="config.LeaseStorePath" type="text" class="wt-input" />
+            <input v-model="config.leaseStorePath" type="text" class="wt-input" />
         </div>
         <div class="wt-form-group">
             <label class="wt-label">Bad IP Store Path</label>
-            <input v-model="config.BadIpStorePath" type="text" class="wt-input" />
+            <input v-model="config.badIpStorePath" type="text" class="wt-input" />
         </div>
     </div>
 </template>

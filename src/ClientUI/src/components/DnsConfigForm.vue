@@ -14,54 +14,54 @@ const blockModeOptions: WhiptailOption[] = [
 
 // Column definitions for DataGrids
 const defaultResolverCols: ColumnDef[] = [
-    { key: 'Name', header: 'Resolver Name' },
-    { key: 'Address', header: 'IP Address', width: '160px' },
-    { key: 'Port', header: 'Port', width: '100px', align: 'center' },
+    { key: 'name', header: 'Resolver Name' },
+    { key: 'address', header: 'IP Address', width: '160px' },
+    { key: 'port', header: 'Port', width: '100px', align: 'center' },
 ]
 
 const resolverCols: ColumnDef[] = [
-    { key: 'Name', header: 'Name' },
-    { key: 'Address', header: 'Address', width: '140px' },
-    { key: 'Port', header: 'Port', width: '80px', align: 'center' },
-    { key: 'Rule', header: 'Rule Regex' },
-    { key: 'Block', header: 'Blocked', width: '90px', align: 'center' },
+    { key: 'name', header: 'Name' },
+    { key: 'address', header: 'Address', width: '140px' },
+    { key: 'port', header: 'Port', width: '80px', align: 'center' },
+    { key: 'rule', header: 'Rule Regex' },
+    { key: 'block', header: 'Blocked', width: '90px', align: 'center' },
 ]
 
 // PagedResult adapters for WhiptailDataGrid
 const defaultResolversPaged = computed<PagedResult<any>>(() => ({
-    items: config.value.DefaultResolvers || [],
-    totalCount: config.value.DefaultResolvers?.length || 0,
+    items: config.value.defaultResolvers || [],
+    totalCount: config.value.defaultResolvers?.length || 0,
     pageNumber: 1,
     pageSize: 10,
 }))
 
 const resolversPaged = computed<PagedResult<any>>(() => ({
-    items: config.value.Resolvers || [],
-    totalCount: config.value.Resolvers?.length || 0,
+    items: config.value.resolvers || [],
+    totalCount: config.value.resolvers?.length || 0,
     pageNumber: 1,
     pageSize: 10,
 }))
 
 const addDefaultResolver = (): void => {
-    config.value.DefaultResolvers.push({ Name: 'New Resolver', Address: '0.0.0.0', Port: 53 })
+    config.value.defaultResolvers.push({ name: 'New Resolver', address: '0.0.0.0', port: 53 })
 }
 
 const addResolver = (): void => {
-    config.value.Resolvers.push({
-        Name: 'New Rule',
-        Address: '127.0.0.1',
-        Port: 53,
-        Rule: '.*',
-        Block: false,
+    config.value.resolvers.push({
+        name: 'New Rule',
+        address: '127.0.0.1',
+        port: 53,
+        rule: '.*',
+        block: false,
     })
 }
 
 const addHostsFile = (): void => {
-    config.value.HostsFiles.push('file://')
+    config.value.hostsFiles.push('file://')
 }
 
 const removeHostsFile = (index: number): void => {
-    config.value.HostsFiles.splice(index, 1)
+    config.value.hostsFiles.splice(index, 1)
 }
 </script>
 
@@ -71,15 +71,15 @@ const removeHostsFile = (index: number): void => {
         <div class="wt-form-row wt-form-group">
             <div style="flex: 2">
                 <label class="wt-label">Listen Address</label>
-                <input v-model="config.Listen.Address" type="text" class="wt-input" />
+                <input v-model="config.listen.address" type="text" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Listen Port</label>
-                <input v-model.number="config.Listen.Port" type="number" class="wt-input" />
+                <input v-model.number="config.listen.port" type="number" class="wt-input" />
             </div>
             <div style="flex: 1">
                 <label class="wt-label">Timeout (ms)</label>
-                <input v-model.number="config.UpstreamTimeoutMs" type="number" class="wt-input" />
+                <input v-model.number="config.upstreamTimeoutMs" type="number" class="wt-input" />
             </div>
         </div>
 
@@ -88,12 +88,12 @@ const removeHostsFile = (index: number): void => {
             <span class="wt-label" style="color: #ffff00; font-weight: bold">Cache Engine</span>
             <div class="wt-form-row wt-mt" style="margin-top: 8px">
                 <div style="flex: 1">
-                    <WhiptailCheckbox v-model="config.Caching.Enabled" label="Enable Cache" />
+                    <WhiptailCheckbox v-model="config.caching.enabled" label="Enable Cache" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">TTL (Seconds)</label>
                     <input
-                        v-model.number="config.Caching.TtlSeconds"
+                        v-model.number="config.caching.ttlSeconds"
                         type="number"
                         class="wt-input"
                     />
@@ -101,7 +101,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 1">
                     <label class="wt-label">Max Entries</label>
                     <input
-                        v-model.number="config.Caching.MaxEntries"
+                        v-model.number="config.caching.maxEntries"
                         type="number"
                         class="wt-input"
                     />
@@ -109,7 +109,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 1">
                     <label class="wt-label">Cleanup (Mins)</label>
                     <input
-                        v-model.number="config.Caching.CleanupIntervalMinutes"
+                        v-model.number="config.caching.cleanupIntervalMinutes"
                         type="number"
                         class="wt-input"
                     />
@@ -126,18 +126,18 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 1">
                     <label class="wt-label">Mode</label>
                     <WhiptailCombobox
-                        v-model="config.BlockResponse.Mode"
+                        v-model="config.blockResponse.mode"
                         :options="blockModeOptions"
                     />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">Static IP</label>
-                    <input v-model="config.BlockResponse.StaticIp" type="text" class="wt-input" />
+                    <input v-model="config.blockResponse.staticIp" type="text" class="wt-input" />
                 </div>
                 <div style="flex: 1">
                     <label class="wt-label">TTL</label>
                     <input
-                        v-model.number="config.BlockResponse.Ttl"
+                        v-model.number="config.blockResponse.ttl"
                         type="number"
                         class="wt-input"
                     />
@@ -153,13 +153,13 @@ const removeHostsFile = (index: number): void => {
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <WhiptailCheckbox
-                        v-model="config.ConditionalForwarding.Enabled"
+                        v-model="config.conditionalForwarding.enabled"
                         label="Enabled"
                     />
                 </div>
                 <div style="flex: 1">
                     <WhiptailCheckbox
-                        v-model="config.ConditionalForwarding.ForwardNonFqdn"
+                        v-model="config.conditionalForwarding.forwardNonFqdn"
                         label="Forward Non-FQDN"
                     />
                 </div>
@@ -168,7 +168,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 2">
                     <label class="wt-label">DHCP Server IP</label>
                     <input
-                        v-model="config.ConditionalForwarding.DhcpServerIp"
+                        v-model="config.conditionalForwarding.dhcpServerIp"
                         type="text"
                         class="wt-input"
                     />
@@ -176,7 +176,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 1">
                     <label class="wt-label">DHCP Port</label>
                     <input
-                        v-model.number="config.ConditionalForwarding.DhcpServerPort"
+                        v-model.number="config.conditionalForwarding.dhcpServerPort"
                         type="number"
                         class="wt-input"
                     />
@@ -184,7 +184,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 2">
                     <label class="wt-label">Local Domain</label>
                     <input
-                        v-model="config.ConditionalForwarding.LocalDomain"
+                        v-model="config.conditionalForwarding.localDomain"
                         type="text"
                         class="wt-input"
                     />
@@ -192,7 +192,7 @@ const removeHostsFile = (index: number): void => {
                 <div style="flex: 2">
                     <label class="wt-label">Subnet CIDR</label>
                     <input
-                        v-model="config.ConditionalForwarding.LocalSubnetCidr"
+                        v-model="config.conditionalForwarding.localSubnetCidr"
                         type="text"
                         class="wt-input"
                     />
@@ -231,12 +231,12 @@ const removeHostsFile = (index: number): void => {
                 <WhiptailButton @click="addHostsFile">+ Add Source</WhiptailButton>
             </div>
             <div
-                v-for="(_, idx) in config.HostsFiles"
+                v-for="(_, idx) in config.hostsFiles"
                 :key="idx"
                 class="wt-form-row"
                 style="margin-bottom: 6px"
             >
-                <input v-model="config.HostsFiles[idx]" type="text" class="wt-input" />
+                <input v-model="config.hostsFiles[idx]" type="text" class="wt-input" />
                 <WhiptailButton variant="cancel" @click="removeHostsFile(Number(idx))"
                     >X</WhiptailButton
                 >
