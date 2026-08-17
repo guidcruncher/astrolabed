@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import WhiptailCheckbox from './WhiptailCheckbox.vue'
-import WhiptailCombobox from './WhiptailCombobox.vue'
-import WhiptailDataGrid from './WhiptailDataGrid.vue'
-import WhiptailButton from './WhiptailButton.vue'
+import { type DnsOptions } from '../composables/useServerOptions'
 import type { ColumnDef, PagedResult, WhiptailOption } from './types'
 
-const config = defineModel<Record<string, any>>({ required: true })
+const config = defineModel<DnsOptions>({ required: true })
 
 const blockModeOptions: WhiptailOption[] = [
     { label: 'NXDOMAIN', value: 'NXDOMAIN' },

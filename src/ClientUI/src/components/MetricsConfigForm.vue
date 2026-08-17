@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import WhiptailCheckbox from './WhiptailCheckbox.vue'
-import WhiptailCombobox from './WhiptailCombobox.vue'
 import type { WhiptailOption } from './types'
-
-const config = defineModel<Record<string, any>>({ required: true })
+import { type MetricsOptions } from '../composables/useServerOptions'
+const config = defineModel<MetricsOptions>({ required: true })
 
 const engineOptions: WhiptailOption[] = [
     { label: 'Prometheus', value: 'prometheus' },

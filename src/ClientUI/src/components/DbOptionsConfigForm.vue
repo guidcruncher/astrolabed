@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import WhiptailCombobox from './WhiptailCombobox.vue'
 import type { WhiptailOption } from './types'
+import { type DbOptions } from '../composables/useServerOptions'
 
-const config = defineModel<Record<string, any>>({ required: true })
+const config = defineModel<DbOptions>({ required: true })
 
 const providerOptions: WhiptailOption[] = [
     { label: 'SQLite', value: 'sqlite' },
-    { label: 'PostgreSQL', value: 'postgresql' },
-    { label: 'MySQL', value: 'mysql' },
+    { label: 'PostgreSQL', value: 'postgres' },
 ]
 </script>
 

@@ -1,8 +1,6 @@
 <script setup lang="ts">
-import WhiptailCheckbox from './WhiptailCheckbox.vue'
-import WhiptailButton from './WhiptailButton.vue'
-
-const config = defineModel<Record<string, any>>({ required: true })
+import { type NtpOptions } from '../composables/useServerOptions'
+const config = defineModel<NtpOptions>({ required: true })
 
 const addUpstreamServer = (): void => {
     config.value.Upstream.Servers.push('')

@@ -1,4 +1,3 @@
-using Astrolabed.Configuration;
 using Astrolabed.Data;
 using Astrolabed.Dhcp.Bootstrap;
 using Astrolabed.Dns.Bootstrap;
@@ -28,8 +27,6 @@ public static class ServiceRegistration
         Console.WriteLine($"System Shared DNS Cache Instance Identifier {SharedDnsCache.InstanceId}");
 
         services.AddSingleton<IDnsCache>(SharedDnsCache);
-
-        services.AddSingleton<ConfigurationWriter>();
 
         services.AddDataServices(ctx.Configuration);
 

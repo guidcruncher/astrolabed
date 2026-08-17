@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import WhiptailCheckbox from './WhiptailCheckbox.vue'
-
-const config = defineModel<Record<string, any>>({ required: true })
+import { type WebUiOptions } from '../composables/useServerOptions'
+const config = defineModel<WebUiOptions>({ required: true })
 </script>
 
 <template>

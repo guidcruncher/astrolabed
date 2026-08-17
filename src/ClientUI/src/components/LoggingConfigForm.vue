@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import WhiptailCombobox from './WhiptailCombobox.vue'
 import type { WhiptailOption } from './types'
-
-const config = defineModel<Record<string, any>>({ required: true })
+import { type LoggingOptions } from '../composables/useServerOptions'
+const config = defineModel<LoggingOptions>({ required: true })
 
 const levelOptions: WhiptailOption[] = [
     { label: 'Trace', value: 'Trace' },

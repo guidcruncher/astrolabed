@@ -1,5 +1,6 @@
 <script setup lang="ts">
-const config = defineModel<Record<string, any>>({ required: true })
+import { type NetworkScannerOptions } from '../composables/useServerOptions'
+const config = defineModel<NetworkScannerOptions>({ required: true })
 </script>
 
 <template>

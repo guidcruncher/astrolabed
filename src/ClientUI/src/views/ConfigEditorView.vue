@@ -1,128 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-
+import { ref, onMounted } from 'vue'
+import { useServerOptions, type ServerOptions } from '../composables/useServerOptions'
 import type { TabItem } from '../components/types'
 
-const initialConfig = {
-    Dns: {
-        Listen: {
-            Address: '127.0.0.1',
-            Port: 1053,
-        },
-        UpstreamTimeoutMs: 1500,
-        DefaultResolvers: [
-            {
-                Name: 'Cloudflare',
-                Address: '1.1.1.1',
-                Port: 53,
-            },
-            {
-                Name: 'Cloudflare Secondary',
-                Address: '1.0.0.1',
-                Port: 53,
-            },
-        ],
-        Resolvers: [
-            {
-                Name: 'LocalDNS',
-                Address: '127.0.0.1',
-                Port: 5353,
-                Rule: '^localdev\\.',
-                Block: false,
-            },
-            {
-                Name: 'BlockDevAds',
-                Rule: '^(ads|tracking)\\.',
-                Block: true,
-            },
-        ],
-        Blocklists: [],
-        Allowlists: [],
-        HostsFiles: ['file://../../../netdns-runtime/dns-hosts/custom.list'],
-        Caching: {
-            Enabled: true,
-            TtlSeconds: 300,
-            MaxEntries: 2000,
-            CleanupIntervalMinutes: 15,
-        },
-        BlockResponse: {
-            Mode: 'NXDOMAIN',
-            StaticIp: '0.0.0.0',
-            Ttl: 60,
-        },
-        ConditionalForwarding: {
-            Enabled: true,
-            DhcpServerIp: '192.168.1.1',
-            DhcpServerPort: 53,
-            LocalDomain: 'lan',
-            LocalSubnetCidr: '192.168.1.0/24',
-            ForwardNonFqdn: true,
-        },
-    },
-    Dhcp: {
-        Enabled: true,
-        ListenAddress: '0.0.0.0',
-        ListenPort: 1067,
-        LeaseStorePath: '../../../netdns-runtime/leases.json',
-        BadIpStorePath: '../../../netdns-runtime/badips.json',
-        PoolCidr: '192.168.10.0/24',
-        ServerIdentifier: '192.168.10.1',
-        Router: '192.168.10.1',
-        DnsServer: '1.1.1.1',
-        NtpServer: '192.168.10.1',
-        DomainName: 'corp.internal',
-        InterfaceMtu: 1500,
-        TftpServerName: '192.168.10.5',
-        BootfileName: 'pxelinux.0',
-        WebProxyServerUrl: 'http://wpad.corp.internal/wpad.dat',
-        LeaseHours: 24,
-        ArpTimeoutMs: 500,
-    },
-    Ntp: {
-        Enabled: true,
-        ListenAddress: '127.0.0.1',
-        Port: 1123,
-        BufferSize: 65536,
-        Stratum: 1,
-        ReferenceId: 'LOCL',
-        Upstream: {
-            Enabled: true,
-            Servers: ['0.pool.ntp.org', '1.pool.ntp.org'],
-            PollIntervalSeconds: 16,
-        },
-    },
-    Metrics: {
-        Enabled: true,
-        StorageEngine: 'prometheus',
-        Location: '/metrics',
-        ListenAddress: '127.0.0.1',
-        ListenPort: 1080,
-    },
-    WebUI: {
-        Enabled: true,
-        ListenAddress: '0.0.0.0',
-        ListenPort: 1081,
-    },
-    DbOptions: {
-        DatabaseProvider: 'sqlite',
-        ConnectionString: 'Data Source=../../../netdns-runtime/astrolabed.db;Cache=Shared',
-    },
-    NetworkScanner: {
-        MaxDegreeOfParallelism: 100,
-        PingTimeoutMs: 200,
-    },
-    Logging: {
-        Level: 'Trace',
-    },
-}
+const { fetchOptions, updateOptions } = useServerOptions()
+
+const configData = ref<ServerOptions | null>(null)
+const loaded = ref<boolean>(false)
 
 const emit = defineEmits<{
-    (e: 'save', updatedConfig: Record<string, any>): void
+    (e: 'save', updatedConfig: ServerOptions | null): void
     (e: 'cancel'): void
 }>()
 
 // Clone configuration to prevent mutating upstream props directly
-const configData = ref<Record<string, any>>(JSON.parse(JSON.stringify(initialConfig)))
 const activeTab = ref<string>('dns')
 
 const tabs: TabItem[] = [
@@ -137,17 +28,26 @@ const tabs: TabItem[] = [
 ]
 
 const handleSave = (): void => {
-    emit('save', configData.value)
+    if (configData.value) {
+        emit('save', configData.value)
+    }
 }
 
 const handleCancel = (): void => {
     emit('cancel')
 }
+
+onMounted(async () => {
+    configData.value = await fetchOptions()
+    loaded.value = true
+})
 </script>
 
 <template>
+    {{ configData }}
+
     <div class="wt-screen">
-        <div class="wt-dialog wt-config-editor-dialog">
+        <div class="wt-dialog wt-config-editor-dialog" v-if="configData">
             <!-- Terminal Dialog Header -->
             <div class="wt-title wt-header-title">
                 <span>[ CONFIGURATION OPTIONS EDITOR ]</span>

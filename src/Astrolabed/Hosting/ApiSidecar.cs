@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Api;
 using Astrolabed.Api.Controllers;
-using Astrolabed.Configuration;
+using Astrolabed.Api.Services;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns.RuleEngine;
 using Astrolabed.Serialization;
@@ -64,7 +64,7 @@ public static class ApiSidecar
             {
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
-
+		
                 services.AddApiServices(mainHost, mainConfig, sharedCache);
 
                 services.ConfigureHttpJsonOptions(options =>
