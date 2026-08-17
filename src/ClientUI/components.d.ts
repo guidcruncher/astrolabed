@@ -11,11 +11,15 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DhcpConfigForm: typeof import('./src/components/DhcpConfigForm.vue')['default']
     DhcpLeaseTab: typeof import('./src/components/DhcpLeaseTab.vue')['default']
+    DnsConfigForm: typeof import('./src/components/DnsConfigForm.vue')['default']
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']
+    NtpConfigForm: typeof import('./src/components/NtpConfigForm.vue')['default']
     NtpLookupTab: typeof import('./src/components/NtpLookupTab.vue')['default']
+    OperationsConfigForm: typeof import('./src/components/OperationsConfigForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']

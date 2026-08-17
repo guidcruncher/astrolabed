@@ -65,6 +65,11 @@ onMounted(() => {
 </script>
 
 <template>
+    <div class="wt-lan-toolbar">
+        <WhiptailButton class="wt-btn-ok" :disabled="loading" @click="fetchDevices">
+            {{ loading ? 'Refreshing...' : 'Refresh' }}
+        </WhiptailButton>
+    </div>
     <WhiptailDataGrid
         :columns="lanDeviceColumns"
         :data="lanDevicesPaged"
@@ -73,3 +78,9 @@ onMounted(() => {
         @page-size-change="handlePageSizeChange"
     />
 </template>
+
+<style scoped>
+.wt-lan-toolbar {
+    margin-bottom: 12px;
+}
+</style>

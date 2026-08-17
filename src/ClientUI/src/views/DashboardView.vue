@@ -52,6 +52,17 @@ const refreshDashboardMetrics = async (): Promise<void> => {
     }
 }
 
+const handleSelectTab = (id: string) => {
+    switch (id) {
+        case 'lan-devices':
+            break
+        case 'dhcp':
+            break
+        case 'dns-logs':
+            break
+    }
+}
+
 const handleFlushCache = async (): Promise<void> => {
     if (confirm('Are you sure you want to flush the system DNS cache?')) {
         await clearDnsCache()
@@ -117,7 +128,12 @@ onMounted(() => {
     </div>
 
     <!-- Modularized Tab Navigation -->
-    <WhiptailTabs v-model="activeTab" :tabs="dashboardTabs" class="wt-full-width">
+    <WhiptailTabs
+        v-model="activeTab"
+        @change="handleSelectTab"
+        :tabs="dashboardTabs"
+        class="wt-full-width"
+    >
         <template #dns-lookup>
             <DnsLookupTab />
         </template>
