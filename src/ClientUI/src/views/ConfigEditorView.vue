@@ -44,8 +44,6 @@ onMounted(async () => {
 </script>
 
 <template>
-    {{ configData }}
-
     <div class="wt-screen">
         <div class="wt-dialog wt-config-editor-dialog" v-if="configData">
             <!-- Terminal Dialog Header -->
