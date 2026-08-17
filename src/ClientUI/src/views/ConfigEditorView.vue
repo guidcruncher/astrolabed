@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-import type { TabItem } from './types'
+import type { TabItem } from '../components/types'
 
 const props = defineProps<{
     initialConfig: Record<string, any>

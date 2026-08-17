@@ -28,4 +28,3 @@ const config = defineModel<Record<string, any>>({ required: true })
     gap: 12px;
 }
 </style>
-

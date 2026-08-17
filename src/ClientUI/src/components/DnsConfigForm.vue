@@ -240,7 +240,9 @@ const removeHostsFile = (index: number): void => {
                 style="margin-bottom: 6px"
             >
                 <input v-model="config.HostsFiles[idx]" type="text" class="wt-input" />
-                <WhiptailButton variant="cancel" @click="removeHostsFile(idx)">X</WhiptailButton>
+                <WhiptailButton variant="cancel" @click="removeHostsFile(Number(idx))"
+                    >X</WhiptailButton
+                >
             </div>
         </div>
     </div>

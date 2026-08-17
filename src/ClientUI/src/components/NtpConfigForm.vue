@@ -78,7 +78,7 @@ const removeUpstreamServer = (index: number): void => {
                     style="margin-bottom: 6px"
                 >
                     <input v-model="config.Upstream.Servers[idx]" type="text" class="wt-input" />
-                    <WhiptailButton variant="cancel" @click="removeUpstreamServer(idx)"
+                    <WhiptailButton variant="cancel" @click="removeUpstreamServer(Number(idx))"
                         >X</WhiptailButton
                     >
                 </div>
