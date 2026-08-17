@@ -6,10 +6,6 @@ import { useDnsUtils } from '../composables/useDnsUtils'
 
 const { getDnsStatusLabel } = useDnsUtils()
 
-const props = defineProps<{
-    lanDevices: DiscoveredLanDevice[]
-}>()
-
 const { loading, queryDns } = useAstrolabedApi()
 
 const selectedDomain = ref('')
@@ -26,11 +22,7 @@ const commonDomains: WhiptailOption[] = [
 ]
 
 const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
-    const dynamic = props.lanDevices.map((device) => ({
-        label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
-        value: device.ipAddress,
-    }))
-    return [...commonDomains, ...dynamic]
+    return commonDomains
 })
 
 const parsedAnswers = computed(() => {

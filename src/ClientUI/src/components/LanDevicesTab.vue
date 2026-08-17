@@ -1,13 +1,11 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import type { DiscoveredLanDevice } from '../composables/useAstrolabedApi'
+import { ref, computed, onMounted } from 'vue'
+import { useAstrolabedApi, type DiscoveredLanDevice } from '../composables/useAstrolabedApi'
 import type { ColumnDef, PagedResult } from './types'
 
-const props = defineProps<{
-    devices: DiscoveredLanDevice[]
-    loading: boolean
-}>()
+const { loading, getDiscoveredNetworkDevices } = useAstrolabedApi()
 
+const devices = ref<DiscoveredLanDevice[]>([])
 const lanPageNumber = ref<number>(1)
 const lanPageSize = ref<number>(10)
 
@@ -22,10 +20,10 @@ const lanDeviceColumns: ColumnDef<DiscoveredLanDevice>[] = [
 ]
 
 const lanDevicesPaged = computed<PagedResult<DiscoveredLanDevice>>(() => {
-    const totalCount = props.devices.length
+    const totalCount = devices.value.length
     const startIndex = (lanPageNumber.value - 1) * lanPageSize.value
     const endIndex = startIndex + lanPageSize.value
-    const items = props.devices.slice(startIndex, endIndex)
+    const items = devices.value.slice(startIndex, endIndex)
 
     return {
         items,
@@ -35,6 +33,16 @@ const lanDevicesPaged = computed<PagedResult<DiscoveredLanDevice>>(() => {
     }
 })
 
+const fetchDevices = async (): Promise<void> => {
+    try {
+        const result = await getDiscoveredNetworkDevices()
+        devices.value = Array.isArray(result) ? result : []
+        lanPageNumber.value = 1
+    } catch {
+        devices.value = []
+    }
+}
+
 const handlePageChange = (page: number): void => {
     lanPageNumber.value = page
 }
@@ -43,6 +51,10 @@ const handlePageSizeChange = (size: number): void => {
     lanPageSize.value = size
     lanPageNumber.value = 1
 }
+
+onMounted(() => {
+    fetchDevices()
+})
 </script>
 
 <template>

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useAstrolabedApi, type DhcpLease } from '../composables/useAstrolabedApi'
+import type { ColumnDef, PagedResult } from './types'
 
 const { loading, error, getLeases } = useAstrolabedApi()
 
@@ -8,16 +9,30 @@ const leases = ref<DhcpLease[]>([])
 const activeOnly = ref<boolean>(true)
 const searchQuery = ref<string>('')
 
-// Column definitions for WhiptailDataGrid matching the JSON properties
-const columns = [
-    { key: 'clientName', label: 'Client Name', sortable: true },
-    { key: 'ip', label: 'IP Address', sortable: true },
-    { key: 'mac', label: 'MAC Address', sortable: true },
-    { key: 'vendorClassIdentifier', label: 'Vendor Class', sortable: true },
-    { key: 'expiresAt', label: 'Expiration (UTC)', sortable: true },
+const pageNumber = ref<number>(1)
+const pageSize = ref<number>(10)
+
+const leaseColumns: ColumnDef<DhcpLease>[] = [
+    {
+        key: 'clientName',
+        header: 'Client Name',
+        formatter: (row: DhcpLease) => row.clientName || '< Unknown >',
+    },
+    { key: 'ip', header: 'IP Address' },
+    { key: 'mac', header: 'MAC Address' },
+    {
+        key: 'vendorClassIdentifier',
+        header: 'Vendor Class',
+        formatter: (row: DhcpLease) => row.vendorClassIdentifier || '-',
+    },
+    {
+        key: 'expiresAt',
+        header: 'Expiration (UTC)',
+        formatter: (row: DhcpLease) =>
+            row.expiresAt ? new Date(row.expiresAt).toLocaleString() : 'N/A',
+    },
 ]
 
-// Filtered data based on search input matching JSON fields
 const filteredLeases = computed(() => {
     if (!searchQuery.value.trim()) return leases.value
 
@@ -31,24 +46,42 @@ const filteredLeases = computed(() => {
     )
 })
 
+const leasesPaged = computed<PagedResult<DhcpLease>>(() => {
+    const totalCount = filteredLeases.value.length
+    const startIndex = (pageNumber.value - 1) * pageSize.value
+    const endIndex = startIndex + pageSize.value
+    const items = filteredLeases.value.slice(startIndex, endIndex)
+
+    return {
+        items,
+        pageNumber: pageNumber.value,
+        pageSize: pageSize.value,
+        totalCount,
+    }
+})
+
 const fetchLeases = async (): Promise<void> => {
     try {
         const result = (await getLeases(activeOnly.value)) as DhcpLease[]
         leases.value = Array.isArray(result) ? result : []
+        pageNumber.value = 1
     } catch {
         leases.value = []
     }
 }
 
-const toggleActiveOnly = () => {
+const toggleActiveOnly = (): void => {
     activeOnly.value = !activeOnly.value
     fetchLeases()
 }
 
-const formatDate = (isoString: string): string => {
-    if (!isoString) return 'N/A'
-    const date = new Date(isoString)
-    return isNaN(date.getTime()) ? isoString : date.toLocaleString()
+const handlePageChange = (page: number): void => {
+    pageNumber.value = page
+}
+
+const handlePageSizeChange = (size: number): void => {
+    pageSize.value = size
+    pageNumber.value = 1
 }
 
 onMounted(() => {
@@ -66,6 +99,7 @@ onMounted(() => {
                     type="text"
                     class="wt-input wt-search-input"
                     placeholder="Search client, IP, MAC, or vendor..."
+                    @input="pageNumber = 1"
                 />
             </div>
 
@@ -93,42 +127,12 @@ onMounted(() => {
 
         <!-- Data Grid Component -->
         <WhiptailDataGrid
-            :columns="columns"
-            :data="filteredLeases"
+            :columns="leaseColumns"
+            :data="leasesPaged"
             :loading="loading"
-            empty-text="No DHCP leases found."
-            class="wt-leases-grid"
-        >
-            <!-- Custom Slot: Client Name Column -->
-            <template #cell-clientName="{ row }">
-                <span class="terminal-name">{{ row.clientName || '' }}</span>
-            </template>
-
-            <!-- Custom Slot: IP Column -->
-            <template #cell-ip="{ row }">
-                <span class="terminal-data">{{ row.ip }}</span>
-            </template>
-
-            <!-- Custom Slot: MAC Column -->
-            <template #cell-mac="{ row }">
-                <span class="terminal-type">{{ row.mac }}</span>
-            </template>
-
-            <!-- Custom Slot: Vendor Class Column -->
-            <template #cell-vendorClassIdentifier="{ row }">
-                <span class="terminal-comment">{{ row.vendorClassIdentifier || '-' }}</span>
-            </template>
-
-            <!-- Custom Slot: Expiration Column -->
-            <template #cell-expiresAt="{ row }">
-                <span class="terminal-data">{{ formatDate(row.expiresAt) }}</span>
-            </template>
-        </WhiptailDataGrid>
-
-        <!-- Footer Info Bar -->
-        <div class="wt-grid-footer">
-            <span class="terminal-comment"> Total leases listed: {{ filteredLeases.length }} </span>
-        </div>
+            @page-change="handlePageChange"
+            @page-size-change="handlePageSizeChange"
+        />
     </div>
 </template>
 
@@ -154,11 +158,6 @@ onMounted(() => {
 
 .wt-search-input {
     min-width: 280px;
-}
-
-.wt-grid-footer {
-    padding: 0.5rem 0;
-    font-family: monospace;
 }
 
 .mb-4 {
