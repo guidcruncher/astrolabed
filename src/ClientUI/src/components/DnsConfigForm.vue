@@ -9,6 +9,7 @@ const blockModeOptions: WhiptailOption[] = [
     { label: 'NXDOMAIN', value: 'NXDOMAIN' },
     { label: 'NODATA', value: 'NODATA' },
     { label: 'REFUSED', value: 'REFUSED' },
+    { label: 'SERVFAIL', value: 'SERVFAIL' },
     { label: 'STATIC_IP', value: 'STATIC_IP' },
 ]
 
@@ -125,7 +126,7 @@ const removeHostsFile = (index: number): void => {
             <div class="wt-form-row" style="margin-top: 8px">
                 <div style="flex: 1">
                     <label class="wt-label">Mode</label>
-                    <WhiptailCombobox
+                    <WhiptailSelect
                         v-model="config.blockResponse.mode"
                         :options="blockModeOptions"
                     />

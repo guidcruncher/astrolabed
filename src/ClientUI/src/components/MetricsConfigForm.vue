@@ -14,7 +14,7 @@ const engineOptions: WhiptailOption[] = [{ label: 'Prometheus', value: 'promethe
             </div>
             <div style="flex: 2">
                 <label class="wt-label">Storage Engine</label>
-                <WhiptailCombobox v-model="config.storageEngine" :options="engineOptions" />
+                <WhiptailSelect v-model="config.storageEngine" :options="engineOptions" />
             </div>
         </div>
 

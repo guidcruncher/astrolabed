@@ -43,7 +43,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="wt-screen">
+<div class="middle logo">
         <div class="wt-dialog wt-config-editor-dialog" v-if="configData">
             <!-- Terminal Dialog Header -->
             <div class="wt-title wt-header-title">
@@ -80,7 +80,6 @@ onMounted(async () => {
                 <template #scanner>
                     <NetworkScannerConfigForm v-model="configData.networkScanner" />
                 </template>
-
             </WhiptailTabs>
 
             <!-- Dialog Footer Actions -->

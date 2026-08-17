@@ -24,5 +24,5 @@ public sealed class ServerOptions
 
     public CrossPlatformScannerOptions NetworkScanner {get; set; } = new();
 
-
+    public LoggingOptions Logging {get; set; }= new();
 }

@@ -8,6 +8,11 @@ export interface ServerOptions {
     webUI: WebUiOptions
     dbOptions: DbOptions
     networkScanner: NetworkScannerOptions
+    logging: LoggingOptions
+}
+
+export interface LoggingOptions {
+    level: string
 }
 
 export interface DnsOptions {
@@ -115,7 +120,7 @@ export interface WebUiOptions {
 }
 
 export interface DbOptions {
-    databaseProvider: string
+    provider: string
     connectionString: string
 }
 

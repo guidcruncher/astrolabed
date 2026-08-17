@@ -137,8 +137,18 @@ onBeforeUnmount(() => {
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,100..800;1,100..800&display=swap');
 
-/* Dialog Container - Updated to fill container width */
-.wt-dialog.wt-tabs-container {
+/* Main Container - Extends to 100% width and height of parent */
+.wt-tabs-container {
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+
+/* Dialog Frame Styling */
+.wt-dialog {
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
     background-color: #1b1b1b;
     border: 2px solid #c0c0c0;
@@ -146,20 +156,18 @@ onBeforeUnmount(() => {
         0 0 0 1px #000,
         0 0 10px #000;
     margin: 0;
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    box-sizing: border-box;
 }
 
-/* Tab Bar Header */
+/* Tab Bar Header - Expands across full width */
 .wt-tab-bar {
     display: flex;
     flex-wrap: wrap;
+    width: 100%;
     gap: 4px;
     background-color: #000;
     padding: 6px 6px 0 6px;
     border-bottom: 1px solid #c0c0c0;
+    box-sizing: border-box;
 }
 
 /* Tab Buttons */
@@ -203,11 +211,16 @@ onBeforeUnmount(() => {
     color: #00ff00;
 }
 
-/* Content Area */
+/* Content Area - Expands vertically and horizontally */
 .wt-tab-body {
     background-color: #1b1b1b;
     padding: 14px;
     min-height: 120px;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    width: 100%;
 }
 
 .wt-tab-panel {
@@ -215,6 +228,9 @@ onBeforeUnmount(() => {
     font-size: 16px;
     line-height: 1.4;
     outline: none;
+    width: 100%;
+    flex: 1;
+    box-sizing: border-box;
 }
 
 .wt-tab-panel:focus-visible {

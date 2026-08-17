@@ -5,7 +5,7 @@ import { type DbOptions } from '../composables/useServerOptions'
 const config = defineModel<DbOptions>({ required: true })
 
 const providerOptions: WhiptailOption[] = [
-    { label: 'SQLite', value: 'Sqlite' },
+    { label: 'Sqlite', value: 'Sqlite' },
     { label: 'PostgreSQL', value: 'Postgres' },
 ]
 </script>
@@ -14,7 +14,7 @@ const providerOptions: WhiptailOption[] = [
     <div class="wt-section-body">
         <div class="wt-form-group">
             <label class="wt-label">Database Provider</label>
-            <WhiptailCombobox v-model="config.databaseProvider" :options="providerOptions" />
+            <WhiptailSelect v-model="config.provider" :options="providerOptions" />
         </div>
         <div class="wt-form-group">
             <label class="wt-label">Connection String</label>
