@@ -43,50 +43,48 @@ onMounted(async () => {
 </script>
 
 <template>
-<div class="middle logo">
-        <div class="wt-dialog wt-config-editor-dialog" v-if="configData">
-            <!-- Terminal Dialog Header -->
-            <div class="wt-title wt-header-title">
-                <span>[ CONFIGURATION OPTIONS EDITOR ]</span>
-                <span class="wt-status-indicator">• READY</span>
-            </div>
+    <div class="wt-dialog wt-config-editor-dialog" v-if="configData">
+        <!-- Terminal Dialog Header -->
+        <div class="wt-title wt-header-title">
+            <span>[ CONFIGURATION OPTIONS EDITOR ]</span>
+            <span class="wt-status-indicator">• READY</span>
+        </div>
 
-            <!-- Tabbed Configuration Sections -->
-            <WhiptailTabs v-model="activeTab" :tabs="tabs">
-                <template #dns>
-                    <DnsConfigForm v-model="configData.dns" />
-                </template>
+        <!-- Tabbed Configuration Sections -->
+        <WhiptailTabs v-model="activeTab" :tabs="tabs">
+            <template #dns>
+                <DnsConfigForm v-model="configData.dns" />
+            </template>
 
-                <template #dhcp>
-                    <DhcpConfigForm v-model="configData.dhcp" />
-                </template>
+            <template #dhcp>
+                <DhcpConfigForm v-model="configData.dhcp" />
+            </template>
 
-                <template #ntp>
-                    <NtpConfigForm v-model="configData.ntp" />
-                </template>
+            <template #ntp>
+                <NtpConfigForm v-model="configData.ntp" />
+            </template>
 
-                <template #metrics>
-                    <MetricsConfigForm v-model="configData.metrics" />
-                </template>
+            <template #metrics>
+                <MetricsConfigForm v-model="configData.metrics" />
+            </template>
 
-                <template #webui>
-                    <WebUiConfigForm v-model="configData.webUI" />
-                </template>
+            <template #webui>
+                <WebUiConfigForm v-model="configData.webUI" />
+            </template>
 
-                <template #db>
-                    <DbOptionsConfigForm v-model="configData.dbOptions" />
-                </template>
+            <template #db>
+                <DbOptionsConfigForm v-model="configData.dbOptions" />
+            </template>
 
-                <template #scanner>
-                    <NetworkScannerConfigForm v-model="configData.networkScanner" />
-                </template>
-            </WhiptailTabs>
+            <template #scanner>
+                <NetworkScannerConfigForm v-model="configData.networkScanner" />
+            </template>
+        </WhiptailTabs>
 
-            <!-- Dialog Footer Actions -->
-            <div class="wt-footer">
-                <WhiptailButton variant="cancel" @click="handleCancel">Cancel</WhiptailButton>
-                <WhiptailButton variant="ok" @click="handleSave">Save Config</WhiptailButton>
-            </div>
+        <!-- Dialog Footer Actions -->
+        <div class="wt-footer">
+            <WhiptailButton variant="cancel" @click="handleCancel">Cancel</WhiptailButton>
+            <WhiptailButton variant="ok" @click="handleSave">Save Config</WhiptailButton>
         </div>
     </div>
 </template>
