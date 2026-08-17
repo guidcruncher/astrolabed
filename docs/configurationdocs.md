@@ -9,7 +9,7 @@ Controls global Domain Name System (DNS) server behavior, listening sockets, for
 | Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
 | Listen.Address | String (IPv4/v6) | "127.0.0.1" | IP address the DNS server binds to for listening to incoming client queries. |
-| Listen.Port | Integer (1-65535) | 1053 | Network port on which the DNS server listens. Standard DNS uses 53. |
+| Listen.Port | Integer (1-65535) | 53 | Network port on which the DNS server listens. Standard DNS uses 53. |
 | UpstreamTimeoutMs | Integer (ms) | 1500 | Maximum timeout in milliseconds to wait for a response from upstream DNS resolvers. |
 | DefaultResolvers | Array<Object> | [ { "Name": "Cloudflare",... } ] | List of default upstream resolvers used for general internet resolution. Each resolver has Name (String), Address (String), and Port (Integer). |
 | Resolvers | Array<Object> | [ { "Rule": "^localdev\.",... } ] | Targeted resolvers bound to specific domain regex rules. Properties include Name, Address, Port, Rule (Regex), and Block (Boolean). |
@@ -38,7 +38,7 @@ Manages Dynamic Host Configuration Protocol (DHCP) server settings, IP allocatio
 | --- | --- | --- | --- |
 | Enabled | Boolean | true | Enables or disables the built-in DHCP server engine. |
 | ListenAddress | String (IPv4) | "0.0.0.0" | Network interface address for listening to DHCP DISCOVER packets. 0.0.0.0 binds all interfaces. |
-| ListenPort | Integer (1-65535) | 1067 | UDP listening port for DHCP server. Standard DHCP server port is 67. |
+| ListenPort | Integer (1-65535) | 67 | UDP listening port for DHCP server. Standard DHCP server port is 67. |
 | LeaseStorePath | String (Path) | ".../leases.json" | File path where persistent DHCP IP lease allocations are saved in JSON format. |
 | BadIpStorePath | String (Path) | ".../badips.json" | File path storing detected IP conflicts and blacklisted IP addresses. |
 | PoolCidr | String (CIDR) | "192.168.10.0/24" | IP address pool range formatted in CIDR notation from which dynamic IPs are leased. |
@@ -62,7 +62,7 @@ Configures the Network Time Protocol (NTP) service, controlling stratum depth, U
 | --- | --- | --- | --- |
 | Enabled | Boolean | true | Enables or disables the NTP server module. |
 | ListenAddress | String (IPv4/v6) | "127.0.0.1" | IP address the NTP UDP server binds to. |
-| Port | Integer (1-65535) | 1123 | UDP port used for NTP communication. Standard NTP uses UDP port 123. |
+| Port | Integer (1-65535) | 123 | UDP port used for NTP communication. Standard NTP uses UDP port 123. |
 | BufferSize | Integer (bytes) | 65536 | Socket receive/send buffer allocation size in bytes. |
 | Stratum | Integer (1-15) | 1 | Stratum level reported by this server (1 = primary reference source). |
 | ReferenceId | String (4-Char) | "LOCL" | Four-character ASCII code identifying the reference clock source (e.g. LOCL, GPS, PPS). |
