@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Astrolabed;
 
 
@@ -15,6 +18,7 @@ public class DbOptions
 
     public const string SectionName = "DbOptions";
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public DatabaseProvider Provider { get; set; }
 
     public string ConnectionString { get; set; } = "Data Source=dns_events.db;";

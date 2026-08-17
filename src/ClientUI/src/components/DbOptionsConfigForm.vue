@@ -5,8 +5,8 @@ import { type DbOptions } from '../composables/useServerOptions'
 const config = defineModel<DbOptions>({ required: true })
 
 const providerOptions: WhiptailOption[] = [
-    { label: 'SQLite', value: 'sqlite' },
-    { label: 'PostgreSQL', value: 'postgres' },
+    { label: 'SQLite', value: 'Sqlite' },
+    { label: 'PostgreSQL', value: 'Postgres' },
 ]
 </script>
 

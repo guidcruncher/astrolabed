@@ -5,10 +5,9 @@ export interface ServerOptions {
     dhcp: DhcpOptions
     ntp: NtpOptions
     metrics: MetricsOptions
-    webUi: WebUiOptions
+    webUI: WebUiOptions
     dbOptions: DbOptions
     networkScanner: NetworkScannerOptions
-    logging: LoggingOptions
 }
 
 export interface DnsOptions {
@@ -123,10 +122,6 @@ export interface DbOptions {
 export interface NetworkScannerOptions {
     maxDegreeOfParallelism: number
     pingTimeoutMs: number
-}
-
-export interface LoggingOptions {
-    level: string
 }
 
 export function useServerOptions(apiBaseUrl: string = '/api/configuration') {

@@ -18,7 +18,6 @@ declare module 'vue' {
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']
-    LoggingConfigForm: typeof import('./src/components/LoggingConfigForm.vue')['default']
     MetricsConfigForm: typeof import('./src/components/MetricsConfigForm.vue')['default']
     NetworkScannerConfigForm: typeof import('./src/components/NetworkScannerConfigForm.vue')['default']
     NtpConfigForm: typeof import('./src/components/NtpConfigForm.vue')['default']

@@ -24,7 +24,6 @@ const tabs: TabItem[] = [
     { id: 'webui', label: 'Web UI' },
     { id: 'db', label: 'Database' },
     { id: 'scanner', label: 'NetScanner' },
-    { id: 'logging', label: 'Logging' },
 ]
 
 const handleSave = (): void => {
@@ -71,7 +70,7 @@ onMounted(async () => {
                 </template>
 
                 <template #webui>
-                    <WebUiConfigForm v-model="configData.webUi" />
+                    <WebUiConfigForm v-model="configData.webUI" />
                 </template>
 
                 <template #db>
@@ -82,9 +81,6 @@ onMounted(async () => {
                     <NetworkScannerConfigForm v-model="configData.networkScanner" />
                 </template>
 
-                <template #logging>
-                    <LoggingConfigForm v-model="configData.logging" />
-                </template>
             </WhiptailTabs>
 
             <!-- Dialog Footer Actions -->
