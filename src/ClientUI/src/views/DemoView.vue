@@ -7,6 +7,7 @@ import type {
     PagedResult,
     WhiptailOption,
     LoginCredentials,
+    WhiptailListItem,
 } from '../components/types'
 
 // Reactive States
@@ -85,6 +86,24 @@ const pagedData = ref<PagedResult<UserDto>>({
     hasPreviousPage: false,
     hasNextPage: true,
 })
+
+const selectedInterface = ref<string>('eth0')
+
+const networkInterfaces: WhiptailListItem[] = [
+    {
+        tag: 'eth0',
+        label: 'Primary Ethernet Interface',
+        value: 'eth0',
+        description: '192.168.1.100',
+    },
+    {
+        tag: 'wlan0',
+        label: 'Wireless Local Area Network',
+        value: 'wlan0',
+        description: '192.168.1.105',
+    },
+    { tag: 'lo', label: 'Loopback Adapter', value: 'lo', description: '127.0.0.1' },
+]
 
 const handlePageChange = (newPage: number): void => {
     isLoading.value = true
@@ -370,6 +389,14 @@ const onTabChange = (tabId: string) => {
                 <p>Use <strong>Alt + S</strong> to jump directly here.</p>
             </template>
         </WhiptailTabs>
+    </div>
+
+    <div style="max-width: 500px; margin: 20px">
+        <h3>Select Primary Network Interface:</h3>
+        <WhiptailList v-model="selectedInterface" :items="networkInterfaces" height="180px" />
+        <p>
+            Selected Value: <code>{{ selectedInterface }}</code>
+        </p>
     </div>
 </template>
 

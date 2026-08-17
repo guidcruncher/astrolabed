@@ -1,12 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import {
-    useAstrolabedApi,
-    type DiscoveredLanDeviceDto,
-    type DnsResponseEvent,
-} from '../composables/useAstrolabedApi'
+import { useAstrolabedApi } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { TabItem, PagedResult } from '../components/types'
+import type { TabItem } from '../components/types'
 
 const { loading, error, getDnsEvents, getDiscoveredNetworkDevices, getLeases, clearDnsCache } =
     useAstrolabedApi()
@@ -15,43 +11,37 @@ const { logout } = useAuth()
 
 const activeTab = ref('dns-lookup')
 
-const recentEvents = ref<PagedResult<DnsResponseEvent>>({
-    items: [],
-    pageNumber: 1,
-    pageSize: 10,
-    totalCount: 0,
-})
-
-const lanDevices = ref<DiscoveredLanDeviceDto[]>([])
+// Local state retained strictly for header metric summary cards
+const dnsEventsCount = ref<number>(0)
+const lanDevicesCount = ref<number>(0)
 const activeLeasesCount = ref<number>(0)
 
 const dashboardTabs: TabItem[] = [
     { id: 'dns-lookup', label: 'DNS Lookup' },
     { id: 'lan-devices', label: 'LAN Devices' },
+    { id: 'dhcp', label: 'DHCP' },
     { id: 'dns-logs', label: 'DNS Activity' },
+    { id: 'ntp', label: 'Time' },
 ]
 
 const handleLogout = async (): Promise<void> => {
     await logout()
 }
 
-const refreshDashboardData = async (): Promise<void> => {
+const refreshDashboardMetrics = async (): Promise<void> => {
     try {
-        const [eventsData, devicesData, leasesData] = await Promise.allSettled([
-            getDnsEvents({
-                pageNumber: recentEvents.value.pageNumber,
-                pageSize: recentEvents.value.pageSize,
-            }),
+        const [logsData, devicesData, leasesData] = await Promise.allSettled([
+            getDnsEvents(),
             getDiscoveredNetworkDevices(),
             getLeases(true),
         ])
 
-        if (eventsData.status === 'fulfilled') {
-            recentEvents.value = eventsData.value
+        if (logsData.status === 'fulfilled' && Array.isArray(logsData.value)) {
+            dnsEventsCount.value = logsData.value.length
         }
 
-        if (devicesData.status === 'fulfilled') {
-            lanDevices.value = devicesData.value ?? []
+        if (devicesData.status === 'fulfilled' && Array.isArray(devicesData.value)) {
+            lanDevicesCount.value = devicesData.value.length
         }
 
         if (leasesData.status === 'fulfilled' && Array.isArray(leasesData.value)) {
@@ -59,24 +49,6 @@ const refreshDashboardData = async (): Promise<void> => {
         }
     } catch (err) {
         console.error('Failed to load dashboard metrics', err)
-    }
-}
-
-const handleDnsPageChange = async (page: number): Promise<void> => {
-    recentEvents.value.pageNumber = page
-    const eventsData = await getDnsEvents({
-        pageNumber: page,
-        pageSize: recentEvents.value.pageSize,
-    })
-    recentEvents.value = eventsData
-}
-
-const handleDnsPageSizeChange = async (size: number): Promise<void> => {
-    const eventsData = await getDnsEvents({ pageNumber: 1, pageSize: size })
-    recentEvents.value = {
-        ...eventsData,
-        pageNumber: 1,
-        pageSize: size,
     }
 }
 
@@ -88,7 +60,7 @@ const handleFlushCache = async (): Promise<void> => {
 }
 
 onMounted(() => {
-    refreshDashboardData()
+    refreshDashboardMetrics()
 })
 </script>
 
@@ -132,7 +104,7 @@ onMounted(() => {
     <div class="wt-stats-grid">
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DNS Events</div>
-            <div class="wt-body wt-stat-value">{{ recentEvents.totalCount }}</div>
+            <div class="wt-body wt-stat-value">{{ dnsEventsCount }}</div>
         </div>
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DHCP Leases</div>
@@ -140,28 +112,30 @@ onMounted(() => {
         </div>
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">LAN Devices</div>
-            <div class="wt-body wt-stat-value">{{ lanDevices.length }}</div>
+            <div class="wt-body wt-stat-value">{{ lanDevicesCount }}</div>
         </div>
     </div>
 
     <!-- Modularized Tab Navigation -->
     <WhiptailTabs v-model="activeTab" :tabs="dashboardTabs" class="wt-full-width">
         <template #dns-lookup>
-            <DnsLookupTab :lan-devices="lanDevices" />
+            <DnsLookupTab />
         </template>
 
         <template #lan-devices>
-            <LanDevicesTab :devices="lanDevices" :loading="loading" />
+            <LanDevicesTab />
         </template>
 
         <template #dns-logs>
-            <DnsLogsTab
-                :events="recentEvents"
-                :loading="loading"
-                @refresh="refreshDashboardData"
-                @page-change="handleDnsPageChange"
-                @page-size-change="handleDnsPageSizeChange"
-            />
+            <DnsLogsTab />
+        </template>
+
+        <template #dhcp>
+            <DhcpLeaseTab />
+        </template>
+
+        <template #ntp>
+            <NtpLookupTab />
         </template>
     </WhiptailTabs>
 </template>

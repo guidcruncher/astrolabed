@@ -11,9 +11,11 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DhcpLeaseTab: typeof import('./src/components/DhcpLeaseTab.vue')['default']
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']
+    NtpLookupTab: typeof import('./src/components/NtpLookupTab.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']
@@ -29,6 +31,7 @@ declare module 'vue' {
     WhiptailInput: typeof import('./src/components/WhiptailInput.vue')['default']
     WhiptailInputBox: typeof import('./src/components/WhiptailInputBox.vue')['default']
     WhiptailLabel: typeof import('./src/components/WhiptailLabel.vue')['default']
+    WhiptailList: typeof import('./src/components/WhiptailList.vue')['default']
     WhiptailLoginBox: typeof import('./src/components/WhiptailLoginBox.vue')['default']
     WhiptailMenuList: typeof import('./src/components/WhiptailMenuList.vue')['default']
     WhiptailMessageBox: typeof import('./src/components/WhiptailMessageBox.vue')['default']

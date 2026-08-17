@@ -1,14 +1,10 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAstrolabedApi, type DiscoveredLanDeviceDto } from '../composables/useAstrolabedApi'
+import { useAstrolabedApi, type DiscoveredLanDevice } from '../composables/useAstrolabedApi'
 import type { WhiptailOption } from './types'
 import { useDnsUtils } from '../composables/useDnsUtils'
 
 const { getDnsStatusLabel } = useDnsUtils()
-
-const props = defineProps<{
-    lanDevices: DiscoveredLanDeviceDto[]
-}>()
 
 const { loading, queryDns } = useAstrolabedApi()
 
@@ -26,11 +22,7 @@ const commonDomains: WhiptailOption[] = [
 ]
 
 const deviceComboboxOptions = computed<WhiptailOption[]>(() => {
-    const dynamic = props.lanDevices.map((device) => ({
-        label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
-        value: device.ipAddress,
-    }))
-    return [...commonDomains, ...dynamic]
+    return commonDomains
 })
 
 const parsedAnswers = computed(() => {
