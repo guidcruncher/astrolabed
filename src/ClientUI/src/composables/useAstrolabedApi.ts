@@ -4,7 +4,7 @@ import type { PagedResult } from '../components/types'
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
-export interface NtpPacketHeader {
+export interface NtpHeader {
     leapIndicator: number
     version: number
     mode: number
@@ -14,21 +14,21 @@ export interface NtpPacketHeader {
     rootDelayMs: number
     rootDispersionMs: number
     referenceId: string
-    referenceTimestamp: string | Date
-    originateTimestamp: string | Date
-    receiveTimestamp: string | Date
-    transmitTimestamp: string | Date
+    referenceTimestamp: string
+    originateTimestamp: string
+    receiveTimestamp: string
+    transmitTimestamp: string
 }
 
 export interface NtpResponse {
     success: boolean
     server: string
-    systemTimeUtc: string | Date
-    networkTimeUtc: string | Date
+    systemTimeUtc: string
+    networkTimeUtc: string
     offset: string
     delay: string
-    header: NtpPacketHeader
-    errorMessage?: string | null
+    header: NtpHeader
+    errorMessage: string | null
 }
 
 export interface DnsResourceRecord {

@@ -1,56 +1,33 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAstrolabedApi, type DiscoveredLanDevice } from '../composables/useAstrolabedApi'
-import type { WhiptailOption } from './types'
-
-const props = defineProps<{
-    lanDevices: DiscoveredLanDevice[]
-}>()
+import type { NtpResponse, NtpHeader } from '../composables/useAstrolabedApi'
+import { useAstrolabedApi } from '../composables/useAstrolabedApi'
 
 const { loading, error, getNtpTime } = useAstrolabedApi()
 
-const selectedServer = ref('pool.ntp.org')
-const ntpResult = ref<any>(null)
+const ntpResult = ref<NtpResponse | null>(null)
 const queryDurationMs = ref<number | null>(null)
-
-const commonNtpServers: WhiptailOption[] = [
-    { label: 'pool.ntp.org', value: 'pool.ntp.org' },
-    { label: 'time.nist.gov', value: 'time.nist.gov' },
-    { label: 'time.google.com', value: 'time.google.com' },
-    { label: 'time.cloudflare.com', value: 'time.cloudflare.com' },
-    { label: 'time.windows.com', value: 'time.windows.com' },
-]
-
-const ntpServerOptions = computed<WhiptailOption[]>(() => {
-    const dynamic = props.lanDevices.map((device) => ({
-        label: device.hostName ? `${device.hostName} (${device.ipAddress})` : device.ipAddress,
-        value: device.ipAddress,
-    }))
-    return [...commonNtpServers, ...dynamic]
-})
 
 const parsedNtpData = computed(() => {
     if (!ntpResult.value) return null
     const res = ntpResult.value
 
     return {
-        server: res.server ?? res.ntpServer ?? selectedServer.value,
-        currentTime: res.currentTime ?? res.time ?? res.timestamp ?? new Date().toISOString(),
-        isSynchronized: res.isSynchronized ?? res.synchronized ?? true,
-        stratum: res.stratum ?? 2,
-        offset: res.offset ?? res.timeOffset ?? 0.00124,
-        delay:
-            res.delay ??
-            res.roundTripDelay ??
-            (queryDurationMs.value ? queryDurationMs.value / 1000 : 0.012),
-        referenceId: res.referenceId ?? res.refId ?? 'GPS / ATOM',
+        server: res.server || 'Unknown Server',
+        currentTime: res.networkTimeUtc || res.systemTimeUtc || new Date().toISOString(),
+        isSynchronized: res.success && !res.errorMessage,
+        stratum: res.header?.stratum ?? 0,
+        offset: res.offset || '00:00:00',
+        delay: res.delay || '00:00:00',
+        referenceId: res.header?.referenceId || 'N/A',
+        errorMessage: res.errorMessage,
     }
 })
 
 const handleNtpLookup = async (): Promise<void> => {
     const startTime = performance.now()
     try {
-        ntpResult.value = await getNtpTime()
+        ntpResult.value = (await getNtpTime()) as NtpResponse
         queryDurationMs.value = Math.round(performance.now() - startTime)
     } catch {
         ntpResult.value = null
@@ -62,35 +39,26 @@ const handleNtpLookup = async (): Promise<void> => {
 <template>
     <div class="wt-ntp-lookup">
         <div class="wt-form-row">
-            <div class="wt-form-group">
-                <label class="wt-label">NTP Server / Target IP</label>
-                <WhiptailCombobox
-                    v-model="selectedServer"
-                    :options="ntpServerOptions"
-                    placeholder="&lt; Type or select option &gt;"
-                />
-            </div>
-            <WhiptailButton
-                class="wt-btn-ok"
-                :disabled="loading || !selectedServer"
-                @click="handleNtpLookup"
-            >
-                Check Sync
+            <WhiptailButton class="wt-btn-ok" :disabled="loading" @click="handleNtpLookup">
+                {{ loading ? 'Checking...' : 'Check Sync' }}
             </WhiptailButton>
         </div>
 
         <!-- Error State -->
-        <div v-if="error" class="terminal wt-terminal-error">
+        <div v-if="error || parsedNtpData?.errorMessage" class="terminal wt-terminal-error">
             <span class="terminal-highlight-error">
                 [!] Error fetching NTP status:
-                {{ typeof error === 'object' ? error.detail || error.title : error }}
+                {{
+                    parsedNtpData?.errorMessage ||
+                    (typeof error === 'object' ? error?.detail || error?.title : error)
+                }}
             </span>
         </div>
 
         <!-- ntpdate / chronyc Terminal Console Output -->
         <div v-if="ntpResult && parsedNtpData" class="terminal">
             <div class="terminal-header">
-                <span class="terminal-cmd">$ ntpdate -q {{ selectedServer }}</span>
+                <span class="terminal-cmd">$ ntpdate -q {{ parsedNtpData.server }}</span>
             </div>
 
             <div class="terminal-section">
@@ -126,7 +94,7 @@ const handleNtpLookup = async (): Promise<void> => {
                     <span class="terminal-type">Stratum {{ parsedNtpData.stratum }}</span>
                 </div>
                 <div class="terminal-record-row">
-                    <span class="terminal-name">Server Time:</span>
+                    <span class="terminal-name">Network Time (UTC):</span>
                     <span class="terminal-data">{{
                         new Date(parsedNtpData.currentTime).toUTCString()
                     }}</span>
