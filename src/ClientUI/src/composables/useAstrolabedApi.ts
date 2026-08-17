@@ -4,6 +4,78 @@ import type { PagedResult } from '../components/types'
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
+export interface NtpPacketHeader {
+    leapIndicator: number
+    version: number
+    mode: number
+    stratum: number
+    pollInterval: number
+    precisionSeconds: number
+    rootDelayMs: number
+    rootDispersionMs: number
+    referenceId: string
+    referenceTimestamp: string | Date
+    originateTimestamp: string | Date
+    receiveTimestamp: string | Date
+    transmitTimestamp: string | Date
+}
+
+export interface NtpResponse {
+    success: boolean
+    server: string
+    systemTimeUtc: string | Date
+    networkTimeUtc: string | Date
+    offset: string
+    delay: string
+    header: NtpPacketHeader
+    errorMessage?: string | null
+}
+
+export interface DnsResourceRecord {
+    name: string
+    type: string
+    class: string
+    timeToLive: number
+    data: string
+}
+
+export interface DnsHeader {
+    transactionId: number
+    isResponse: boolean
+    opCode: string
+    authoritativeAnswer: boolean
+    truncated: boolean
+    recursionDesired: boolean
+    recursionAvailable: boolean
+    authenticData: boolean
+    checkingDisabled: boolean
+    questionCount: number
+    answerCount: number
+    nameServerCount: number
+    additionalCount: number
+}
+
+export interface DnsResponse {
+    success: boolean
+    server: string
+    queryName: string
+    queryType: string
+    responseCode: string
+    elapsed: string
+    header: DnsHeader
+    answers: DnsResourceRecord[]
+    authorities: DnsResourceRecord[]
+    additionals: DnsResourceRecord[]
+    errorMessage?: string | null
+}
+
+export interface DhcpLease {
+    clientName: string
+    vendorClassIdentifier: string
+    mac: string
+    ip: string
+    expiresAt: string | Date
+}
 
 export interface ProblemDetails {
     type?: string | null
@@ -13,7 +85,7 @@ export interface ProblemDetails {
     instance?: string | null
 }
 
-export interface DiscoveredLanDeviceDto {
+export interface DiscoveredLanDevice {
     ipAddress: string
     macAddress: string
     hostName: string | null
@@ -110,12 +182,12 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Executes a manual DNS query lookup
      * GET /api/v1/Dns/query
      */
-    async function queryDns(name?: string, type: string = 'A'): Promise<unknown> {
+    async function queryDns(name?: string, type: string = 'A'): Promise<DnsResponse> {
         const query = new URLSearchParams()
         if (name) query.append('name', name)
         if (type) query.append('type', type)
 
-        return apiFetch<unknown>(`/api/v1/Dns/query?${query.toString()}`, { method: 'GET' })
+        return apiFetch<DnsResponse>(`/api/v1/Dns/query?${query.toString()}`, { method: 'GET' })
     }
 
     // ==========================================
@@ -210,17 +282,17 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Retrieves DHCP leases
      * GET /api/v1/Leases
      */
-    async function getLeases(activeOnly: boolean = true): Promise<unknown> {
+    async function getLeases(activeOnly: boolean = true): Promise<DhcpLease> {
         const query = new URLSearchParams({ activeOnly: String(activeOnly) })
-        return apiFetch<unknown>(`/api/v1/Leases?${query.toString()}`, { method: 'GET' })
+        return apiFetch<DhcpLease>(`/api/v1/Leases?${query.toString()}`, { method: 'GET' })
     }
 
     /**
      * Retrieves a specific lease by identifier
      * GET /api/v1/Leases/{identifier}
      */
-    async function getLeaseByIdentifier(identifier: string): Promise<unknown> {
-        return apiFetch<unknown>(`/api/v1/Leases/${encodeURIComponent(identifier)}`, {
+    async function getLeaseByIdentifier(identifier: string): Promise<DhcpLease> {
+        return apiFetch<DhcpLease>(`/api/v1/Leases/${encodeURIComponent(identifier)}`, {
             method: 'GET',
         })
     }
@@ -233,8 +305,8 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Gets list of discovered LAN devices
      * GET /api/Network/devices
      */
-    async function getDiscoveredNetworkDevices(): Promise<DiscoveredLanDeviceDto[]> {
-        return apiFetch<DiscoveredLanDeviceDto[]>('/api/Network/devices', { method: 'GET' })
+    async function getDiscoveredNetworkDevices(): Promise<DiscoveredLanDevice[]> {
+        return apiFetch<DiscoveredLanDevice[]>('/api/Network/devices', { method: 'GET' })
     }
 
     // ==========================================
@@ -256,8 +328,8 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Retrieves a reservation by MAC address
      * GET /api/v1/Reservations/{mac}
      */
-    async function getReservationByMac(mac: string): Promise<unknown> {
-        return apiFetch<unknown>(`/api/v1/Reservations/${encodeURIComponent(mac)}`, {
+    async function getReservationByMac(mac: string): Promise<DhcpLease> {
+        return apiFetch<DhcpLease>(`/api/v1/Reservations/${encodeURIComponent(mac)}`, {
             method: 'GET',
         })
     }
@@ -270,8 +342,8 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Gets current NTP / time server status
      * GET /api/v1/Time/ntp
      */
-    async function getNtpTime(): Promise<unknown> {
-        return apiFetch<unknown>('/api/v1/Time/ntp', { method: 'GET' })
+    async function getNtpTime(): Promise<NtpResponse> {
+        return apiFetch<NtpResponse>('/api/v1/Time/ntp', { method: 'GET' })
     }
 
     return {

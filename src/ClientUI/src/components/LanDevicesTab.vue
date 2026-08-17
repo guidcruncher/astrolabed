@@ -1,27 +1,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { DiscoveredLanDeviceDto } from '../composables/useAstrolabedApi'
+import type { DiscoveredLanDevice } from '../composables/useAstrolabedApi'
 import type { ColumnDef, PagedResult } from './types'
 
 const props = defineProps<{
-    devices: DiscoveredLanDeviceDto[]
+    devices: DiscoveredLanDevice[]
     loading: boolean
 }>()
 
 const lanPageNumber = ref<number>(1)
 const lanPageSize = ref<number>(10)
 
-const lanDeviceColumns: ColumnDef<DiscoveredLanDeviceDto>[] = [
+const lanDeviceColumns: ColumnDef<DiscoveredLanDevice>[] = [
     {
         key: 'hostName',
         header: 'Host Name',
-        formatter: (row: DiscoveredLanDeviceDto) => row.hostName || '< Unknown >',
+        formatter: (row: DiscoveredLanDevice) => row.hostName || '< Unknown >',
     },
     { key: 'ipAddress', header: 'IP Address' },
     { key: 'macAddress', header: 'MAC Address' },
 ]
 
-const lanDevicesPaged = computed<PagedResult<DiscoveredLanDeviceDto>>(() => {
+const lanDevicesPaged = computed<PagedResult<DiscoveredLanDevice>>(() => {
     const totalCount = props.devices.length
     const startIndex = (lanPageNumber.value - 1) * lanPageSize.value
     const endIndex = startIndex + lanPageSize.value

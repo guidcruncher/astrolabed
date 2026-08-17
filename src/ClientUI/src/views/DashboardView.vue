@@ -2,7 +2,7 @@
 import { ref, onMounted } from 'vue'
 import {
     useAstrolabedApi,
-    type DiscoveredLanDeviceDto,
+    type DiscoveredLanDevice,
     type DnsResponseEvent,
 } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
@@ -22,7 +22,7 @@ const recentEvents = ref<PagedResult<DnsResponseEvent>>({
     totalCount: 0,
 })
 
-const lanDevices = ref<DiscoveredLanDeviceDto[]>([])
+const lanDevices = ref<DiscoveredLanDevice[]>([])
 const activeLeasesCount = ref<number>(0)
 
 const dashboardTabs: TabItem[] = [

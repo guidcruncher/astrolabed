@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAstrolabedApi, type DiscoveredLanDeviceDto } from '../composables/useAstrolabedApi'
+import { useAstrolabedApi, type DiscoveredLanDevice } from '../composables/useAstrolabedApi'
 import type { WhiptailOption } from './types'
 import { useDnsUtils } from '../composables/useDnsUtils'
 
 const { getDnsStatusLabel } = useDnsUtils()
 
 const props = defineProps<{
-    lanDevices: DiscoveredLanDeviceDto[]
+    lanDevices: DiscoveredLanDevice[]
 }>()
 
 const { loading, queryDns } = useAstrolabedApi()
