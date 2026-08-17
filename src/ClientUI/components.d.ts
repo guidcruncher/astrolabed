@@ -14,6 +14,7 @@ declare module 'vue' {
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']
+    NtpLookupTab: typeof import('./src/components/NtpLookupTab.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']
