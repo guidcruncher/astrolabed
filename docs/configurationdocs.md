@@ -1,103 +1,111 @@
 # Configuration Reference
 
-Complete documentation for DNS, DHCP, NTP, Metrics, WebUI, and Logging configuration settings.
+Comprehensive Documentation & Schema Specifications for NetDNS Runtime JSON Configurations
 
-## 1\. DNS Service Configuration (`Dns`)
+## 1. Dns Configuration ("Dns")
 
-Configures the core DNS resolver engine, upstreams, rule-based routing, local hosts overrides, caching, and conditional forwarding.
+Controls global Domain Name System (DNS) server behavior, listening sockets, forward resolvers, caching policies, filtering/blocking behavior, and conditional forwarding rules.
 
-| Option | Type | Default / Sample | Description |
+| Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
-| Listen.Address | string | "127.0.0.1" | IP address for the DNS service to bind to and listen on. |
-| Listen.Port | integer | 1053 | Network port used to listen for incoming DNS queries. |
-| UpstreamTimeoutMs | integer | 1500 | Maximum time in milliseconds to wait for a response from upstream resolvers before timing out. |
-| DefaultResolvers Array (Fallback / Upstream Servers) |
-| DefaultResolvers[].Name | string | "Cloudflare" | Human-readable label for identifying the fallback resolver. |
-| DefaultResolvers[].Address | string | "1.1.1.1" | IP address of the fallback upstream DNS server. |
-| DefaultResolvers[].Port | integer | 53 | Target port on the upstream DNS server. |
-| Resolvers Array (Rule-Based Forwarding & Filtering) |
-| Resolvers[].Name | string | "LocalDNS" | Friendly name for a specific conditional resolver rule. |
-| Resolvers[].Address | string | "127.0.0.1" | Target IP address to send matched requests to (Optional if blocking). |
-| Resolvers[].Port | integer | 5353 | Target port for matched requests (Optional if blocking). |
-| Resolvers[].Rule | string | "^localdev\." | Regex pattern matched against requested hostnames. |
-| Resolvers[].Block | boolean | false / true | If true, immediately blocks queries matching the Rule pattern. |
-| Lists & Override Files |
-| Blocklists | array[string] | [] | List of URI paths/URLs containing domain blocklists (ad blocking/malware lists). |
-| Allowlists | array[string] | [] | List of URI paths/URLs containing explicitly allowed domains. |
-| HostsFiles | array[string] | ["file://..."] | URI paths to local custom hosts files for manual DNS mappings. |
-| Caching Options |
-| Caching.Enabled | boolean | true | Enables or disables in-memory DNS record caching. |
-| Caching.TtlSeconds | integer | 300 | Time-To-Live duration in seconds for cached DNS query results. |
-| Caching.MaxEntries | integer | 2000 | Maximum number of cached DNS entries retained in memory. |
-| Caching.CleanupIntervalMinutes | integer | 15 | Frequency in minutes to purge expired records from cache. |
-| BlockResponse Options |
-| BlockResponse.Mode | string | "NXDOMAIN" | Response strategy when a domain is blocked (e.g., NXDOMAIN or NullIp). |
-| BlockResponse.StaticIp | string | "0.0.0.0" | Static IP returned when Mode is configured to respond with a custom IP. |
-| BlockResponse.Ttl | integer | 60 | TTL in seconds for blocked DNS responses. |
-| Conditional Forwarding |
-| ConditionalForwarding.Enabled | boolean | true | Enables forwarding local domain and reverse DNS queries to a local DHCP/router device. |
-| ConditionalForwarding.DhcpServerIp | string | "192.168.1.1" | Target IP address of the DHCP server/router holding local client records. |
-| ConditionalForwarding.DhcpServerPort | integer | 53 | Port used by the target local DHCP/router DNS service. |
-| ConditionalForwarding.LocalDomain | string | "lan" | Local suffix appended to local hostname resolution. |
-| ConditionalForwarding.LocalSubnetCidr | string | "192.168.1.0/24" | Subnet range whose reverse PTR lookups should forward to the DHCP server. |
-| ConditionalForwarding.ForwardNonFqdn | boolean | true | If true, single-label names (e.g. mycomputer) are sent directly to the local DHCP server. |
+| Listen.Address | String (IPv4/v6) | "127.0.0.1" | IP address the DNS server binds to for listening to incoming client queries. |
+| Listen.Port | Integer (1-65535) | 1053 | Network port on which the DNS server listens. Standard DNS uses 53. |
+| UpstreamTimeoutMs | Integer (ms) | 1500 | Maximum timeout in milliseconds to wait for a response from upstream DNS resolvers. |
+| DefaultResolvers | Array<Object> | [ { "Name": "Cloudflare",... } ] | List of default upstream resolvers used for general internet resolution. Each resolver has Name (String), Address (String), and Port (Integer). |
+| Resolvers | Array<Object> | [ { "Rule": "^localdev\.",... } ] | Targeted resolvers bound to specific domain regex rules. Properties include Name, Address, Port, Rule (Regex), and Block (Boolean). |
+| Blocklists | Array<String> | [ "https://.../list.txt" ] | List of URIs or local file paths containing ad/malware domain blocklists. |
+| Allowlists | Array<String> | [ "https://.../allow.txt" ] | List of URIs or local file paths containing domain allowlists to override blocklists. |
+| HostsFiles | Array<String> | [ "file://.../custom.list" ] | Paths to custom hosts files containing static hostname-to-IP mappings. |
+| Caching.Enabled | Boolean | true | Enables or disables in-memory DNS query response caching. |
+| Caching.TtlSeconds | Integer (seconds) | 300 | Default Time-To-Live duration in seconds for cached DNS query records. |
+| Caching.MaxEntries | Integer | 2000 | Maximum number of entries allowed in the DNS memory cache before LRU eviction. |
+| Caching.CleanupIntervalMinutes | Integer (minutes) | 15 | Interval in minutes for running background task to purge expired cache records. |
+| BlockResponse.Mode | String (Enum) | "NXDOMAIN" | Response mode for blocked domains. Options include NXDOMAIN, REFUSED, or StaticIp. |
+| BlockResponse.StaticIp | String (IPv4) | "0.0.0.0" | Static IP address returned when Mode is set to static IP override. |
+| BlockResponse.Ttl | Integer (seconds) | 60 | TTL value returned to clients for blocked DNS responses. |
+| ConditionalForwarding.Enabled | Boolean | true | Enables forwarding local network domain queries to a primary DHCP/router DNS server. |
+| ConditionalForwarding.DhcpServerIp | String (IPv4) | "192.168.1.1" | IP address of the DHCP/upstream router server handling local hostname resolution. |
+| ConditionalForwarding.DhcpServerPort | Integer (1-65535) | 53 | Port on the upstream target server for local domain queries. |
+| ConditionalForwarding.LocalDomain | String | "lan" | Local top-level domain suffix (e.g..lan or.local). |
+| ConditionalForwarding.LocalSubnetCidr | String (CIDR) | "192.168.1.0/24" | Subnet mask in CIDR notation used to identify reverse lookup PTR requests. |
+| ConditionalForwarding.ForwardNonFqdn | Boolean | true | Determines whether single-label queries (non-FQDNs) should be forwarded to the local domain resolver. |
 
-## 2\. DHCP Service Configuration (`Dhcp`)
+## 2. DHCP Configuration ("Dhcp")
 
-Configures network IP allocation, lease storage paths, netboot (PXE), and optional parameters provided to network clients.
+Manages Dynamic Host Configuration Protocol (DHCP) server settings, IP allocation pools, lease storage, PXE boot parameters, and web proxy (WPAD) auto-discovery.
 
-| Option | Type | Default / Sample | Description |
+| Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
-| Enabled | boolean | false | Toggles whether the integrated DHCP server process is running. |
-| ListenAddress | string | "0.0.0.0" | Interface IP to listen for DHCPDISCOVER requests on. |
-| ListenPort | integer | 1067 | Binding port for incoming DHCP network requests. |
-| LeaseStorePath | string | "../../../netdns-runtime/leases.json" | Local filesystem location used to store persistent DHCP lease records. |
-| BadIpStorePath | string | "../../../netdns-runtime/badips.json" | Path to track IP conflict records or blacklisted client IPs. |
-| PoolCidr | string | "192.168.10.0/24" | Network IP range managed by the DHCP pool for issuing dynamic leases. |
-| ServerIdentifier | string | "192.168.10.1" | The primary IP identifier for this DHCP server sent to clients. |
-| Router | string | "192.168.10.1" | Default gateway option (Option 3) assigned to clients. |
-| DnsServer | string | "1.1.1.1" | Primary DNS server option (Option 6) assigned to connected devices. |
-| NtpServer | string | "192.168.10.1" | NTP server option (Option 42) advertised to clients. |
-| DomainName | string | "corp.internal" | Domain suffix option (Option 15) handed to DHCP clients. |
-| InterfaceMtu | integer | 1500 | Network Interface MTU option (Option 26) provided to clients. |
-| TftpServerName | string | "192.168.10.5" | TFTP server address (Option 66) used for PXE boot configurations. |
-| BootfileName | string | "pxelinux.0" | Boot image path (Option 67) assigned to PXE client requests. |
-| WebProxyServerUrl | string | "http://wpad..." | Web Proxy Auto-Discovery (WPAD / Option 252) file URL. |
-| LeaseHours | integer | 24 | Validity duration in hours for dynamically assigned IP leases. |
-| ArpTimeoutMs | integer | 500 | Timeout in milliseconds for ARP probes to detect active IP conflicts before assigning a lease. |
+| Enabled | Boolean | true | Enables or disables the built-in DHCP server engine. |
+| ListenAddress | String (IPv4) | "0.0.0.0" | Network interface address for listening to DHCP DISCOVER packets. 0.0.0.0 binds all interfaces. |
+| ListenPort | Integer (1-65535) | 1067 | UDP listening port for DHCP server. Standard DHCP server port is 67. |
+| LeaseStorePath | String (Path) | ".../leases.json" | File path where persistent DHCP IP lease allocations are saved in JSON format. |
+| BadIpStorePath | String (Path) | ".../badips.json" | File path storing detected IP conflicts and blacklisted IP addresses. |
+| PoolCidr | String (CIDR) | "192.168.10.0/24" | IP address pool range formatted in CIDR notation from which dynamic IPs are leased. |
+| ServerIdentifier | String (IPv4) | "192.168.10.1" | IP address identifying this DHCP server to client devices (DHCP Option 54). |
+| Router | String (IPv4) | "192.168.10.1" | Default Gateway IP address assigned to DHCP clients (DHCP Option 3). |
+| DnsServer | String (IPv4) | "1.1.1.1" | Primary DNS server IP address handed out to connecting clients (DHCP Option 6). |
+| NtpServer | String (IPv4) | "192.168.10.1" | Network Time Protocol (NTP) server IP address provided to clients (DHCP Option 42). |
+| DomainName | String | "corp.internal" | Domain name suffix assigned to clients for local hostname resolution (DHCP Option 15). |
+| InterfaceMtu | Integer (bytes) | 1500 | Maximum Transmission Unit (MTU) size assigned to client network interfaces (DHCP Option 26). |
+| TftpServerName | String (IP/Host) | "192.168.10.5" | TFTP server IP/hostname used for PXE network booting (DHCP Option 66). |
+| BootfileName | String (Path) | "pxelinux.0" | Path/filename of the network boot program for PXE clients (DHCP Option 67). |
+| WebProxyServerUrl | String (URL) | "http://.../wpad.dat" | URL pointing to WPAD auto-proxy setup script (DHCP Option 252). |
+| LeaseHours | Integer (hours) | 24 | Duration in hours for which dynamic IP address leases remain valid. |
+| ArpTimeoutMs | Integer (ms) | 500 | Timeout in milliseconds for ARP probe verification before offering an IP. |
 
-## 3\. Network Time Protocol Service Configuration (`Ntp`)
+## 3. NTP Configuration ("Ntp")
 
-Controls internal time synchronization service settings and upstream NTP server syncing.
+Configures the Network Time Protocol (NTP) service, controlling stratum depth, UDP socket binding, and upstream sync servers.
 
-| Option | Type | Default / Sample | Description |
+| Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
-| Enabled | boolean | true | Enables or disables the local NTP server daemon. |
-| ListenAddress | string | "127.0.0.1" | Interface address where the NTP daemon listens. |
-| Port | integer | 1123 | Target port binding for incoming NTP UDP requests. |
-| BufferSize | integer | 65536 | Buffer capacity in bytes allocated for network socket packets. |
-| Stratum | integer | 1 | Advertised NTP stratum level (1 represents a primary hardware reference clock). |
-| ReferenceId | string | "LOCL" | 4-character ASCII identifier code describing the reference clock source. |
-| Upstream Settings |
-| Upstream.Enabled | boolean | true | If true, synchronizes the system clock with public upstream time servers. |
-| Upstream.Servers | array[string] | ["0.pool...", ...] | List of external upstream NTP server domain names or IP addresses. |
-| Upstream.PollIntervalSeconds | integer | 16 | Polling frequency in seconds for updating time against upstream servers. |
+| Enabled | Boolean | true | Enables or disables the NTP server module. |
+| ListenAddress | String (IPv4/v6) | "127.0.0.1" | IP address the NTP UDP server binds to. |
+| Port | Integer (1-65535) | 1123 | UDP port used for NTP communication. Standard NTP uses UDP port 123. |
+| BufferSize | Integer (bytes) | 65536 | Socket receive/send buffer allocation size in bytes. |
+| Stratum | Integer (1-15) | 1 | Stratum level reported by this server (1 = primary reference source). |
+| ReferenceId | String (4-Char) | "LOCL" | Four-character ASCII code identifying the reference clock source (e.g. LOCL, GPS, PPS). |
+| Upstream.Enabled | Boolean | true | Enables synchronization with upstream reference NTP servers. |
+| Upstream.Servers | Array<String> | [ "0.pool.ntp.org" ] | List of hostnames or IP addresses of upstream reference NTP servers. |
+| Upstream.PollIntervalSeconds | Integer (seconds) | 16 | Interval in seconds between time synchronization queries to upstream servers. |
 
-## 4\. Monitoring, Admin UI & System Logging
+## 4. Operations & Infrastructure Configuration
 
-Configures telemetry collection, system dashboard options, and logging verbosity.
+Telemetry & Storage
 
-| Option | Type | Default / Sample | Description |
+Covers Metrics telemetry, Web UI management interface, Database storage providers, Network Scanner parameters, and Logging severity levels.
+
+### 4.1 Metrics Configuration ("Metrics")
+
+| Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
-| Metrics Configuration (Metrics) |
-| Metrics.Enabled | boolean | true | Enables telemetry metrics collection endpoints. |
-| Metrics.StorageEngine | string | "prometheus" | Format engine type used for metrics export (e.g. Prometheus). |
-| Metrics.Location | string | "/metrics" | HTTP path endpoint exposed for scraping performance metrics. |
-| Metrics.ListenAddress | string | "127.0.0.1" | IP address for listening to metrics scraper connections. |
-| Metrics.ListenPort | integer | 1080 | Port used to expose the metrics endpoint. |
-| Web UI Dashboard (WebUI) |
-| WebUI.Enabled | boolean | true | Enables the built-in web management portal. |
-| WebUI.ListenAddress | string | "127.0.0.1" | Bound interface IP address for administrative HTTP traffic. |
-| WebUI.ListenPort | integer | 1081 | HTTP port allocated for accessing the web control panel. |
-| System Logging (Logging) |
-| Logging.Level | string | "Trace" | Log verbosity filter (e.g. Trace, Debug, Info, Warning, Error). |
+| Enabled | Boolean | true | Enables HTTP metrics scraping endpoint. |
+| StorageEngine | String | "prometheus" | Metrics format and storage engine exporter (e.g. Prometheus, InfluxDB). |
+| Location | String (Path) | "/metrics" | URL path endpoint where metrics are exposed. |
+| ListenAddress | String (IPv4) | "127.0.0.1" | IP address binding for the telemetry server. |
+| ListenPort | Integer (1-65535) | 1080 | HTTP port exposed for metric scrapers. |
+
+### 4.2 Web UI Configuration ("WebUI")
+
+| Property Name | Data Format | Example Value | Description |
+| --- | --- | --- | --- |
+| Enabled | Boolean | true | Enables or disables the administrative web UI application. |
+| ListenAddress | String (IPv4) | "0.0.0.0" | Binding IP address for the Web UI HTTP web server. |
+| ListenPort | Integer (1-65535) | 1081 | Port on which the Web UI portal is accessible. |
+
+### 4.3 Database Options ("DbOptions")
+
+| Property Name | Data Format | Example Value | Description |
+| --- | --- | --- | --- |
+| DatabaseProvider | String | "sqlite" | Database driver engine (e.g. sqlite, postgres). |
+| ConnectionString | String | "Data Source=.../astrolabed.db;Cache=Shared" | Database connection string specifying datasource location and connection parameters. |
+
+### 4.4 Network Scanner & Logging ("NetworkScanner", "Logging")
+
+| Property Name | Data Format | Example Value | Description |
+| --- | --- | --- | --- |
+| NetworkScanner.MaxDegreeOfParallelism | Integer | 100 | Maximum concurrent threads/tasks utilized for active subnet host discovery. |
+| NetworkScanner.PingTimeoutMs | Integer (ms) | 200 | ICMP Ping packet response timeout in milliseconds per host probe. |
+| Logging.Level | String (Enum) | "Trace" | Minimum log severity level. Valid levels: Trace, Debug, Information, Warning, Error, Critical. |
+
