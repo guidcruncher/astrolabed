@@ -1,93 +1,111 @@
 <script setup lang="ts">
-defineProps<{
-    dhcp: any
-}>()
+import WhiptailCheckbox from './WhiptailCheckbox.vue'
+
+const config = defineModel<Record<string, any>>({ required: true })
 </script>
 
 <template>
-    <div class="form-section">
-        <h3>DHCP Settings</h3>
-        <div class="field checkbox">
-            <label><input v-model="dhcp.Enabled" type="checkbox" /> Enable DHCP Service</label>
-        </div>
-
-        <div class="grid-2">
-            <div class="field">
-                <label>Listen Address</label>
-                <input v-model="dhcp.ListenAddress" type="text" class="input" />
+    <div class="wt-section-body">
+        <div class="wt-form-row wt-form-group">
+            <div style="flex: 1">
+                <WhiptailCheckbox v-model="config.Enabled" label="Enable DHCP Server" />
             </div>
-            <div class="field">
-                <label>Listen Port</label>
-                <input v-model.number="dhcp.ListenPort" type="number" class="input" />
+            <div style="flex: 2">
+                <label class="wt-label">Listen Address</label>
+                <input v-model="config.ListenAddress" type="text" class="wt-input" />
             </div>
-            <div class="field">
-                <label>Pool CIDR</label>
-                <input v-model="dhcp.PoolCidr" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>Server Identifier</label>
-                <input v-model="dhcp.ServerIdentifier" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>Router (Gateway)</label>
-                <input v-model="dhcp.Router" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>DNS Server</label>
-                <input v-model="dhcp.DnsServer" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>Domain Name</label>
-                <input v-model="dhcp.DomainName" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>Lease Duration (Hours)</label>
-                <input v-model.number="dhcp.LeaseHours" type="number" class="input" />
+            <div style="flex: 1">
+                <label class="wt-label">Listen Port</label>
+                <input v-model.number="config.ListenPort" type="number" class="wt-input" />
             </div>
         </div>
 
-        <h3>PXE Boot & Proxy Options</h3>
-        <div class="grid-2">
-            <div class="field">
-                <label>TFTP Server Name</label>
-                <input v-model="dhcp.TftpServerName" type="text" class="input" />
+        <!-- Addressing & Network Settings -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold"
+                >Subnet & Addressing Configuration</span
+            >
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <label class="wt-label">Pool CIDR</label>
+                    <input v-model="config.PoolCidr" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Server Identifier</label>
+                    <input v-model="config.ServerIdentifier" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Router / Gateway</label>
+                    <input v-model="config.Router" type="text" class="wt-input" />
+                </div>
             </div>
-            <div class="field">
-                <label>Bootfile Name</label>
-                <input v-model="dhcp.BootfileName" type="text" class="input" />
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <label class="wt-label">DNS Server</label>
+                    <input v-model="config.DnsServer" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">NTP Server</label>
+                    <input v-model="config.NtpServer" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Domain Name</label>
+                    <input v-model="config.DomainName" type="text" class="wt-input" />
+                </div>
             </div>
-            <div class="field">
-                <label>WPAD Web Proxy URL</label>
-                <input v-model="dhcp.WebProxyServerUrl" type="text" class="input" />
+        </div>
+
+        <!-- Leases & PXE Booting -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold"
+                >Leases & Boot Parameters</span
+            >
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <label class="wt-label">Lease Duration (Hours)</label>
+                    <input v-model.number="config.LeaseHours" type="number" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">ARP Timeout (ms)</label>
+                    <input v-model.number="config.ArpTimeoutMs" type="number" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Interface MTU</label>
+                    <input v-model.number="config.InterfaceMtu" type="number" class="wt-input" />
+                </div>
             </div>
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <label class="wt-label">TFTP Server Name</label>
+                    <input v-model="config.TftpServerName" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Bootfile Name</label>
+                    <input v-model="config.BootfileName" type="text" class="wt-input" />
+                </div>
+            </div>
+            <div class="wt-form-group" style="margin-top: 8px">
+                <label class="wt-label">Web Proxy Auto-Discovery (WPAD) URL</label>
+                <input v-model="config.WebProxyServerUrl" type="text" class="wt-input" />
+            </div>
+        </div>
+
+        <!-- Path Storage Storage Locations -->
+        <div class="wt-form-group">
+            <label class="wt-label">Lease Store Path</label>
+            <input v-model="config.LeaseStorePath" type="text" class="wt-input" />
+        </div>
+        <div class="wt-form-group">
+            <label class="wt-label">Bad IP Store Path</label>
+            <input v-model="config.BadIpStorePath" type="text" class="wt-input" />
         </div>
     </div>
 </template>
 
 <style scoped>
-.form-section {
+.wt-section-body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-}
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 12px;
-}
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.field label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-}
-.input {
-    padding: 8px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
 }
 </style>

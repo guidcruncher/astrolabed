@@ -1,203 +1,255 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
+import WhiptailCheckbox from './WhiptailCheckbox.vue'
+import WhiptailCombobox from './WhiptailCombobox.vue'
+import WhiptailDataGrid from './WhiptailDataGrid.vue'
+import WhiptailButton from './WhiptailButton.vue'
+import type { ColumnDef, PagedResult, WhiptailOption } from './types'
 
-const props = defineProps<{
-    dns: any
-}>()
+const config = defineModel<Record<string, any>>({ required: true })
 
-const newHostFile = ref('')
+const blockModeOptions: WhiptailOption[] = [
+    { label: 'NXDOMAIN', value: 'NXDOMAIN' },
+    { label: 'NODATA', value: 'NODATA' },
+    { label: 'REFUSED', value: 'REFUSED' },
+    { label: 'STATIC_IP', value: 'STATIC_IP' },
+]
 
-function addHostFile() {
-    if (newHostFile.value.trim()) {
-        props.dns.HostsFiles.push(newHostFile.value.trim())
-        newHostFile.value = ''
-    }
+// Column definitions for DataGrids
+const defaultResolverCols: ColumnDef[] = [
+    { key: 'Name', header: 'Resolver Name' },
+    { key: 'Address', header: 'IP Address', width: '160px' },
+    { key: 'Port', header: 'Port', width: '100px', align: 'center' },
+]
+
+const resolverCols: ColumnDef[] = [
+    { key: 'Name', header: 'Name' },
+    { key: 'Address', header: 'Address', width: '140px' },
+    { key: 'Port', header: 'Port', width: '80px', align: 'center' },
+    { key: 'Rule', header: 'Rule Regex' },
+    { key: 'Block', header: 'Blocked', width: '90px', align: 'center' },
+]
+
+// PagedResult adapters for WhiptailDataGrid
+const defaultResolversPaged = computed<PagedResult<any>>(() => ({
+    items: config.value.DefaultResolvers || [],
+    totalCount: config.value.DefaultResolvers?.length || 0,
+    pageNumber: 1,
+    pageSize: 10,
+}))
+
+const resolversPaged = computed<PagedResult<any>>(() => ({
+    items: config.value.Resolvers || [],
+    totalCount: config.value.Resolvers?.length || 0,
+    pageNumber: 1,
+    pageSize: 10,
+}))
+
+const addDefaultResolver = (): void => {
+    config.value.DefaultResolvers.push({ Name: 'New Resolver', Address: '0.0.0.0', Port: 53 })
 }
 
-function removeHostFile(index: number) {
-    props.dns.HostsFiles.splice(index, 1)
+const addResolver = (): void => {
+    config.value.Resolvers.push({
+        Name: 'New Rule',
+        Address: '127.0.0.1',
+        Port: 53,
+        Rule: '.*',
+        Block: false,
+    })
 }
 
-function addResolver() {
-    props.dns.Resolvers.push({ Name: 'New Resolver', Rule: '', Block: false, Port: 53 })
+const addHostsFile = (): void => {
+    config.value.HostsFiles.push('file://')
 }
 
-function removeResolver(index: number) {
-    props.dns.Resolvers.splice(index, 1)
+const removeHostsFile = (index: number): void => {
+    config.value.HostsFiles.splice(index, 1)
 }
 </script>
 
 <template>
-    <div class="form-section">
-        <h3>DNS Core & Socket</h3>
-        <div class="grid-2">
-            <div class="field">
-                <label>Listen Address</label>
-                <input v-model="dns.Listen.Address" type="text" class="input" />
+    <div class="wt-section-body">
+        <!-- Listen & Basic Setup -->
+        <div class="wt-form-row wt-form-group">
+            <div style="flex: 2">
+                <label class="wt-label">Listen Address</label>
+                <input v-model="config.Listen.Address" type="text" class="wt-input" />
             </div>
-            <div class="field">
-                <label>Listen Port</label>
-                <input v-model.number="dns.Listen.Port" type="number" class="input" />
+            <div style="flex: 1">
+                <label class="wt-label">Listen Port</label>
+                <input v-model.number="config.Listen.Port" type="number" class="wt-input" />
             </div>
-            <div class="field">
-                <label>Upstream Timeout (ms)</label>
-                <input v-model.number="dns.UpstreamTimeoutMs" type="number" class="input" />
-            </div>
-        </div>
-
-        <h3>Caching Configuration</h3>
-        <div class="grid-2">
-            <div class="field checkbox">
-                <label
-                    ><input v-model="dns.Caching.Enabled" type="checkbox" /> Enable Caching</label
-                >
-            </div>
-            <div class="field">
-                <label>TTL Seconds</label>
-                <input v-model.number="dns.Caching.TtlSeconds" type="number" class="input" />
-            </div>
-            <div class="field">
-                <label>Max Entries</label>
-                <input v-model.number="dns.Caching.MaxEntries" type="number" class="input" />
-            </div>
-            <div class="field">
-                <label>Cleanup Interval (Minutes)</label>
-                <input
-                    v-model.number="dns.Caching.CleanupIntervalMinutes"
-                    type="number"
-                    class="input"
-                />
+            <div style="flex: 1">
+                <label class="wt-label">Timeout (ms)</label>
+                <input v-model.number="config.UpstreamTimeoutMs" type="number" class="wt-input" />
             </div>
         </div>
 
-        <h3>Block Response Policy</h3>
-        <div class="grid-3">
-            <div class="field">
-                <label>Mode</label>
-                <select v-model="dns.BlockResponse.Mode" class="input">
-                    <option value="NXDOMAIN">NXDOMAIN</option>
-                    <option value="REFUSED">REFUSED</option>
-                    <option value="StaticIp">StaticIp</option>
-                </select>
-            </div>
-            <div class="field">
-                <label>Static IP</label>
-                <input v-model="dns.BlockResponse.StaticIp" type="text" class="input" />
-            </div>
-            <div class="field">
-                <label>TTL (Seconds)</label>
-                <input v-model.number="dns.BlockResponse.Ttl" type="number" class="input" />
+        <!-- Caching Settings -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold">Cache Engine</span>
+            <div class="wt-form-row wt-mt" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <WhiptailCheckbox v-model="config.Caching.Enabled" label="Enable Cache" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">TTL (Seconds)</label>
+                    <input
+                        v-model.number="config.Caching.TtlSeconds"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Max Entries</label>
+                    <input
+                        v-model.number="config.Caching.MaxEntries"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Cleanup (Mins)</label>
+                    <input
+                        v-model.number="config.Caching.CleanupIntervalMinutes"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
             </div>
         </div>
 
-        <h3>Custom Resolvers</h3>
-        <div v-for="(resolver, index) in dns.Resolvers" :key="index" class="resolver-item">
-            <div class="grid-3">
-                <input v-model="resolver.Name" placeholder="Name" class="input" />
-                <input v-model="resolver.Rule" placeholder="Regex Rule" class="input" />
-                <input v-model="resolver.Address" placeholder="Target Address" class="input" />
-            </div>
-            <div class="resolver-footer">
-                <label><input v-model="resolver.Block" type="checkbox" /> Block Match</label>
-                <button class="btn-sm btn-danger" @click="removeResolver(Number(index))">
-                    Remove
-                </button>
+        <!-- Block Response Configuration -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold"
+                >Block Response Behavior</span
+            >
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <label class="wt-label">Mode</label>
+                    <WhiptailCombobox
+                        v-model="config.BlockResponse.Mode"
+                        :options="blockModeOptions"
+                    />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">Static IP</label>
+                    <input v-model="config.BlockResponse.StaticIp" type="text" class="wt-input" />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">TTL</label>
+                    <input
+                        v-model.number="config.BlockResponse.Ttl"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
             </div>
         </div>
-        <button class="btn-sm btn-secondary" @click="addResolver">+ Add Resolver</button>
 
-        <h3>Hosts Files</h3>
-        <ul class="list">
-            <li v-for="(file, idx) in dns.HostsFiles" :key="idx">
-                <span>{{ file }}</span>
-                <button class="btn-sm btn-danger" @click="removeHostFile(Number(idx))">
-                    Remove
-                </button>
-            </li>
-        </ul>
-        <div class="input-group">
-            <input v-model="newHostFile" placeholder="file:///path/to/hosts" class="input" />
-            <button class="btn-sm btn-primary" @click="addHostFile">Add Path</button>
+        <!-- Conditional Forwarding -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold"
+                >Conditional Forwarding</span
+            >
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <WhiptailCheckbox
+                        v-model="config.ConditionalForwarding.Enabled"
+                        label="Enabled"
+                    />
+                </div>
+                <div style="flex: 1">
+                    <WhiptailCheckbox
+                        v-model="config.ConditionalForwarding.ForwardNonFqdn"
+                        label="Forward Non-FQDN"
+                    />
+                </div>
+            </div>
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 2">
+                    <label class="wt-label">DHCP Server IP</label>
+                    <input
+                        v-model="config.ConditionalForwarding.DhcpServerIp"
+                        type="text"
+                        class="wt-input"
+                    />
+                </div>
+                <div style="flex: 1">
+                    <label class="wt-label">DHCP Port</label>
+                    <input
+                        v-model.number="config.ConditionalForwarding.DhcpServerPort"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
+                <div style="flex: 2">
+                    <label class="wt-label">Local Domain</label>
+                    <input
+                        v-model="config.ConditionalForwarding.LocalDomain"
+                        type="text"
+                        class="wt-input"
+                    />
+                </div>
+                <div style="flex: 2">
+                    <label class="wt-label">Subnet CIDR</label>
+                    <input
+                        v-model="config.ConditionalForwarding.LocalSubnetCidr"
+                        type="text"
+                        class="wt-input"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <!-- Default Resolvers Grid -->
+        <div class="wt-form-group">
+            <div class="wt-box-header" style="margin-bottom: 6px">
+                <label class="wt-label" style="color: #ffff00">Default Resolvers</label>
+                <WhiptailButton @click="addDefaultResolver">+ Add Resolver</WhiptailButton>
+            </div>
+            <WhiptailDataGrid :data="defaultResolversPaged" :columns="defaultResolverCols" />
+        </div>
+
+        <!-- Custom Rule Resolvers Grid -->
+        <div class="wt-form-group">
+            <div class="wt-box-header" style="margin-bottom: 6px">
+                <label class="wt-label" style="color: #ffff00">Rule Resolvers</label>
+                <WhiptailButton @click="addResolver">+ Add Rule</WhiptailButton>
+            </div>
+            <WhiptailDataGrid :data="resolversPaged" :columns="resolverCols">
+                <template #cell-Block="{ value }">
+                    <span :class="value ? 'wt-text-err' : 'wt-text-ok'">
+                        {{ value ? '[BLOCKED]' : '[ALLOW]' }}
+                    </span>
+                </template>
+            </WhiptailDataGrid>
+        </div>
+
+        <!-- Hosts Files -->
+        <div class="wt-form-group">
+            <div class="wt-box-header" style="margin-bottom: 6px">
+                <label class="wt-label" style="color: #ffff00">Hosts File Sources</label>
+                <WhiptailButton @click="addHostsFile">+ Add Source</WhiptailButton>
+            </div>
+            <div
+                v-for="(_, idx) in config.HostsFiles"
+                :key="idx"
+                class="wt-form-row"
+                style="margin-bottom: 6px"
+            >
+                <input v-model="config.HostsFiles[idx]" type="text" class="wt-input" />
+                <WhiptailButton variant="cancel" @click="removeHostsFile(idx)">X</WhiptailButton>
+            </div>
         </div>
     </div>
 </template>
 
 <style scoped>
-.form-section {
+.wt-section-body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-}
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 12px;
-}
-.grid-3 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px;
-}
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.field label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-}
-.input {
-    padding: 8px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-}
-.resolver-item {
-    border: 1px solid #e2e8f0;
-    padding: 12px;
-    border-radius: 6px;
-    background: #f8fafc;
-    margin-bottom: 8px;
-}
-.resolver-footer {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 8px;
-    align-items: center;
-}
-.list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-.list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #f1f5f9;
-}
-.input-group {
-    display: flex;
-    gap: 8px;
-}
-.btn-sm {
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    border: none;
-}
-.btn-primary {
-    background: #2563eb;
-    color: white;
-}
-.btn-secondary {
-    background: #e2e8f0;
-    color: #334155;
-}
-.btn-danger {
-    background: #ef4444;
-    color: white;
 }
 </style>

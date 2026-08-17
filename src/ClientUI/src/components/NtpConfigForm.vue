@@ -1,125 +1,96 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import WhiptailCheckbox from './WhiptailCheckbox.vue'
+import WhiptailButton from './WhiptailButton.vue'
 
-const props = defineProps<{
-    ntp: any
-}>()
+const config = defineModel<Record<string, any>>({ required: true })
 
-const newServer = ref('')
-
-function addServer() {
-    if (newServer.value.trim()) {
-        props.ntp.Upstream.Servers.push(newServer.value.trim())
-        newServer.value = ''
-    }
+const addUpstreamServer = (): void => {
+    config.value.Upstream.Servers.push('')
 }
 
-function removeServer(index: number) {
-    props.ntp.Upstream.Servers.splice(index, 1)
+const removeUpstreamServer = (index: number): void => {
+    config.value.Upstream.Servers.splice(index, 1)
 }
 </script>
 
 <template>
-    <div class="form-section">
-        <h3>NTP Server</h3>
-        <div class="field checkbox">
-            <label><input v-model="ntp.Enabled" type="checkbox" /> Enable NTP Service</label>
-        </div>
-
-        <div class="grid-2">
-            <div class="field">
-                <label>Listen Address</label>
-                <input v-model="ntp.ListenAddress" type="text" class="input" />
+    <div class="wt-section-body">
+        <div class="wt-form-row wt-form-group">
+            <div style="flex: 1">
+                <WhiptailCheckbox v-model="config.Enabled" label="Enable NTP Service" />
             </div>
-            <div class="field">
-                <label>Port</label>
-                <input v-model.number="ntp.Port" type="number" class="input" />
+            <div style="flex: 2">
+                <label class="wt-label">Listen Address</label>
+                <input v-model="config.ListenAddress" type="text" class="wt-input" />
             </div>
-            <div class="field">
-                <label>Stratum</label>
-                <input v-model.number="ntp.Stratum" type="number" class="input" />
-            </div>
-            <div class="field">
-                <label>Reference ID</label>
-                <input v-model="ntp.ReferenceId" type="text" class="input" />
+            <div style="flex: 1">
+                <label class="wt-label">Port</label>
+                <input v-model.number="config.Port" type="number" class="wt-input" />
             </div>
         </div>
 
-        <h3>Upstream Time Synchronization</h3>
-        <div class="field checkbox">
-            <label
-                ><input v-model="ntp.Upstream.Enabled" type="checkbox" /> Enable Upstream
-                Sync</label
+        <div class="wt-form-row wt-form-group">
+            <div style="flex: 1">
+                <label class="wt-label">Buffer Size</label>
+                <input v-model.number="config.BufferSize" type="number" class="wt-input" />
+            </div>
+            <div style="flex: 1">
+                <label class="wt-label">Stratum Level</label>
+                <input v-model.number="config.Stratum" type="number" class="wt-input" />
+            </div>
+            <div style="flex: 1">
+                <label class="wt-label">Reference ID</label>
+                <input v-model="config.ReferenceId" type="text" class="wt-input" />
+            </div>
+        </div>
+
+        <!-- Upstream Sync Configuration -->
+        <div class="wt-message wt-form-group">
+            <span class="wt-label" style="color: #ffff00; font-weight: bold"
+                >Upstream NTP Synchronization</span
             >
-        </div>
+            <div class="wt-form-row" style="margin-top: 8px">
+                <div style="flex: 1">
+                    <WhiptailCheckbox
+                        v-model="config.Upstream.Enabled"
+                        label="Sync with Upstream"
+                    />
+                </div>
+                <div style="flex: 2">
+                    <label class="wt-label">Poll Interval (Seconds)</label>
+                    <input
+                        v-model.number="config.Upstream.PollIntervalSeconds"
+                        type="number"
+                        class="wt-input"
+                    />
+                </div>
+            </div>
 
-        <ul class="list">
-            <li v-for="(server, idx) in ntp.Upstream.Servers" :key="idx">
-                <span>{{ server }}</span>
-                <button class="btn-sm btn-danger" @click="removeServer(Number(idx))">Remove</button>
-            </li>
-        </ul>
-        <div class="input-group">
-            <input v-model="newServer" placeholder="time.google.com" class="input" />
-            <button class="btn-sm btn-primary" @click="addServer">Add Server</button>
+            <div style="margin-top: 12px">
+                <div class="wt-box-header" style="margin-bottom: 6px">
+                    <label class="wt-label" style="color: #ffff00">Upstream Servers</label>
+                    <WhiptailButton @click="addUpstreamServer">+ Add Server</WhiptailButton>
+                </div>
+                <div
+                    v-for="(_, idx) in config.Upstream.Servers"
+                    :key="idx"
+                    class="wt-form-row"
+                    style="margin-bottom: 6px"
+                >
+                    <input v-model="config.Upstream.Servers[idx]" type="text" class="wt-input" />
+                    <WhiptailButton variant="cancel" @click="removeUpstreamServer(idx)"
+                        >X</WhiptailButton
+                    >
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <style scoped>
-.form-section {
+.wt-section-body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-}
-.grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
     gap: 12px;
-}
-.field {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
-.field label {
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #475569;
-}
-.input {
-    padding: 8px;
-    border: 1px solid #cbd5e1;
-    border-radius: 4px;
-}
-.list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-.list li {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 0;
-    border-bottom: 1px solid #f1f5f9;
-}
-.input-group {
-    display: flex;
-    gap: 8px;
-}
-.btn-sm {
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    border-radius: 4px;
-    cursor: pointer;
-    border: none;
-}
-.btn-primary {
-    background: #2563eb;
-    color: white;
-}
-.btn-danger {
-    background: #ef4444;
-    color: white;
 }
 </style>
