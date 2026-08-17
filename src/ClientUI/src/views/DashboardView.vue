@@ -31,21 +31,21 @@ const handleLogout = async (): Promise<void> => {
 const refreshDashboardMetrics = async (): Promise<void> => {
     try {
         const [logsData, devicesData, leasesData] = await Promise.allSettled([
-            getDnsEvents(),
-            getDiscoveredNetworkDevices(),
-            getLeases(true),
+            getDnsEvents({ pageNumber: 1, pageSize: 5 }),
+            getDiscoveredNetworkDevices({ pageNumber: 1, pageSize: 5 }),
+            getLeases(true, { pageNumber: 1, pageSize: 5 }),
         ])
 
-        if (logsData.status === 'fulfilled' && Array.isArray(logsData.value)) {
-            dnsEventsCount.value = logsData.value.length
+        if (logsData.status === 'fulfilled') {
+            dnsEventsCount.value = logsData.value.totalCount
         }
 
-        if (devicesData.status === 'fulfilled' && Array.isArray(devicesData.value)) {
-            lanDevicesCount.value = devicesData.value.length
+        if (devicesData.status === 'fulfilled') {
+            lanDevicesCount.value = devicesData.value.totalCount
         }
 
-        if (leasesData.status === 'fulfilled' && Array.isArray(leasesData.value)) {
-            activeLeasesCount.value = leasesData.value.length
+        if (leasesData.status === 'fulfilled') {
+            activeLeasesCount.value = leasesData.value.totalCount
         }
     } catch (err) {
         console.error('Failed to load dashboard metrics', err)

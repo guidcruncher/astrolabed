@@ -1,6 +1,8 @@
+using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 
 using Astrolabed.Api.Services;
+using Astrolabed.Data;
 using Astrolabed.Utilities;
 
 using Microsoft.AspNetCore.Authorization;
@@ -28,28 +30,50 @@ public class NetworkController : ControllerBase
     }
 
     /// <summary>
-    /// Scans the local network (LAN) and returns a list of active discovered devices.
+    /// Scans the local network (LAN) and returns a paginated list of active discovered devices.
     /// </summary>
+    /// <param name="pageNumber">Page number index (1-based).</param>
+    /// <param name="pageSize">Number of records per page (1-1000).</param>
     /// <param name="cancellationToken">Request cancellation token.</param>
-    /// <returns>A list of discovered LAN devices with IP, MAC address, and hostname.</returns>
+    /// <returns>A paginated result set containing discovered LAN devices.</returns>
     [HttpGet("devices")]
-    [ProducesResponseType(typeof(IReadOnlyCollection<DiscoveredLanDeviceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DiscoveredLanDeviceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public async Task<ActionResult<IReadOnlyCollection<DiscoveredLanDeviceDto>>> GetDiscoveredDevicesAsync(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetDiscoveredDevicesAsync(
+        [FromQuery, Range(1, int.MaxValue)] int pageNumber = 1,
+        [FromQuery, Range(1, 1000)] int pageSize = 100,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("HTTP GET api/network/devices requested.");
+        _logger.LogInformation(
+            "HTTP GET api/network/devices requested with PageNumber: {PageNumber}, PageSize: {PageSize}.",
+            pageNumber,
+            pageSize);
 
         try
         {
             var devices = await _lanScannerService.ScanLanAsync(cancellationToken);
+            var deviceList = devices.ToList();
 
-            var deviceDtos = devices.Select(d => new DiscoveredLanDeviceDto(
-                d.IpAddress.ToString(),
-                d.MacAddress,
-                d.HostName
-            )).ToList();
+            var totalCount = deviceList.Count;
 
-            return Ok(deviceDtos);
+            var pageds = deviceList
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(d => new DiscoveredLanDeviceDto(
+                    d.IpAddress.ToString(),
+                    d.MacAddress,
+                    d.HostName
+                ))
+                .ToList();
+
+            var pagedResult = new PagedResult<DiscoveredLanDeviceDto>(
+                pageds,
+                totalCount,
+                pageNumber,
+                pageSize);
+
+            return Ok(pagedResult);
         }
         catch (OperationCanceledException)
         {
