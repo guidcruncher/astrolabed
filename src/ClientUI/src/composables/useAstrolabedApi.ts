@@ -282,9 +282,9 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Retrieves DHCP leases
      * GET /api/v1/Leases
      */
-    async function getLeases(activeOnly: boolean = true): Promise<DhcpLease> {
+    async function getLeases(activeOnly: boolean = true): Promise<DhcpLease[]> {
         const query = new URLSearchParams({ activeOnly: String(activeOnly) })
-        return apiFetch<DhcpLease>(`/api/v1/Leases?${query.toString()}`, { method: 'GET' })
+        return apiFetch<DhcpLease[]>(`/api/v1/Leases?${query.toString()}`, { method: 'GET' })
     }
 
     /**

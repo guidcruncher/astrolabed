@@ -11,6 +11,7 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DhcpLeaseTab: typeof import('./src/components/DhcpLeaseTab.vue')['default']
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']

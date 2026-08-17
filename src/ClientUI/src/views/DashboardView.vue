@@ -28,6 +28,7 @@ const activeLeasesCount = ref<number>(0)
 const dashboardTabs: TabItem[] = [
     { id: 'dns-lookup', label: 'DNS Lookup' },
     { id: 'lan-devices', label: 'LAN Devices' },
+    { id: 'dhcp', label: 'DHCP' },
     { id: 'dns-logs', label: 'DNS Activity' },
     { id: 'ntp', label: 'Time' },
 ]
@@ -163,6 +164,9 @@ onMounted(() => {
                 @page-change="handleDnsPageChange"
                 @page-size-change="handleDnsPageSizeChange"
             />
+        </template>
+        <template #dhcp>
+            <DhcpLeaseTab />
         </template>
         <template #ntp>
             <NtpLookupTab />
