@@ -4,6 +4,7 @@ import type { PagedResult } from '../components/types'
 // ==========================================
 // TYPES & INTERFACES
 // ==========================================
+
 export interface NtpHeader {
     leapIndicator: number
     version: number
@@ -178,6 +179,24 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
         return apiFetch<void>('/api/v1/Dns/cache', { method: 'DELETE' })
     }
 
+    async function getDnsCacheResponses(
+        params: PaginationParams = {},
+        search?: string,
+    ): Promise<PagedResult<DnsResponse>> {
+        const query = new URLSearchParams({
+            pageNumber: String(params.pageNumber ?? 1),
+            pageSize: String(params.pageSize ?? 100),
+        })
+
+        if (search) {
+            query.append('search', search)
+        }
+
+        return apiFetch<PagedResult<DnsResponse>>(`/api/v1/dns/cache?${query.toString()}`, {
+            method: 'GET',
+        })
+    }
+
     /**
      * Executes a manual DNS query lookup
      * GET /api/v1/Dns/query
@@ -211,7 +230,8 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
     }
 
     /**
-     * Gets paged list of DNS response events filtered by date-time range
+     * Gets paged list of DNS r
+esponse events filtered by date-time range
      * GET /api/v1/dns-events/range
      */
     async function getDnsEventsByRange(
@@ -369,6 +389,7 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
         error,
         // DNS
         clearDnsCache,
+        getDnsCacheResponses,
         queryDns,
         // DNS Events
         getDnsEvents,

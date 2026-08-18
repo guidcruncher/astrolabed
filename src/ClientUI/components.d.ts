@@ -14,6 +14,7 @@ declare module 'vue' {
     DbOptionsConfigForm: typeof import('./src/components/DbOptionsConfigForm.vue')['default']
     DhcpConfigForm: typeof import('./src/components/DhcpConfigForm.vue')['default']
     DhcpLeaseTab: typeof import('./src/components/DhcpLeaseTab.vue')['default']
+    DnsCacheTab: typeof import('./src/components/DnsCacheTab.vue')['default']
     DnsConfigForm: typeof import('./src/components/DnsConfigForm.vue')['default']
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
