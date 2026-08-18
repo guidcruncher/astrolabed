@@ -2,18 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { useServerOptions, type ServerOptions } from '../composables/useServerOptions'
 import type { TabItem } from '../components/types'
+import { useRouter, useRoute } from 'vue-router'
 
+const router = useRouter()
 const { fetchOptions, updateOptions } = useServerOptions()
 
 const configData = ref<ServerOptions | null>(null)
 const loaded = ref<boolean>(false)
 
-const emit = defineEmits<{
-    (e: 'save', updatedConfig: ServerOptions | null): void
-    (e: 'cancel'): void
-}>()
-
-// Clone configuration to prevent mutating upstream props directly
 const activeTab = ref<string>('dns')
 
 const tabs: TabItem[] = [
@@ -26,14 +22,16 @@ const tabs: TabItem[] = [
     { id: 'scanner', label: 'NetScanner' },
 ]
 
-const handleSave = (): void => {
+const handleSave = async (): Promise<void> => {
     if (configData.value) {
-        emit('save', configData.value)
+        await updateOptions(configData.value)
     }
+
+    router.push('/dashboard')
 }
 
 const handleCancel = (): void => {
-    emit('cancel')
+    router.push('/dashboard')
 }
 
 onMounted(async () => {
@@ -84,7 +82,7 @@ onMounted(async () => {
         <!-- Dialog Footer Actions -->
         <div class="wt-footer">
             <WhiptailButton variant="cancel" @click="handleCancel">Cancel</WhiptailButton>
-            <WhiptailButton variant="ok" @click="handleSave">Save Config</WhiptailButton>
+            <WhiptailButton variant="ok" @click="handleSave">Save</WhiptailButton>
         </div>
     </div>
 </template>

@@ -1,13 +1,22 @@
+n
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAstrolabedApi } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { TabItem } from '../components/types'
+import type { DropdownOption, TabItem } from '../components/types'
+import { useRouter, useRoute } from 'vue-router'
 
+const router = useRouter()
 const { loading, error, getDnsEvents, getDiscoveredNetworkDevices, getLeases, clearDnsCache } =
     useAstrolabedApi()
 
 const { logout } = useAuth()
+
+const dropdownOptions: DropdownOption[] = [
+    { label: 'Configuration', value: 'config' },
+    { label: 'Flush DNS Cache', value: 'flush-cache' },
+    { label: 'Logout', value: 'logout' },
+]
 
 const activeTab = ref('dns-lookup')
 
@@ -26,6 +35,20 @@ const dashboardTabs: TabItem[] = [
 
 const handleLogout = async (): Promise<void> => {
     await logout()
+}
+
+const handleSelect = async (option: DropdownOption): Promise<void> => {
+    switch (option.value) {
+        case 'config':
+            router.push('/config')
+            break
+        case 'flush-cache':
+            await handleFlushCache()
+            break
+        case 'logout':
+            await handleLogout()
+            break
+    }
 }
 
 const refreshDashboardMetrics = async (): Promise<void> => {
@@ -89,12 +112,11 @@ onMounted(() => {
                 <span>System Diagnostics & Status Overview</span>
             </div>
             <div style="float: right">
-                <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
-                    Flush Cache </WhiptailButton
-                >&nbsp;
-                <WhiptailButton class="wt-btn-cancel" @click="handleLogout">
-                    Logout
-                </WhiptailButton>
+                <WhiptailDropdown
+                    button-label="Actions Menu"
+                    :options="dropdownOptions"
+                    @select="handleSelect"
+                />
             </div>
         </div>
     </header>

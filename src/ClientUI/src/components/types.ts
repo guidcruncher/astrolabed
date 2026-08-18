@@ -1,3 +1,9 @@
+export interface DropdownOption {
+    label: string
+    value: string | number
+    disabled?: boolean
+}
+
 export interface WhiptailListItem<TValue = any> {
     label: string
     value: TValue

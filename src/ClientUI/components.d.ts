@@ -33,6 +33,7 @@ declare module 'vue' {
     WhiptailCombobox: typeof import('./src/components/WhiptailCombobox.vue')['default']
     WhiptailDataGrid: typeof import('./src/components/WhiptailDataGrid.vue')['default']
     WhiptailDialog: typeof import('./src/components/WhiptailDialog.vue')['default']
+    WhiptailDropdownMenu: typeof import('./src/components/WhiptailDropdownMenu.vue')['default']
     WhiptailFormGroup: typeof import('./src/components/WhiptailFormGroup.vue')['default']
     WhiptailGauge: typeof import('./src/components/WhiptailGauge.vue')['default']
     WhiptailInput: typeof import('./src/components/WhiptailInput.vue')['default']
