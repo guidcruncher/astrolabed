@@ -1,0 +1,32 @@
+<script setup lang="ts">
+import type { WhiptailOption } from './types'
+import { type DbOptions } from '../composables/useServerOptions'
+
+const config = defineModel<DbOptions>({ required: true })
+
+const providerOptions: WhiptailOption[] = [
+    { label: 'Sqlite', value: 'Sqlite' },
+    { label: 'PostgreSQL', value: 'Postgres' },
+]
+</script>
+
+<template>
+    <div class="wt-section-body">
+        <div class="wt-form-group">
+            <label class="wt-label">Database Provider</label>
+            <WhiptailSelect v-model="config.provider" :options="providerOptions" />
+        </div>
+        <div class="wt-form-group">
+            <label class="wt-label">Connection String</label>
+            <input v-model="config.connectionString" type="text" class="wt-input" />
+        </div>
+    </div>
+</template>
+
+<style scoped>
+.wt-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+</style>

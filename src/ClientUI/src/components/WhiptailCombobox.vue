@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import type { WhiptailOption } from './types'
 
 // Double model binding: raw text input & optional selected value
-const textValue = defineModel<string>({ default: '' })
+const textValue = defineModel<string | number>({ default: '' })
 
 interface Props {
     options: WhiptailOption[]
@@ -18,17 +18,35 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
     (e: 'select', option: WhiptailOption): void
-    (e: 'change', value: string): void
+    (e: 'change', value: string | number): void
 }>()
 
 const isOpen = ref(false)
 const highlightedIndex = ref(-1)
 const comboboxRef = ref<HTMLElement | null>(null)
 
+// Automatically sync initial value to option label if a value ID was passed initially
+watch(
+    [() => props.options, () => textValue.value],
+    () => {
+        if (textValue.value !== null && textValue.value !== undefined && props.options.length > 0) {
+            const matchedOption = props.options.find(
+                (opt) =>
+                    String(opt.value) === String(textValue.value) ||
+                    opt.label === String(textValue.value),
+            )
+            if (matchedOption && textValue.value !== matchedOption.label) {
+                textValue.value = matchedOption.label
+            }
+        }
+    },
+    { immediate: true },
+)
+
 // Filter options dynamically based on typed text
 const filteredOptions = computed(() => {
     if (!textValue.value) return props.options
-    const query = textValue.value.toLowerCase()
+    const query = String(textValue.value).toLowerCase()
     return props.options.filter(
         (opt) =>
             opt.label.toLowerCase().includes(query) ||
@@ -114,7 +132,7 @@ onUnmounted(() => {
             <input
                 type="text"
                 class="wt-input wt-combobox-input"
-                :value="textValue"
+                v-model="textValue"
                 :placeholder="placeholder"
                 :disabled="disabled"
                 @input="onInput"
@@ -140,13 +158,20 @@ onUnmounted(() => {
                 class="wt-combobox-item"
                 :class="{
                     'wt-item-highlighted': index === highlightedIndex,
-                    'wt-item-selected': textValue === item.label,
+                    'wt-item-selected':
+                        String(textValue) === String(item.label) ||
+                        String(textValue) === String(item.value),
                 }"
                 @click="selectOption(item)"
                 @mouseenter="highlightedIndex = index"
             >
                 <span class="wt-item-indicator">
-                    {{ textValue === item.label ? '*' : ' ' }}
+                    {{
+                        String(textValue) === String(item.label) ||
+                        String(textValue) === String(item.value)
+                            ? '*'
+                            : ' '
+                    }}
                 </span>
                 <span class="wt-item-label">{{ item.label }}</span>
             </div>

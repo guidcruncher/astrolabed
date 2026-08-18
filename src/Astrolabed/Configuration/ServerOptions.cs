@@ -1,6 +1,9 @@
 using Astrolabed.Dhcp;
 using Astrolabed.Dns;
 using Astrolabed.Ntp;
+using Astrolabed.Api.Services;
+using Astrolabed.Utilities;
+
 
 namespace Astrolabed;
 
@@ -19,4 +22,7 @@ public sealed class ServerOptions
 
     public DbOptions DbOptions { get; set; } = new();
 
+    public CrossPlatformScannerOptions NetworkScanner {get; set; } = new();
+
+    public LoggingOptions Logging {get; set; }= new();
 }

@@ -282,9 +282,18 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Retrieves DHCP leases
      * GET /api/v1/Leases
      */
-    async function getLeases(activeOnly: boolean = true): Promise<DhcpLease[]> {
-        const query = new URLSearchParams({ activeOnly: String(activeOnly) })
-        return apiFetch<DhcpLease[]>(`/api/v1/Leases?${query.toString()}`, { method: 'GET' })
+    async function getLeases(
+        activeOnly: boolean = true,
+        params: PaginationParams = {},
+    ): Promise<PagedResult<DhcpLease>> {
+        const query = new URLSearchParams({
+            pageNumber: String(params.pageNumber ?? 1),
+            pageSize: String(params.pageSize ?? 100),
+            activeOnly: String(activeOnly),
+        })
+        return apiFetch<PagedResult<DhcpLease>>(`/api/v1/Leases?${query.toString()}`, {
+            method: 'GET',
+        })
     }
 
     /**
@@ -305,8 +314,17 @@ export function useAstrolabedApi(baseUrl = 'http://192.168.1.202:1081') {
      * Gets list of discovered LAN devices
      * GET /api/Network/devices
      */
-    async function getDiscoveredNetworkDevices(): Promise<DiscoveredLanDevice[]> {
-        return apiFetch<DiscoveredLanDevice[]>('/api/Network/devices', { method: 'GET' })
+    async function getDiscoveredNetworkDevices(
+        params: PaginationParams = {},
+    ): Promise<PagedResult<DiscoveredLanDevice>> {
+        const query = new URLSearchParams({
+            pageNumber: String(params.pageNumber ?? 1),
+            pageSize: String(params.pageSize ?? 100),
+        })
+        return apiFetch<PagedResult<DiscoveredLanDevice>>(
+            `/api/Network/devices?${query.toString()}`,
+            { method: 'GET' },
+        )
     }
 
     // ==========================================

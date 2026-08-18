@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useAstrolabedApi, type DhcpLease } from '../composables/useAstrolabedApi'
 import type { ColumnDef, PagedResult } from './types'
 
 const { loading, error, getLeases } = useAstrolabedApi()
 
-const leases = ref<DhcpLease[]>([])
+const leasesPaged = ref<PagedResult<DhcpLease>>({
+    items: [],
+    pageNumber: 1,
+    pageSize: 10,
+    totalCount: 0,
+})
+
 const activeOnly = ref<boolean>(true)
 const searchQuery = ref<string>('')
 
@@ -33,55 +39,44 @@ const leaseColumns: ColumnDef<DhcpLease>[] = [
     },
 ]
 
-const filteredLeases = computed(() => {
-    if (!searchQuery.value.trim()) return leases.value
-
-    const query = searchQuery.value.toLowerCase()
-    return leases.value.filter(
-        (lease) =>
-            lease.clientName?.toLowerCase().includes(query) ||
-            lease.ip.toLowerCase().includes(query) ||
-            lease.mac.toLowerCase().includes(query) ||
-            lease.vendorClassIdentifier?.toLowerCase().includes(query),
-    )
-})
-
-const leasesPaged = computed<PagedResult<DhcpLease>>(() => {
-    const totalCount = filteredLeases.value.length
-    const startIndex = (pageNumber.value - 1) * pageSize.value
-    const endIndex = startIndex + pageSize.value
-    const items = filteredLeases.value.slice(startIndex, endIndex)
-
-    return {
-        items,
-        pageNumber: pageNumber.value,
-        pageSize: pageSize.value,
-        totalCount,
-    }
-})
-
 const fetchLeases = async (): Promise<void> => {
     try {
-        const result = (await getLeases(activeOnly.value)) as DhcpLease[]
-        leases.value = Array.isArray(result) ? result : []
-        pageNumber.value = 1
+        const result = (await getLeases(activeOnly.value, {
+            pageNumber: pageNumber.value,
+            pageSize: pageSize.value,
+        })) as PagedResult<DhcpLease>
+
+        leasesPaged.value = result || {
+            items: [],
+            pageNumber: pageNumber.value,
+            pageSize: pageSize.value,
+            totalCount: 0,
+        }
     } catch {
-        leases.value = []
+        leasesPaged.value = {
+            items: [],
+            pageNumber: pageNumber.value,
+            pageSize: pageSize.value,
+            totalCount: 0,
+        }
     }
 }
 
 const toggleActiveOnly = (): void => {
     activeOnly.value = !activeOnly.value
+    pageNumber.value = 1
     fetchLeases()
 }
 
 const handlePageChange = (page: number): void => {
     pageNumber.value = page
+    fetchLeases()
 }
 
 const handlePageSizeChange = (size: number): void => {
     pageSize.value = size
     pageNumber.value = 1
+    fetchLeases()
 }
 
 onMounted(() => {
@@ -93,16 +88,6 @@ onMounted(() => {
     <div class="wt-leases-container">
         <!-- Control Toolbar -->
         <div class="wt-toolbar">
-            <div class="wt-form-group">
-                <input
-                    v-model="searchQuery"
-                    type="text"
-                    class="wt-input wt-search-input"
-                    placeholder="Search client, IP, MAC, or vendor..."
-                    @input="pageNumber = 1"
-                />
-            </div>
-
             <div class="wt-toolbar-actions">
                 <WhiptailButton
                     :class="activeOnly ? 'wt-btn-active' : 'wt-btn-secondary'"
@@ -154,10 +139,6 @@ onMounted(() => {
 .wt-toolbar-actions {
     display: flex;
     gap: 0.5rem;
-}
-
-.wt-search-input {
-    min-width: 280px;
 }
 
 .mb-4 {

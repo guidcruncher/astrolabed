@@ -1,13 +1,22 @@
+n
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useAstrolabedApi } from '../composables/useAstrolabedApi'
 import { useAuth } from '../composables/useAuth'
-import type { TabItem } from '../components/types'
+import type { DropdownOption, TabItem } from '../components/types'
+import { useRouter, useRoute } from 'vue-router'
 
+const router = useRouter()
 const { loading, error, getDnsEvents, getDiscoveredNetworkDevices, getLeases, clearDnsCache } =
     useAstrolabedApi()
 
 const { logout } = useAuth()
+
+const dropdownOptions: DropdownOption[] = [
+    { label: 'Configuration', value: 'config' },
+    { label: 'Flush DNS Cache', value: 'flush-cache' },
+    { label: 'Logout', value: 'logout' },
+]
 
 const activeTab = ref('dns-lookup')
 
@@ -28,27 +37,52 @@ const handleLogout = async (): Promise<void> => {
     await logout()
 }
 
+const handleSelect = async (option: DropdownOption): Promise<void> => {
+    switch (option.value) {
+        case 'config':
+            router.push('/config')
+            break
+        case 'flush-cache':
+            await handleFlushCache()
+            break
+        case 'logout':
+            await handleLogout()
+            break
+    }
+}
+
 const refreshDashboardMetrics = async (): Promise<void> => {
     try {
         const [logsData, devicesData, leasesData] = await Promise.allSettled([
-            getDnsEvents(),
-            getDiscoveredNetworkDevices(),
-            getLeases(true),
+            getDnsEvents({ pageNumber: 1, pageSize: 5 }),
+            getDiscoveredNetworkDevices({ pageNumber: 1, pageSize: 5 }),
+            getLeases(true, { pageNumber: 1, pageSize: 5 }),
         ])
 
-        if (logsData.status === 'fulfilled' && Array.isArray(logsData.value)) {
-            dnsEventsCount.value = logsData.value.length
+        if (logsData.status === 'fulfilled') {
+            dnsEventsCount.value = logsData.value.totalCount
         }
 
-        if (devicesData.status === 'fulfilled' && Array.isArray(devicesData.value)) {
-            lanDevicesCount.value = devicesData.value.length
+        if (devicesData.status === 'fulfilled') {
+            lanDevicesCount.value = devicesData.value.totalCount
         }
 
-        if (leasesData.status === 'fulfilled' && Array.isArray(leasesData.value)) {
-            activeLeasesCount.value = leasesData.value.length
+        if (leasesData.status === 'fulfilled') {
+            activeLeasesCount.value = leasesData.value.totalCount
         }
     } catch (err) {
         console.error('Failed to load dashboard metrics', err)
+    }
+}
+
+const handleSelectTab = (id: string) => {
+    switch (id) {
+        case 'lan-devices':
+            break
+        case 'dhcp':
+            break
+        case 'dns-logs':
+            break
     }
 }
 
@@ -78,12 +112,11 @@ onMounted(() => {
                 <span>System Diagnostics & Status Overview</span>
             </div>
             <div style="float: right">
-                <WhiptailButton class="wt-btn-cancel" @click="handleFlushCache">
-                    Flush Cache </WhiptailButton
-                >&nbsp;
-                <WhiptailButton class="wt-btn-cancel" @click="handleLogout">
-                    Logout
-                </WhiptailButton>
+                <WhiptailDropdownMenu
+                    button-label="Actions Menu"
+                    :options="dropdownOptions"
+                    @select="handleSelect"
+                />
             </div>
         </div>
     </header>
@@ -117,7 +150,12 @@ onMounted(() => {
     </div>
 
     <!-- Modularized Tab Navigation -->
-    <WhiptailTabs v-model="activeTab" :tabs="dashboardTabs" class="wt-full-width">
+    <WhiptailTabs
+        v-model="activeTab"
+        @change="handleSelectTab"
+        :tabs="dashboardTabs"
+        class="wt-full-width"
+    >
         <template #dns-lookup>
             <DnsLookupTab />
         </template>

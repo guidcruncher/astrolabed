@@ -8,6 +8,7 @@ import LoginView from '../views/LoginView.vue'
 import HomeView from '../views/HomeView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import DemoView from '../views/DemoView.vue'
+import ConfigEditorView from '../views/ConfigEditorView.vue'
 
 const routes: RouteRecordRaw[] = [
     {
@@ -43,6 +44,12 @@ const routes: RouteRecordRaw[] = [
                 path: 'dashboard',
                 name: 'dashboard',
                 component: DashboardView,
+                meta: {},
+            },
+            {
+                path: 'config',
+                name: 'config',
+                component: ConfigEditorView,
                 meta: {},
             },
         ],

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { WhiptailOption } from './types'
 
 const selectedValue = defineModel<string | number | null>({ default: null })
@@ -22,10 +22,14 @@ const emit = defineEmits<{
 const isOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 
-// Find currently selected option object
-const selectedOption = () => {
-    return props.options.find((opt) => opt.value === selectedValue.value)
-}
+// Computed property ensures reactivity when options load asynchronously
+// and string-coercion prevents number vs string strict equality mismatches
+const selectedOption = computed(() => {
+    if (selectedValue.value === null || selectedValue.value === undefined) {
+        return null
+    }
+    return props.options.find((opt) => String(opt.value) === String(selectedValue.value))
+})
 
 const toggleDropdown = (): void => {
     if (!props.disabled) {
@@ -68,7 +72,7 @@ onUnmounted(() => {
             @keydown.esc="isOpen = false"
         >
             <span class="wt-dropdown-value">
-                {{ selectedOption() ? selectedOption()?.label : placeholder }}
+                {{ selectedOption ? selectedOption.label : placeholder }}
             </span>
             <span class="wt-dropdown-arrow">{{ isOpen ? '▲' : '▼' }}</span>
         </div>
@@ -79,11 +83,11 @@ onUnmounted(() => {
                 v-for="item in options"
                 :key="item.value"
                 class="wt-dropdown-item"
-                :class="{ 'wt-item-selected': selectedValue === item.value }"
+                :class="{ 'wt-item-selected': String(selectedValue) === String(item.value) }"
                 @click="selectOption(item.value)"
             >
                 <span class="wt-item-indicator">
-                    {{ selectedValue === item.value ? '*' : ' ' }}
+                    {{ String(selectedValue) === String(item.value) ? '*' : ' ' }}
                 </span>
                 <span class="wt-item-label">{{ item.label }}</span>
             </div>

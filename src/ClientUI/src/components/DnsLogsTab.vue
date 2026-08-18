@@ -113,8 +113,6 @@ onMounted(() => {
 
 <style scoped>
 .wt-logs-header {
-    display: flex;
-    justify-content: flex-end;
     margin-bottom: 12px;
 }
 </style>

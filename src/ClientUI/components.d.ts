@@ -11,13 +11,20 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    DbOptionsConfigForm: typeof import('./src/components/DbOptionsConfigForm.vue')['default']
+    DhcpConfigForm: typeof import('./src/components/DhcpConfigForm.vue')['default']
     DhcpLeaseTab: typeof import('./src/components/DhcpLeaseTab.vue')['default']
+    DnsConfigForm: typeof import('./src/components/DnsConfigForm.vue')['default']
     DnsLogsTab: typeof import('./src/components/DnsLogsTab.vue')['default']
     DnsLookupTab: typeof import('./src/components/DnsLookupTab.vue')['default']
     LanDevicesTab: typeof import('./src/components/LanDevicesTab.vue')['default']
+    MetricsConfigForm: typeof import('./src/components/MetricsConfigForm.vue')['default']
+    NetworkScannerConfigForm: typeof import('./src/components/NetworkScannerConfigForm.vue')['default']
+    NtpConfigForm: typeof import('./src/components/NtpConfigForm.vue')['default']
     NtpLookupTab: typeof import('./src/components/NtpLookupTab.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    WebUiConfigForm: typeof import('./src/components/WebUiConfigForm.vue')['default']
     WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']
     WhiptailCalendar: typeof import('./src/components/WhiptailCalendar.vue')['default']
     WhiptailCheckbox: typeof import('./src/components/WhiptailCheckbox.vue')['default']
@@ -26,6 +33,7 @@ declare module 'vue' {
     WhiptailCombobox: typeof import('./src/components/WhiptailCombobox.vue')['default']
     WhiptailDataGrid: typeof import('./src/components/WhiptailDataGrid.vue')['default']
     WhiptailDialog: typeof import('./src/components/WhiptailDialog.vue')['default']
+    WhiptailDropdownMenu: typeof import('./src/components/WhiptailDropdownMenu.vue')['default']
     WhiptailFormGroup: typeof import('./src/components/WhiptailFormGroup.vue')['default']
     WhiptailGauge: typeof import('./src/components/WhiptailGauge.vue')['default']
     WhiptailInput: typeof import('./src/components/WhiptailInput.vue')['default']
