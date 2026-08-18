@@ -1,6 +1,7 @@
-using Microsoft.AspNetCore.Mvc;
-using Astrolabed.Api.Services;
 using Astrolabed;
+using Astrolabed.Api.Services;
+
+using Microsoft.AspNetCore.Mvc;
 
 namespace Astrolabed.Api.Controllers;
 

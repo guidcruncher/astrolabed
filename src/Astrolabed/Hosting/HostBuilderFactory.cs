@@ -22,15 +22,17 @@ public static class HostBuilderFactory
                 {
                     HostBuilderFactory.ConfigurationFile = customConfig;
                     config.AddJsonFile(customConfig, optional: false, reloadOnChange: true);
-                } else {
-config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                config.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
-
-                if (env.Equals("Docker", StringComparison.OrdinalIgnoreCase))
-                {
-                    config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
                 }
-		}
+                else
+                {
+                    config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    config.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
+
+                    if (env.Equals("Docker", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
+                    }
+                }
 
                 config.AddEnvironmentVariables();
                 config.AddConfiguration(cmd);

@@ -11,8 +11,6 @@ public sealed class UpstreamNtpOptions
 
     public string[] Servers { get; set; } =
     [
-        "0.pool.ntp.org",
-        "1.pool.ntp.org"
     ];
 
     public int PollIntervalSeconds { get; set; } = 64;

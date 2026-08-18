@@ -64,7 +64,7 @@ public static class ApiSidecar
             {
                 services.AddSingleton(mainConfig);
                 services.Configure<ServerOptions>(mainConfig);
-		
+
                 services.AddApiServices(mainHost, mainConfig, sharedCache);
 
                 services.ConfigureHttpJsonOptions(options =>

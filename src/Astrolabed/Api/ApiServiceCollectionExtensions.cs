@@ -23,7 +23,7 @@ public static class ApiServiceCollectionExtensions
         services.Configure<DnsForwarderOptions>(configuration.GetSection(DnsForwarderOptions.SectionName));
         services.Configure<CrossPlatformScannerOptions>(configuration.GetSection(CrossPlatformScannerOptions.SectionName));
 
-	services.AddTransient<IAppConfigurationService, AppConfigurationService>();
+        services.AddTransient<IAppConfigurationService, AppConfigurationService>();
         services.AddTransient<ICrossPlatformLanScannerService, CrossPlatformLanScannerService>();
 
         services.AddDataServices(configuration);
