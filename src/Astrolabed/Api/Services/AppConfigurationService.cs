@@ -1,3 +1,4 @@
+
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -11,12 +12,12 @@ namespace Astrolabed.Api.Services;
 public sealed class AppConfigurationService : IAppConfigurationService
 {
     private static readonly SemaphoreSlim FileLock = new(1, 1);
-    private readonly IOptionsSnapshot<ServerOptions> _optionsSnapshot;
+    private readonly IOptionsMonitor<ServerOptions> _optionsSnapshot;
     private readonly IHostEnvironment _environment;
     private readonly ILogger<AppConfigurationService> _logger;
 
     public AppConfigurationService(
-        IOptionsSnapshot<ServerOptions> optionsSnapshot,
+        IOptionsMonitor<ServerOptions> optionsSnapshot,
         IHostEnvironment environment,
         ILogger<AppConfigurationService> logger)
     {
@@ -27,7 +28,7 @@ public sealed class AppConfigurationService : IAppConfigurationService
 
     public ServerOptions GetConfiguration()
     {
-        return _optionsSnapshot.Value;
+        return _optionsSnapshot.CurrentValue;
     }
 
     public async Task UpdateConfigurationAsync(ServerOptions newConfig, CancellationToken cancellationToken = default)

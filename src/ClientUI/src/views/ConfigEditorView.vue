@@ -1,3 +1,4 @@
+t
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useServerOptions, type ServerOptions } from '../composables/useServerOptions'
@@ -11,6 +12,7 @@ const configData = ref<ServerOptions | null>(null)
 const loaded = ref<boolean>(false)
 
 const activeTab = ref<string>('dns')
+const isModalOpen = ref(false)
 
 const tabs: TabItem[] = [
     { id: 'dns', label: 'DNS Services' },
@@ -22,12 +24,17 @@ const tabs: TabItem[] = [
     { id: 'scanner', label: 'NetScanner' },
 ]
 
+const handleOk = () => {
+    isModalOpen.value = false
+    router.push('/dashboard')
+}
+
 const handleSave = async (): Promise<void> => {
     if (configData.value) {
         await updateOptions(configData.value)
     }
 
-    router.push('/dashboard')
+    isModalOpen.value = true
 }
 
 const handleCancel = (): void => {
@@ -85,6 +92,16 @@ onMounted(async () => {
             <WhiptailButton variant="ok" @click="handleSave">Save</WhiptailButton>
         </div>
     </div>
+    <WhiptailModal
+        :is-open="isModalOpen"
+        title="Changes saved"
+        ok-text="OK"
+        :show-cancel="false"
+        @ok="handleOk"
+        @close="handleOk"
+    >
+        <p>You need to restart the server for changes to take effect.</p>
+    </WhiptailModal>
 </template>
 
 <style scoped>
