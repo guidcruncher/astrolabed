@@ -195,6 +195,39 @@ const tabList: TabItem[] = [
 const onTabChange = (tabId: string) => {
     console.log(`Active tab changed to: ${tabId}`)
 }
+
+// Sample 24-bar dataset (0–100%)
+const cpuLoadData = ref<number[]>([
+    12, 15, 8, 5, 4, 10, 25, 45, 78, 85, 92, 88, 95, 90, 84, 76, 68, 55, 40, 32, 28, 20, 18, 14,
+])
+
+// 24 custom bar labels matching each hour block
+const hoursOfDay = ref<string[]>([
+    '00',
+    '01',
+    '02',
+    '03',
+    '04',
+    '05',
+    '06',
+    '07',
+    '08',
+    '09',
+    '10',
+    '11',
+    '12',
+    '13',
+    '14',
+    '15',
+    '16',
+    '17',
+    '18',
+    '19',
+    '20',
+    '21',
+    '22',
+    '23',
+])
 </script>
 
 <template>
@@ -397,6 +430,15 @@ const onTabChange = (tabId: string) => {
         <p>
             Selected Value: <code>{{ selectedInterface }}</code>
         </p>
+    </div>
+    <div style="max-width: 500px">
+        <WhiptailBarChart
+            :values="cpuLoadData"
+            :bar-titles="hoursOfDay"
+            title="[ SYSTEM LOAD - PAST 24 HOURS ]"
+            x-axis-label="Hour (UTC)"
+            y-axis-label="CPU Usage (%)"
+        />
     </div>
 </template>
 

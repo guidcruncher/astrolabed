@@ -26,6 +26,7 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     WebUiConfigForm: typeof import('./src/components/WebUiConfigForm.vue')['default']
+    WhiptailBarChart: typeof import('./src/components/WhiptailBarChart.vue')['default']
     WhiptailButton: typeof import('./src/components/WhiptailButton.vue')['default']
     WhiptailCalendar: typeof import('./src/components/WhiptailCalendar.vue')['default']
     WhiptailCheckbox: typeof import('./src/components/WhiptailCheckbox.vue')['default']

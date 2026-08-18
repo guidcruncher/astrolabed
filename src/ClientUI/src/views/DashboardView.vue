@@ -30,6 +30,7 @@ const activeTab = ref('dns-lookup')
 // Local state retained strictly for header metric summary cards
 const dnsEventsCount = ref<number>(0)
 const dnsCacheCount = ref<number>(0)
+const dnsCachePercent = ref<string>('')
 const lanDevicesCount = ref<number>(0)
 const activeLeasesCount = ref<number>(0)
 
@@ -69,12 +70,17 @@ const refreshDashboardMetrics = async (): Promise<void> => {
             getLeases(true, { pageNumber: 1, pageSize: 5 }),
         ])
 
-        if (cacheData.status === 'fulfilled') {
-            dnsCacheCount.value = cacheData.value.totalCount
-        }
+        dnsCachePercent.value = ''
 
         if (logsData.status === 'fulfilled') {
             dnsEventsCount.value = logsData.value.totalCount
+        }
+
+        if (cacheData.status === 'fulfilled') {
+            dnsCacheCount.value = cacheData.value.totalCount
+            if (dnsCacheCount.value > 0 && dnsEventsCount.value > 0) {
+                dnsCachePercent.value = `{(dnsCacheCount.value / dnsEventsCount.value).toFixed(2)}%`
+            }
         }
 
         if (devicesData.status === 'fulfilled') {
