@@ -37,7 +37,9 @@ public class HostsTests
         var wrappedOpts = Options.Create(opts);
         var logger = NullLogger<RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var cache = new DnsCache(50);
+        var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
+        var cacheLogger = NullLogger<DnsCache>.Instance;
+        var cache = new DnsCache(cacheOptions, cacheLogger);
         return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory, cache);
     }
 
@@ -181,4 +183,3 @@ public class HostsTests
         public System.Net.Http.HttpClient CreateClient(string name) => new System.Net.Http.HttpClient();
     }
 }
-

@@ -22,7 +22,7 @@ public static class ServiceRegistration
         services.Configure<ServerOptions>(ctx.Configuration);
         services.AddSingleton(sp => sp.GetRequiredService<IOptionsMonitor<ServerOptions>>().CurrentValue);
 
-        SharedDnsCache = services.CreateSharedDnsCache(ctx.Configuration);
+        services.AddSharedDnsCache(ctx.Configuration);
 
         Console.WriteLine($"System Shared DNS Cache Instance Identifier {SharedDnsCache.InstanceId}");
 

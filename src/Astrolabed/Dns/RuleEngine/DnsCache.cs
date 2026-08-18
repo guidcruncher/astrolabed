@@ -7,54 +7,81 @@ using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
 namespace Astrolabed.Dns.RuleEngine;
 
-public sealed class DnsCache : IDnsCache
+public sealed class DnsCache : IDnsCache, IDisposable
 {
-
     public Guid InstanceId { get; } = Guid.NewGuid();
 
-    private readonly object _sync = new();
-    private ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
+    private readonly Lock _sync = new();
+    private readonly ILogger<DnsCache> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly int _maxCapacity;
-    private readonly Timer _cleanupTimer;
-    private readonly Channel<byte> _evictionSignal = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
-    {
-        FullMode = BoundedChannelFullMode.DropOldest
-    });
+    private readonly ITimer _cleanupTimer;
+    private readonly Channel<byte> _evictionSignal;
     private readonly CancellationTokenSource _cts = new();
+
+    private ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
     private bool _disposed;
 
-    public DnsCache(int maxCapacity = 10000, TimeSpan? cleanupInterval = null)
+    public DnsCache(
+        IOptions<CachingOptions> options,
+        ILogger<DnsCache> logger,
+        TimeProvider? timeProvider = null)
     {
-        _maxCapacity = maxCapacity;
-        var interval = cleanupInterval ?? TimeSpan.FromMinutes(1);
-        _cleanupTimer = new Timer(_ => TriggerEviction(), null, interval, interval);
+        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(logger);
+
+        _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+
+        var config = options.Value;
+        _maxCapacity = config.MaxEntries > 0 ? config.MaxEntries : 10000;
+
+        _evictionSignal = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest
+        });
+
+        _cleanupTimer = _timeProvider.CreateTimer(
+            _ => TriggerEviction(),
+            null,
+            TimeSpan.FromMinutes(config.CleanupIntervalMinutes),
+            TimeSpan.FromMinutes(config.CleanupIntervalMinutes));
 
         Task.Factory.StartNew(
             () => ProcessEvictionsAsync(_cts.Token),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default);
+
+        _logger.LogInformation("DNS Cache initialized with instance ID {InstanceId} and max capacity {MaxEntries}.", InstanceId, _maxCapacity);
     }
 
     public void Flush()
     {
-        ConcurrentDictionary<DnsCacheKey, CacheEntry> old;
+        ConcurrentDictionary<DnsCacheKey, CacheEntry> oldEntries;
 
         lock (_sync)
         {
-            old = _entries;
+            oldEntries = _entries;
             _entries = new ConcurrentDictionary<DnsCacheKey, CacheEntry>();
         }
 
-        foreach (var kvp in old)
+        int clearedCount = 0;
+        foreach (var kvp in oldEntries)
         {
-            if (old.TryRemove(kvp.Key, out var removed))
+            if (oldEntries.TryRemove(kvp.Key, out var removed))
             {
                 removed.Dispose();
+                clearedCount++;
             }
         }
+
+        _logger.LogInformation("Flushed {Count} DNS cache entries for instance {InstanceId}.", clearedCount, InstanceId);
     }
 
     public bool TryGet(in DnsRequestContext context, out byte[]? response)
@@ -64,7 +91,7 @@ public sealed class DnsCache : IDnsCache
 
         if (_entries.TryGetValue(key, out var entry))
         {
-            if (DateTime.UtcNow < entry.Expires)
+            if (_timeProvider.GetUtcNow() < entry.Expires)
             {
                 var copy = GC.AllocateUninitializedArray<byte>(entry.Length);
 
@@ -111,6 +138,7 @@ public sealed class DnsCache : IDnsCache
         int rcode = response[3] & 0x0F;
         if (rcode == 3 && ttl.TotalSeconds < 5)
         {
+            _logger.LogDebug("Ignoring NXDOMAIN response for {Domain} due to low TTL.", context.Domain);
             return;
         }
 
@@ -120,7 +148,7 @@ public sealed class DnsCache : IDnsCache
         }
 
         var key = new DnsCacheKey(context.Domain, context.QType, context.QClass);
-        var expires = DateTime.UtcNow + ttl;
+        var expires = _timeProvider.GetUtcNow() + ttl;
 
         var buf = ArrayPool<byte>.Shared.Rent(response.Length);
         CacheEntry? newEntry = null;
@@ -130,7 +158,8 @@ public sealed class DnsCache : IDnsCache
             Buffer.BlockCopy(response, 0, buf, 0, response.Length);
             newEntry = new CacheEntry(buf, response.Length, expires);
 
-            _entries.AddOrUpdate(key,
+            _entries.AddOrUpdate(
+                key,
                 newEntry,
                 (_, existing) =>
                 {
@@ -138,8 +167,9 @@ public sealed class DnsCache : IDnsCache
                     return newEntry;
                 });
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "An error occurred while storing cache entry for {Domain}.", context.Domain);
             if (newEntry != null)
             {
                 newEntry.Dispose();
@@ -170,18 +200,18 @@ public sealed class DnsCache : IDnsCache
             {
                 break;
             }
-            catch
+            catch (Exception ex)
             {
-                // Suppress background maintenance errors
+                _logger.LogWarning(ex, "An error occurred during the cache eviction processing loop.");
             }
         }
     }
 
     private void PerformSweep(CancellationToken ct)
     {
-        var now = DateTime.UtcNow;
+        var now = _timeProvider.GetUtcNow();
 
-        // Pass 1: Remove expired
+        // Pass 1: Remove expired entries
         foreach (var kvp in _entries)
         {
             if (ct.IsCancellationRequested) break;
@@ -195,7 +225,7 @@ public sealed class DnsCache : IDnsCache
             }
         }
 
-        // Pass 2: Over capacity reduction
+        // Pass 2: Reduce over capacity
         if (!ct.IsCancellationRequested && _entries.Count >= _maxCapacity)
         {
             int toRemove = _entries.Count - _maxCapacity + 1;
@@ -228,6 +258,8 @@ public sealed class DnsCache : IDnsCache
                 removed.Dispose();
             }
         }
+
+        _logger.LogInformation("DNS Cache instance {InstanceId} disposed.", InstanceId);
     }
 
     private static int GetQuestionLength(byte[] buffer)
@@ -252,32 +284,19 @@ public sealed class DnsCache : IDnsCache
         return offset <= buffer.Length ? offset - 12 : 0;
     }
 
-    public readonly record struct DnsCacheKey
+    public readonly record struct DnsCacheKey(string Domain, ushort Type, ushort Class)
     {
-        public string Domain { get; }
-        public ushort Type { get; }
-        public ushort Class { get; }
-
-        public DnsCacheKey(string domain, ushort type, ushort classCode)
-        {
-            Domain = domain?.ToLowerInvariant() ?? string.Empty;
-            Type = type;
-            Class = classCode;
-        }
+        public string Domain { get; } = Domain?.ToLowerInvariant() ?? string.Empty;
+        public ushort Type { get; } = Type;
+        public ushort Class { get; } = Class;
     }
 
-    private sealed class CacheEntry : IDisposable
+    private sealed class CacheEntry(byte[] buffer, int length, DateTimeOffset expires) : IDisposable
     {
-        private byte[]? _buffer;
-        public int Length { get; }
-        public DateTime Expires { get; }
+        private byte[]? _buffer = buffer;
 
-        public CacheEntry(byte[] buffer, int length, DateTime expires)
-        {
-            _buffer = buffer;
-            Length = length;
-            Expires = expires;
-        }
+        public int Length { get; } = length;
+        public DateTimeOffset Expires { get; } = expires;
 
         public bool TryCopyTo(byte[] destination)
         {

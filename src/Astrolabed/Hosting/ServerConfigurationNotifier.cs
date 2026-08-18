@@ -1,7 +1,8 @@
+using Astrolabed;
+
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Astrolabed;
 
 namespace Astrolabed.Hosting;
 

@@ -1,3 +1,6 @@
+using System;
+
+using Astrolabed;
 using Astrolabed.Dhcp;
 using Astrolabed.Dns.ConditionalForwarding;
 using Astrolabed.Dns.Core;
@@ -6,6 +9,8 @@ using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Bootstrap;
@@ -13,16 +18,59 @@ namespace Astrolabed.Dns.Bootstrap;
 public static class DnsServiceCollectionExtensions
 {
 
-    public static IDnsCache CreateSharedDnsCache(this IServiceCollection services, IConfiguration config)
-    {
-        var dnsSection = config.GetSection("Dns:Caching");
-        services.Configure<CachingOptions>(dnsSection);
+    private static readonly Lock SyncLock = new();
+    private static DnsCache? _processSharedCache;
 
-        var options = dnsSection.Get<CachingOptions>() ?? new CachingOptions();
-        var maxEntries = options.MaxEntries > 0 ? options.MaxEntries : 10000;
-        var cleanupIntervalMinutes = options.CleanupIntervalMinutes > 0 ? options.CleanupIntervalMinutes : 1;
-        var sharedCache = new DnsCache(maxEntries, TimeSpan.FromMinutes(cleanupIntervalMinutes));
-        return sharedCache;
+    public static IServiceCollection AddSharedDnsCache(
+        this IServiceCollection services,
+        IConfiguration config)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(config);
+
+        // 1. Bind configuration options from the "Dns:Caching" section per-host
+        var dnsSection = config.GetSection("Dns:Caching");
+        services.Configure<CachingOptions>(options =>
+        {
+            var cachingOptions = dnsSection.Get<CachingOptions>();
+            if (cachingOptions != null)
+            {
+                if (cachingOptions.MaxEntries > 0)
+                {
+                    options.MaxEntries = cachingOptions.MaxEntries;
+                }
+
+                if (cachingOptions.CleanupIntervalMinutes > 0)
+                {
+                    options.CleanupIntervalMinutes = cachingOptions.CleanupIntervalMinutes;
+                }
+            }
+        });
+
+        // 2. Register or retrieve the cross-IHost shared singleton instance
+        services.AddSingleton<IDnsCache>(sp =>
+        {
+            if (_processSharedCache != null)
+            {
+                return _processSharedCache;
+            }
+
+            lock (SyncLock)
+            {
+                if (_processSharedCache == null)
+                {
+                    var options = sp.GetRequiredService<IOptions<CachingOptions>>();
+                    var logger = sp.GetRequiredService<ILogger<DnsCache>>();
+                    var timeProvider = sp.GetService<TimeProvider>();
+
+                    _processSharedCache = new DnsCache(options, logger, timeProvider);
+                }
+
+                return _processSharedCache;
+            }
+        });
+
+        return services;
     }
 
     public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config, IDnsCache sharedCache)

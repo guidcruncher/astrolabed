@@ -22,7 +22,9 @@ public sealed class HostsServfailTests
         var options = new DnsForwarderOptions();
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
+        var cacheLogger = NullLogger<Astrolabed.Dns.RuleEngine.DnsCache>.Instance;
+        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(cacheOptions, cacheLogger);
         var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
 
         var result = engine.Match("fail.test", "-");

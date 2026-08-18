@@ -1,6 +1,7 @@
 using System.Net.Http;
 
 using Astrolabed.Dns.Core;
+using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -35,7 +36,9 @@ public sealed class HostsNxDomainTests
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
+        var cacheLogger = NullLogger<DnsCache>.Instance;
+        var cache = new DnsCache(cacheOptions, cacheLogger);
         var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
 
         var result = engine.Match("nonexistent.test", "-");
@@ -44,4 +47,3 @@ public sealed class HostsNxDomainTests
         Assert.Equal("default", result.Upstreams[0].Name);
     }
 }
-

@@ -1,9 +1,8 @@
 using System.Collections.Generic;
 using System.Net.Http;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
+using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -48,7 +47,9 @@ public sealed class SequentialFallbackTests
 
         var logger = NullLogger<Astrolabed.Dns.RuleEngine.RuleEngine>.Instance;
         var clientFactory = new DefaultDnsClientFactory(new HttpClientFactoryStub());
-        var cache = new Astrolabed.Dns.RuleEngine.DnsCache(50);
+        var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
+        var cacheLogger = NullLogger<DnsCache>.Instance;
+        var cache = new DnsCache(cacheOptions, cacheLogger);
         return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
     }
 
