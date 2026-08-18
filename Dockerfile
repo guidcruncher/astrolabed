@@ -35,4 +35,8 @@ RUN mkdir -p /var/lib/astrolabed
 RUN mkdir -p /etc/astrolabed/rules
 RUN mkdir -p /etc/astrolabed/hosts
 
+ENV DOCKER=true
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DOTNET_ENVIRONMENT=Production
+
 ENTRYPOINT ["dotnet", "Astrolabed.dll"]

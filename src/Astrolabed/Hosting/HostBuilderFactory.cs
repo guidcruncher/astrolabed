@@ -18,18 +18,20 @@ public static class HostBuilderFactory
                 var env = cmd["DOTNET_ENVIRONMENT"]
                           ?? ctx.HostingEnvironment.EnvironmentName;
 
-                config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
-                config.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
-
-                if (env.Equals("Docker", StringComparison.OrdinalIgnoreCase))
-                {
-                    config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
-                }
-
                 if (cmd["ConfigPath"] is string customConfig && !string.IsNullOrWhiteSpace(customConfig))
                 {
                     HostBuilderFactory.ConfigurationFile = customConfig;
                     config.AddJsonFile(customConfig, optional: false, reloadOnChange: true);
+                }
+                else
+                {
+                    config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true);
+                    config.AddJsonFile($"appsettings.{env}.json", optional: true, reloadOnChange: true);
+
+                    if (env.Equals("Docker", StringComparison.OrdinalIgnoreCase))
+                    {
+                        config.AddJsonFile("appsettings.Docker.json", optional: true, reloadOnChange: true);
+                    }
                 }
 
                 config.AddEnvironmentVariables();

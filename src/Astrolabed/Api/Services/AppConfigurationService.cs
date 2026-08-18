@@ -1,8 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Microsoft.Extensions.Options;
+
 using Astrolabed;
 using Astrolabed.Hosting;
+
+using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Api.Services;
 
