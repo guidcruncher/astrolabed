@@ -32,14 +32,6 @@ const removeUpstreamServer = (index: number): void => {
                 <label class="wt-label">Buffer Size</label>
                 <input v-model.number="config.bufferSize" type="number" class="wt-input" />
             </div>
-            <div style="flex: 1">
-                <label class="wt-label">Stratum Level</label>
-                <input v-model.number="config.stratum" type="number" class="wt-input" />
-            </div>
-            <div style="flex: 1">
-                <label class="wt-label">Reference ID</label>
-                <input v-model="config.referenceId" type="text" class="wt-input" />
-            </div>
         </div>
 
         <!-- Upstream Sync Configuration -->

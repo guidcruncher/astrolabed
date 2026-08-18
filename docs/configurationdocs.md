@@ -56,7 +56,7 @@ Manages Dynamic Host Configuration Protocol (DHCP) server settings, IP allocatio
 
 ## 3. NTP Configuration ("Ntp")
 
-Configures the Network Time Protocol (NTP) service, controlling stratum depth, UDP socket binding, and upstream sync servers.
+Configures the Network Time Protocol (NTP) service, controlling UDP socket binding, and upstream sync servers.
 
 | Property Name | Data Format | Example Value | Description |
 | --- | --- | --- | --- |
@@ -64,8 +64,6 @@ Configures the Network Time Protocol (NTP) service, controlling stratum depth, U
 | ListenAddress | String (IPv4/v6) | "127.0.0.1" | IP address the NTP UDP server binds to. |
 | Port | Integer (1-65535) | 123 | UDP port used for NTP communication. Standard NTP uses UDP port 123. |
 | BufferSize | Integer (bytes) | 65536 | Socket receive/send buffer allocation size in bytes. |
-| Stratum | Integer (1-15) | 1 | Stratum level reported by this server (1 = primary reference source). |
-| ReferenceId | String (4-Char) | "LOCL" | Four-character ASCII code identifying the reference clock source (e.g. LOCL, GPS, PPS). |
 | Upstream.Enabled | Boolean | true | Enables synchronization with upstream reference NTP servers. |
 | Upstream.Servers | Array<String> | [ "0.pool.ntp.org" ] | List of hostnames or IP addresses of upstream reference NTP servers. |
 | Upstream.PollIntervalSeconds | Integer (seconds) | 16 | Interval in seconds between time synchronization queries to upstream servers. |

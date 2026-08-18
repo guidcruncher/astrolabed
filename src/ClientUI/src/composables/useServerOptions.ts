@@ -94,8 +94,6 @@ export interface NtpOptions {
     listenAddress: string
     port: number
     bufferSize: number
-    stratum: number
-    referenceId: string
     upstream: Upstream
 }
 

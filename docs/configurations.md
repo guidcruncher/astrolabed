@@ -94,8 +94,6 @@ For documenstion on configuration see [configurationdocs.md](configurationdocs.m
     "ListenAddress": "127.0.0.1",
     "Port": 1123,
     "BufferSize": 65536,
-    "Stratum": 1,
-    "ReferenceId": "LOCL",
     "Upstream": {
       "Enabled": true,
       "Servers": [
@@ -116,6 +114,14 @@ For documenstion on configuration see [configurationdocs.md](configurationdocs.m
     "Enabled": true,
     "ListenAddress": "127.0.0.1",
     "ListenPort": 1081
+  },
+  "DbOptions": {
+    "DatabaseProvider": "sqlite",
+    "ConnectionString": "Data Source=../../../netdns-runtime/astrolabed.db;Cache=Shared"
+  },
+  "NetworkScanner": {
+    "MaxDegreeOfParallelism": 100,
+    "PingTimeoutMs": 200
   },
   "Logging": {
     "Level": "Trace"
