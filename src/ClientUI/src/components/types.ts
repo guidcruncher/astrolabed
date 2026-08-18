@@ -1,3 +1,9 @@
+export interface BarClickPayload {
+    index: number
+    value: number
+    title: string
+}
+
 export interface DropdownOption {
     label: string
     value: string | number

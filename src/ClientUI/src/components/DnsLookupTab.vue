@@ -150,7 +150,9 @@ const handleDnsLookup = async (): Promise<void> => {
             <div class="terminal-section terminal-footer">
                 <span class="terminal-comment">;; Query time: {{ queryDurationMs ?? 12 }} msec</span
                 ><br />
-                <span class="terminal-comment">;; SERVER: {{queryResult.server}}(astrolabed-dns)</span><br />
+                <span class="terminal-comment"
+                    >;; SERVER: {{ queryResult.server }}(astrolabed-dns)</span
+                ><br />
                 <span class="terminal-comment">;; WHEN: {{ new Date().toUTCString() }}</span>
             </div>
 

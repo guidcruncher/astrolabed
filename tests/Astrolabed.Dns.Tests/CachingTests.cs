@@ -1,8 +1,10 @@
 using System;
-using System.Net;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.RuleEngine;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 using Xunit;
 
@@ -46,7 +48,9 @@ public class CachingTests
             0x00, 0x01
         };
 
-        var cache = new DnsCache(100);
+        var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 100 });
+        var cacheLogger = NullLogger<DnsCache>.Instance;
+        var cache = new DnsCache(cacheOptions, cacheLogger);
         var context = new DnsRequestContext(query, "req-123");
 
         cache.Store(context, response, TimeSpan.FromMinutes(1));

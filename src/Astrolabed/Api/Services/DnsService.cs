@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Astrolabed.Data;
 using Astrolabed.Dns;
 using Astrolabed.Dns.RuleEngine;
 
@@ -25,7 +27,7 @@ public sealed class DnsService : IDnsService
     public DnsService(
         ILogger<DnsService> logger,
         IDnsRequestHandler handler,
-    IDnsCache dnsCache,
+        IDnsCache dnsCache,
         IOptions<DnsForwarderOptions> options)
     {
         ArgumentNullException.ThrowIfNull(logger);
@@ -41,6 +43,36 @@ public sealed class DnsService : IDnsService
     public void FlushCache()
     {
         _dnsCache.Flush();
+    }
+
+    public PagedResult<DnsResponse> GetCachedResponsesPaged(int pageNumber = 1, int pageSize = 10, string? search = null)
+    {
+        pageNumber = Math.Max(1, pageNumber);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
+        var cachedResponses = _dnsCache.GetCachedResponses();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            cachedResponses = cachedResponses.Where(r =>
+                r.QueryName.Contains(search, StringComparison.OrdinalIgnoreCase) ||
+                r.QueryType.Equals(search, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var allList = cachedResponses.ToList();
+        int totalCount = allList.Count;
+
+        var items = allList
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToList();
+
+        return new PagedResult<DnsResponse>(
+            Items: items,
+            TotalCount: totalCount,
+            PageNumber: pageNumber,
+            PageSize: pageSize
+        );
     }
 
     public Task<DnsResponse> QueryAsync(

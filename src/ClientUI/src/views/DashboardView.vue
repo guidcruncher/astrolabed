@@ -7,8 +7,15 @@ import type { DropdownOption, TabItem } from '../components/types'
 import { useRouter, useRoute } from 'vue-router'
 
 const router = useRouter()
-const { loading, error, getDnsEvents, getDiscoveredNetworkDevices, getLeases, clearDnsCache } =
-    useAstrolabedApi()
+const {
+    loading,
+    error,
+    getDnsEvents,
+    getDnsCacheResponses,
+    getDiscoveredNetworkDevices,
+    getLeases,
+    clearDnsCache,
+} = useAstrolabedApi()
 
 const { logout } = useAuth()
 
@@ -22,6 +29,8 @@ const activeTab = ref('dns-lookup')
 
 // Local state retained strictly for header metric summary cards
 const dnsEventsCount = ref<number>(0)
+const dnsCacheCount = ref<number>(0)
+const dnsCachePercent = ref<string>('')
 const lanDevicesCount = ref<number>(0)
 const activeLeasesCount = ref<number>(0)
 
@@ -30,6 +39,7 @@ const dashboardTabs: TabItem[] = [
     { id: 'lan-devices', label: 'LAN Devices' },
     { id: 'dhcp', label: 'DHCP' },
     { id: 'dns-logs', label: 'DNS Activity' },
+    { id: 'dns-cache', label: 'DNS Cache' },
     { id: 'ntp', label: 'Time' },
 ]
 
@@ -53,14 +63,24 @@ const handleSelect = async (option: DropdownOption): Promise<void> => {
 
 const refreshDashboardMetrics = async (): Promise<void> => {
     try {
-        const [logsData, devicesData, leasesData] = await Promise.allSettled([
+        const [logsData, cacheData, devicesData, leasesData] = await Promise.allSettled([
             getDnsEvents({ pageNumber: 1, pageSize: 5 }),
+            getDnsCacheResponses({ pageNumber: 1, pageSize: 5 }),
             getDiscoveredNetworkDevices({ pageNumber: 1, pageSize: 5 }),
             getLeases(true, { pageNumber: 1, pageSize: 5 }),
         ])
 
+        dnsCachePercent.value = ''
+
         if (logsData.status === 'fulfilled') {
             dnsEventsCount.value = logsData.value.totalCount
+        }
+
+        if (cacheData.status === 'fulfilled') {
+            dnsCacheCount.value = cacheData.value.totalCount
+            if (dnsCacheCount.value > 0 && dnsEventsCount.value > 0) {
+                dnsCachePercent.value = `{(dnsCacheCount.value / dnsEventsCount.value).toFixed(2)}%`
+            }
         }
 
         if (devicesData.status === 'fulfilled') {
@@ -82,6 +102,8 @@ const handleSelectTab = (id: string) => {
         case 'dhcp':
             break
         case 'dns-logs':
+            break
+        case 'dns-cache':
             break
     }
 }
@@ -136,8 +158,11 @@ onMounted(() => {
     <!-- Stat Cards Grid -->
     <div class="wt-stats-grid">
         <div class="wt-dialog wt-stat-box">
-            <div class="wt-title">DNS Events</div>
-            <div class="wt-body wt-stat-value">{{ dnsEventsCount }}</div>
+            <div class="wt-title">DNS</div>
+            <div class="wt-body">
+                <div class="wt-stat-value">Query {{ dnsEventsCount }}</div>
+                <div class="wt-stat-value">Cached {{ dnsCacheCount }}</div>
+            </div>
         </div>
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DHCP Leases</div>
@@ -166,6 +191,10 @@ onMounted(() => {
 
         <template #dns-logs>
             <DnsLogsTab />
+        </template>
+
+        <template #dns-cache>
+            <DnsCacheTab />
         </template>
 
         <template #dhcp>

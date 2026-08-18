@@ -15,23 +15,18 @@ namespace Astrolabed.Hosting;
 
 public static class ServiceRegistration
 {
-    public static IDnsCache? SharedDnsCache { get; private set; }
 
     public static void Register(HostBuilderContext ctx, IServiceCollection services)
     {
         services.Configure<ServerOptions>(ctx.Configuration);
         services.AddSingleton(sp => sp.GetRequiredService<IOptionsMonitor<ServerOptions>>().CurrentValue);
 
-        SharedDnsCache = services.CreateSharedDnsCache(ctx.Configuration);
-
-        Console.WriteLine($"System Shared DNS Cache Instance Identifier {SharedDnsCache.InstanceId}");
-
-        services.AddSingleton<IDnsCache>(SharedDnsCache);
+        services.AddSharedDnsCache(ctx.Configuration);
 
         services.AddDataServices(ctx.Configuration);
 
         services.AddEventBus(ctx.Configuration);
-        services.AddDnsForwarder(ctx.Configuration, SharedDnsCache);
+        services.AddDnsForwarder(ctx.Configuration);
         services.AddDhcpServer(ctx.Configuration);
         services.AddNtpServer(ctx.Configuration);
         services.AddMetricServices(ctx.Configuration);
