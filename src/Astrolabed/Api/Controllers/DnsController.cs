@@ -3,6 +3,8 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Api.Services;
+using Astrolabed.Data;
+using Astrolabed.Dns;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -35,6 +37,25 @@ public class DnsController : ControllerBase
     {
         _dnsService.FlushCache();
         return Ok();
+    }
+
+    /// <summary>
+    /// Retrieves paged results from the DNS response cache.
+    /// </summary>
+    /// <param name="pageNumber">Target page number (defaults to 1)</param>
+    /// <param name="pageSize">Number of items per page (defaults to 10)</param>
+    /// <param name="search">Optional search filter string for domain or query type</param>
+    [HttpGet("cache")]
+    [ProducesResponseType(typeof(PagedResult<DnsResponse>), StatusCodes.Status200OK)]
+    public IActionResult GetCachedResponses(
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 10,
+        [FromQuery] string? search = null)
+    {
+        _logger.LogInformation("Retrieving paged cached DNS responses. PageNumber={PageNumber}, PageSize={PageSize}, Search={Search}", pageNumber, pageSize, search);
+
+        var result = _dnsService.GetCachedResponsesPaged(pageNumber, pageSize, search);
+        return Ok(result);
     }
 
     /// <summary>

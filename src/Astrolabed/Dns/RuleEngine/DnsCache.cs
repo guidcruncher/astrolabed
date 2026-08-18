@@ -1,10 +1,12 @@
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
+using Astrolabed.Api.Services;
 using Astrolabed.Dns.Core;
 
 using Microsoft.Extensions.Logging;
@@ -59,6 +61,30 @@ public sealed class DnsCache : IDnsCache, IDisposable
             TaskScheduler.Default);
 
         _logger.LogInformation("DNS Cache initialized with instance ID {InstanceId} and max capacity {MaxEntries}.", InstanceId, _maxCapacity);
+    }
+
+    public IEnumerable<DnsResponse> GetCachedResponses()
+    {
+        var now = _timeProvider.GetUtcNow();
+
+        foreach (var kvp in _entries)
+        {
+            if (kvp.Value.Expires <= now)
+            {
+                continue;
+            }
+
+            var buffer = GC.AllocateUninitializedArray<byte>(kvp.Value.Length);
+            if (!kvp.Value.TryCopyTo(buffer))
+            {
+                continue;
+            }
+
+            if (DnsResponseParser.TryParse(buffer, kvp.Key.Domain, kvp.Key.Type, kvp.Value.Expires - now, out var dnsResponse) && dnsResponse != null)
+            {
+                yield return dnsResponse;
+            }
+        }
     }
 
     public void Flush()

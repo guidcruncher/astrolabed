@@ -1,5 +1,6 @@
 using System;
 
+using Astrolabed.Api.Services;
 using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Dns.RuleEngine;
@@ -13,4 +14,6 @@ public interface IDnsCache : IDisposable
     void Store(in DnsRequestContext context, byte[] response, TimeSpan ttl);
 
     void Flush();
+
+    IEnumerable<DnsResponse> GetCachedResponses();
 }

@@ -52,6 +52,7 @@ public static class DnsServiceCollectionExtensions
         {
             if (_processSharedCache != null)
             {
+                Console.WriteLine($"System Shared DNS Cache Instance Identifier {_processSharedCache.InstanceId}");
                 return _processSharedCache;
             }
 
@@ -66,6 +67,7 @@ public static class DnsServiceCollectionExtensions
                     _processSharedCache = new DnsCache(options, logger, timeProvider);
                 }
 
+                Console.WriteLine($"System Shared DNS Cache Instance Identifier {_processSharedCache.InstanceId}");
                 return _processSharedCache;
             }
         });
@@ -73,7 +75,7 @@ public static class DnsServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config, IDnsCache sharedCache)
+    public static IServiceCollection AddDnsForwarder(this IServiceCollection services, IConfiguration config)
     {
         // Bind configuration into Options Pattern
         services.Configure<ServerOptions>(config);
@@ -106,7 +108,6 @@ public static class DnsServiceCollectionExtensions
         services.AddHttpClient();
         services.AddHttpClient("BlocklistClient");
 
-        services.AddSingleton<IDnsCache>(sharedCache);
         // Local DHCP lease reader
         services.AddTransient<IDhcpLeaseReader, DhcpLeaseReader>();
 

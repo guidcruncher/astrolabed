@@ -29,7 +29,7 @@ namespace Astrolabed.Hosting;
 
 public static class ApiSidecar
 {
-    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args, IDnsCache sharedCache)
+    public static void StartIfEnabled(IHost mainHost, ServerOptions serverOptions, string[] args)
     {
         var logger = mainHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(ApiSidecar));
 
@@ -44,7 +44,9 @@ public static class ApiSidecar
             serverOptions.WebUI.ListenAddress,
             serverOptions.WebUI.ListenPort);
 
-        logger.LogInformation("System Shared DNS Cache Instance Identifier {SharedCacheInstanceId}", sharedCache.InstanceId);
+        var sharedCache = mainHost.Services.GetRequiredService<IDnsCache>();
+
+        Console.WriteLine($"System Shared DNS Cache Instance Identifier {sharedCache.InstanceId}");
 
         var lifetime = mainHost.Services.GetRequiredService<IHostApplicationLifetime>();
         var mainConfig = mainHost.Services.GetRequiredService<IConfiguration>();
