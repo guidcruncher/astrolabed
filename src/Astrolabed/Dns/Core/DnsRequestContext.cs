@@ -7,6 +7,8 @@ namespace Astrolabed.Dns.Core;
 
 public readonly struct DnsRequestContext
 {
+    public string ClientIp { get; }
+    public string ClientName { get; }
     public string Domain { get; }
     public ushort TransactionId { get; }
     public ushort QType { get; }
@@ -14,10 +16,12 @@ public readonly struct DnsRequestContext
     public byte[] RawRequest { get; }
     public string RequestId { get; }
 
-    public DnsRequestContext(byte[] rawRequest, string requestId)
+    public DnsRequestContext(byte[] rawRequest, string requestId, string clientIp)
     {
         RawRequest = rawRequest;
         RequestId = requestId;
+        ClientIp = clientIp;
+        ClientName = "";
 
         if (rawRequest.Length >= 12)
         {

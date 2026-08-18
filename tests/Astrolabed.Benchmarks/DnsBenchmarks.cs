@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.RuleEngine;
+using Astrolabed.Events;
 
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
@@ -108,9 +109,9 @@ public class DnsBenchmarks
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         _cache = new DnsCache(cacheOptions, cacheLogger);
-        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory, _cache);
+        _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory, _cache, new NullDnsMetrics());
 
-        _context = new DnsRequestContext(_query, "benchmark-id");
+        _context = new DnsRequestContext(_query, "benchmark-id", "127.0.0.1");
 
         // Warm cache
         _cache.Store(_context, _sampleResponse, TimeSpan.FromMinutes(5));

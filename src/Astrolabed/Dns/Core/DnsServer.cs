@@ -301,7 +301,9 @@ public sealed class DnsServer : BackgroundService
                 if (resp is not null)
                 {
                     _metrics.RecordDnsResponse(new DnsResponseEvent(
-                        Timestamp: DateTime.UtcNow,
+                        Timestamp: DateTimeOffset.UtcNow,
+            TimestampEpoch: DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            IsBlocked: false,
                         ClientIp: clientEp.Address,
                         ClientName: clientName,
                         QueryName: resp.QuestionName,
@@ -391,7 +393,9 @@ public sealed class DnsServer : BackgroundService
                 if (resp is not null)
                 {
                     _metrics.RecordDnsResponse(new DnsResponseEvent(
-                        Timestamp: DateTime.UtcNow,
+                        Timestamp: DateTimeOffset.UtcNow,
+                        TimestampEpoch: DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                        IsBlocked: false,
                         ClientIp: clientIp,
                         ClientName: clientName,
                         QueryName: resp.QuestionName,

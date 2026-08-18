@@ -83,15 +83,18 @@ public class DatabaseBuilder : IDatabaseInitializer
             CREATE TABLE IF NOT EXISTS dns_response_events (
                 Id INTEGER PRIMARY KEY AUTOINCREMENT,
                 Timestamp TEXT NOT NULL,
+                TimestampEpoch BIGINT NOT NULL,
                 ClientIp TEXT NOT NULL,
                 ClientName TEXT NULL,
                 QueryName TEXT NOT NULL,
                 QueryType TEXT NOT NULL,
                 Status TEXT NOT NULL,
-                ResponseIp TEXT NULL
+                ResponseIp TEXT NULL,
+                IsBlocked INTEGER NOT NULL DEFAULT 0
             );
-
+ 
             CREATE INDEX IF NOT EXISTS idx_dns_response_events_timestamp ON dns_response_events(Timestamp);
+            CREATE INDEX IF NOT EXISTS idx_dns_response_events_timestampepoch ON dns_response_events(TimestampEpoch);
             CREATE INDEX IF NOT EXISTS idx_dns_response_events_clientip ON dns_response_events(ClientIp);
             CREATE INDEX IF NOT EXISTS idx_dns_response_events_queryname ON dns_response_events(QueryName);
             CREATE INDEX IF NOT EXISTS idx_dns_response_events_status ON dns_response_events(Status);

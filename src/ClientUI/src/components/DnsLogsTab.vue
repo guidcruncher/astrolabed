@@ -84,6 +84,7 @@ onMounted(() => {
 <template>
     <div class="wt-logs-tab">
         <div class="wt-logs-header">
+            Total: {{ pagedResult.totalCount }} &nbsp;
             <WhiptailButton :disabled="loading" @click="fetchLogs">
                 {{ loading ? 'Refreshing...' : 'Refresh Logs' }}
             </WhiptailButton>

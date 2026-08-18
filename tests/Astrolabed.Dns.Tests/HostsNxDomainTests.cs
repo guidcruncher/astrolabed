@@ -39,7 +39,7 @@ public sealed class HostsNxDomainTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         var cache = new DnsCache(cacheOptions, cacheLogger);
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache, new NullDnsMetrics());
 
         var result = engine.Match("nonexistent.test", "-");
 

@@ -42,7 +42,7 @@ public sealed class DnsForwarderService
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        var context = new DnsRequestContext(request, requestId);
+        var context = new DnsRequestContext(request, requestId, remote.Address.ToString());
 
         if (string.IsNullOrEmpty(context.Domain))
         {
