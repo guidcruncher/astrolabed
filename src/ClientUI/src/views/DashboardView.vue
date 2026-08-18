@@ -152,8 +152,10 @@ onMounted(() => {
     <!-- Stat Cards Grid -->
     <div class="wt-stats-grid">
         <div class="wt-dialog wt-stat-box">
-            <div class="wt-title">DNS Events</div>
-            <div class="wt-body wt-stat-value">{{ dnsEventsCount }}</div>
+            <div class="wt-title">DNS</div>
+            <div class="wt-body wt-stat-value">
+                Query - {{ dnsEventsCount }} - Cached {{ dnsCacheCount }}
+            </div>
         </div>
         <div class="wt-dialog wt-stat-box">
             <div class="wt-title">DHCP Leases</div>
