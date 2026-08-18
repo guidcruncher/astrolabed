@@ -65,7 +65,6 @@ const handleBackdropClick = () => {
 }
 
 .wt-dialog {
-    background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     min-width: 320px;

@@ -96,7 +96,7 @@ onMounted(async () => {
         :is-open="isModalOpen"
         title="Changes saved"
         ok-text="OK"
-        show-cancel="false"
+        :show-cancel="false"
         @ok="handleOk"
         @close="handleOk"
     >
