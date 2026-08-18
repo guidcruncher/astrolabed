@@ -27,7 +27,7 @@ const closeDropdown = (): void => {
 }
 
 const handleSelect = (option: DropdownOption): void => {
-    if (option.disabled) return
+    if (option.disabled || option.label === '-') return
     emit('select', option)
     closeDropdown()
 }
@@ -57,34 +57,38 @@ onUnmounted(() => {
 
 <template>
     <div ref="dropdownRef" class="whiptail-dropdown-container">
-        <button
-            type="button"
-            class="whiptail-btn whiptail-dropdown-toggle"
-            :aria-expanded="isOpen"
-            aria-haspopup="true"
-            @click="toggleDropdown"
-        >
+        <WhiptailButton :aria-expanded="isOpen" aria-haspopup="true" @click="toggleDropdown">
             <span>{{ props.buttonLabel }}</span>
             <span class="whiptail-icon-arrow" :class="{ 'whiptail-icon-arrow-up': isOpen }">▼</span>
-        </button>
+        </WhiptailButton>
 
         <transition name="whiptail-fade">
             <ul v-if="isOpen" class="whiptail-dropdown-menu" role="menu">
-                <li
-                    v-for="option in props.options"
-                    :key="option.value"
-                    class="whiptail-dropdown-item"
-                    :class="{ 'is-disabled': option.disabled }"
-                    role="menuitem"
-                    tabindex="0"
-                    @click="handleSelect(option)"
-                    @keydown.enter.prevent="handleSelect(option)"
-                    @keydown.space.prevent="handleSelect(option)"
-                >
-                    <slot name="option" :option="option">
-                        {{ option.label }}
-                    </slot>
-                </li>
+                <template v-for="option in props.options" :key="option.value">
+                    <li
+                        v-if="option.label === '-'"
+                        class="whiptail-dropdown-divider"
+                        role="separator"
+                        aria-orientation="horizontal"
+                    >
+                        <hr class="whiptail-divider-line" />
+                    </li>
+
+                    <li
+                        v-else
+                        class="whiptail-dropdown-item"
+                        :class="{ 'is-disabled': option.disabled }"
+                        role="menuitem"
+                        tabindex="0"
+                        @click="handleSelect(option)"
+                        @keydown.enter.prevent="handleSelect(option)"
+                        @keydown.space.prevent="handleSelect(option)"
+                    >
+                        <slot name="option" :option="option">
+                            {{ option.label }}
+                        </slot>
+                    </li>
+                </template>
             </ul>
         </transition>
     </div>
@@ -117,6 +121,19 @@ onUnmounted(() => {
 .whiptail-dropdown-item.is-disabled {
     opacity: 0.5;
     cursor: not-allowed;
+}
+
+.whiptail-dropdown-divider {
+    padding: 0.25rem 0;
+    pointer-events: none;
+    list-style: none;
+}
+
+.whiptail-divider-line {
+    border: none;
+    border-top: 1px solid currentColor;
+    opacity: 0.25;
+    margin: 0;
 }
 
 .whiptail-fade-enter-active,

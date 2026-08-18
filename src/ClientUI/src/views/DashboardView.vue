@@ -112,7 +112,7 @@ onMounted(() => {
                 <span>System Diagnostics & Status Overview</span>
             </div>
             <div style="float: right">
-                <WhiptailDropdown
+                <WhiptailDropdownMenu
                     button-label="Actions Menu"
                     :options="dropdownOptions"
                     @select="handleSelect"
