@@ -18,10 +18,10 @@ public static class ServiceCollectionExtensions
             configuration.GetSection(DnsEngineOptions.SectionName));
 
         // 2. Register Lock-Free Singleton Cache Service
-        services.AddSingleton<ILockFreeDnsCache, LockFreeDnsCache>();
+        services.AddSingleton<IDnsCache, DnsCache>();
 
         // 3. Register Hosted Engine Background Service
-        services.AddHostedService<OptimizedDnsEngine>();
+        services.AddHostedService<DnsEngine>();
 
         return services;
     }

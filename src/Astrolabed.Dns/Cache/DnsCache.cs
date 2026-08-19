@@ -11,7 +11,7 @@ public sealed class DnsCache : IDnsCache
     private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
 
-    public LockFreeDnsCache(IOptionsMonitor<DnsEngineOptions> optionsMonitor)
+    public DnsCache(IOptionsMonitor<DnsEngineOptions> optionsMonitor)
     {
         _optionsMonitor = optionsMonitor;
     }

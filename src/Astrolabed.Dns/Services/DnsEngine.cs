@@ -21,17 +21,17 @@ namespace Astrolabed.Dns.Services;
 public sealed class DnsEngine : BackgroundService
 {
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
-    private readonly ILockFreeDnsCache _cache;
-    private readonly ILogger<OptimizedDnsEngine> _logger;
-    private readonly Channel<UdpReceiveResult> _incomingChannel;
+    private readonly IDnsCache _cache;
+    private readonly ILogger<DnsEngine> _logger;
+    private readonly Channel<Astrolabed.Dns.Models.UdpReceiveResult> _incomingChannel;
     private readonly IDisposable? _optionsChangeToken;
 
     private EngineStateSnapshot _snapshot;
 
-    public OptimizedDnsEngine(
+    public DnsEngine(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
-        ILockFreeDnsCache cache,
-        ILogger<OptimizedDnsEngine> logger)
+        IDnsCache cache,
+        ILogger<DnsEngine> logger)
     {
         _optionsMonitor = optionsMonitor;
         _cache = cache;
@@ -40,7 +40,7 @@ public sealed class DnsEngine : BackgroundService
         var initialOptions = _optionsMonitor.CurrentValue;
         ThreadPool.SetMinThreads(initialOptions.ProcessingThreads * 2, initialOptions.ProcessingThreads * 2);
 
-        _incomingChannel = Channel.CreateUnbounded<UdpReceiveResult>(new UnboundedChannelOptions
+        _incomingChannel = Channel.CreateUnbounded<Astrolabed.Dns.Models.UdpReceiveResult>(new UnboundedChannelOptions
         {
             SingleWriter = true,
             AllowSynchronousContinuations = true
@@ -113,7 +113,7 @@ public sealed class DnsEngine : BackgroundService
                 var packetCopy = new byte[result.ReceivedBytes];
                 Array.Copy(buffer, 0, packetCopy, 0, result.ReceivedBytes);
 
-                _incomingChannel.Writer.TryWrite(new UdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
+                _incomingChannel.Writer.TryWrite(new Astrolabed.Dns.Models.UdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
             }
         }
         finally
