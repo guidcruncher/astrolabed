@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Dns.Core;
 using Astrolabed.Dns.Filtering;
+using Astrolabed.Events;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ public sealed class RuleEngine : IDisposable
     private readonly ILogger<RuleEngine> _logger;
     private readonly DnsForwarderOptions _options;
 
+    private readonly IDnsMetrics _metrics;
     private readonly RuleCompiler _compiler;
     private readonly RuleMatcher _matcher;
     private readonly ResolverChainBuilder _chainBuilder;
@@ -30,7 +32,7 @@ public sealed class RuleEngine : IDisposable
         IOptions<DnsForwarderOptions> options,
         ILogger<RuleEngine> logger,
         IDnsClientFactory clientFactory,
-    IDnsCache dnsCache)
+    IDnsCache dnsCache, IDnsMetrics metrics)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -38,6 +40,7 @@ public sealed class RuleEngine : IDisposable
 
         _options = options.Value;
         _logger = logger;
+        _metrics = metrics;
 
         Cache = dnsCache;
 
@@ -108,7 +111,17 @@ public sealed class RuleEngine : IDisposable
                     context.RequestId, context.Domain, _options.BlockResponse.Mode);
             }
 
-            return _blockBuilder.BuildBlockResponse(context.RawRequest);
+            _metrics.RecordDnsResponse(new DnsResponseEvent(
+                                 Timestamp: DateTimeOffset.UtcNow,
+                                 TimestampEpoch: DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+                                 IsBlocked: true,
+                                 ClientIp: System.Net.IPAddress.Parse(context.ClientIp),
+                                 ClientName: context.ClientName,
+                                 QueryName: context.Domain,
+                                 QueryType: Enum.GetName(typeof(DnsType), context.QType),
+                                 Status: "BLOCKED",
+                                 ResponseIp: null));
+            return _blockBuilder.BuildBlockResponse(context.RawRequest); ;
         }
 
         var upstreams = _chainBuilder.BuildChain(match, context.Domain, context.RequestId);

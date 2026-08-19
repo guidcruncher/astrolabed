@@ -46,12 +46,14 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
 
         const string sql = """
             INSERT INTO dns_response_events
-            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp)
-            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp)
+            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked)
+            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp, @TimestampEpoch, @IsBlocked)
         """;
 
         conn.Execute(sql, new
         {
+            TimestampEpoch = e.TimestampEpoch,
+            IsBlocked = e.IsBlocked ? 1 : 0,
             Timestamp = e.Timestamp.ToString("o"),
             ClientIp = e.ClientIp.ToString(),
             ClientName = e.ClientName,
@@ -75,12 +77,14 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
 
         const string sql = """
             INSERT INTO dns_response_events
-            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp)
-            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp)
+            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked)
+            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp, @TimestampEpoch, @IsBlocked)
         """;
 
         await conn.ExecuteAsync(sql, new
         {
+            TimestampEpoch = e.TimestampEpoch,
+            IsBlocked = e.IsBlocked ? 1 : 0,
             Timestamp = e.Timestamp.ToString("o"),
             ClientIp = e.ClientIp.ToString(),
             ClientName = e.ClientName,
@@ -105,8 +109,8 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
 
         const string sql = """
             INSERT INTO dns_response_events
-            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp)
-            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp)
+            (Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked)
+            VALUES (@Timestamp, @ClientIp, @ClientName, @QueryName, @QueryType, @Status, @ResponseIp, @TimestampEpoch, @IsBlocked)
         """;
 
         int count = 0;
@@ -115,6 +119,8 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         {
             conn.Execute(sql, new
             {
+                TimestampEpoch = e.TimestampEpoch,
+                IsBlocked = e.IsBlocked ? 1 : 0,
                 Timestamp = e.Timestamp.ToString("o"),
                 ClientIp = e.ClientIp.ToString(),
                 ClientName = e.ClientName,
@@ -147,7 +153,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         const string sql = """
             SELECT COUNT(1) FROM dns_response_events WHERE Timestamp >= @Start AND Timestamp <= @End;
 
-            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
+            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked
             FROM dns_response_events
             WHERE Timestamp >= @Start AND Timestamp <= @End
             ORDER BY Timestamp DESC
@@ -181,7 +187,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         const string sql = """
             SELECT COUNT(1) FROM dns_response_events WHERE ClientIp = @ClientIp;
 
-            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
+            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked
             FROM dns_response_events
             WHERE ClientIp = @ClientIp
             ORDER BY Timestamp DESC
@@ -214,7 +220,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         const string sql = """
             SELECT COUNT(1) FROM dns_response_events WHERE Status = @Status;
 
-            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
+            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked
             FROM dns_response_events
             WHERE Status = @Status
             ORDER BY Timestamp DESC
@@ -245,7 +251,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         const string sql = """
             SELECT COUNT(1) FROM dns_response_events;
 
-            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp
+            SELECT Timestamp, ClientIp, ClientName, QueryName, QueryType, Status, ResponseIp, TimestampEpoch, IsBlocked
             FROM dns_response_events
             ORDER BY Timestamp DESC
             LIMIT @Limit OFFSET @Offset;
@@ -304,6 +310,8 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
     private static DnsResponseEvent Map(DnsResponseEventRaw r)
     {
         return new DnsResponseEvent(
+            TimestampEpoch: r.TimestampEpoch,
+            IsBlocked: r.IsBlocked == 1,
             Timestamp: DateTimeOffset.Parse(r.Timestamp),
             ClientIp: IPAddress.Parse(r.ClientIp),
             ClientName: r.ClientName,
@@ -314,13 +322,16 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         );
     }
 
-    private record DnsResponseEventRaw(
-        string Timestamp,
-        string ClientIp,
-        string? ClientName,
-        string QueryName,
-        string QueryType,
-        string Status,
-        string? ResponseIp
-    );
+    private class DnsResponseEventRaw
+    {
+        public string Timestamp { get; set; } = string.Empty;
+        public string ClientIp { get; set; } = string.Empty;
+        public string? ClientName { get; set; }
+        public string QueryName { get; set; } = string.Empty;
+        public string QueryType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? ResponseIp { get; set; }
+        public long TimestampEpoch { get; set; }
+        public long IsBlocked { get; set; }
+    }
 }

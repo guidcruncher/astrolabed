@@ -29,7 +29,7 @@ public sealed class HostsDnsPacketTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         var cache = new DnsCache(cacheOptions, cacheLogger);
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache, new NullDnsMetrics());
 
         var tmp = Path.GetTempFileName();
         await File.WriteAllLinesAsync(tmp, new[] { "127.0.0.1 host.test" });

@@ -60,7 +60,7 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        var context = new DnsRequestContext(request, requestId);
+        var context = new DnsRequestContext(request, requestId, "127.0.0.1", "localhost");
 
         if (string.IsNullOrEmpty(context.Domain))
         {

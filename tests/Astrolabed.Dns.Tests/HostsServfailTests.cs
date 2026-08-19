@@ -25,7 +25,7 @@ public sealed class HostsServfailTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<Astrolabed.Dns.RuleEngine.DnsCache>.Instance;
         var cache = new Astrolabed.Dns.RuleEngine.DnsCache(cacheOptions, cacheLogger);
-        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
+        var engine = new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache, new NullDnsMetrics());
 
         var result = engine.Match("fail.test", "-");
         Assert.NotNull(result);

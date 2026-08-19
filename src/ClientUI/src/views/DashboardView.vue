@@ -25,16 +25,10 @@ const dropdownOptions: DropdownOption[] = [
     { label: 'Logout', value: 'logout' },
 ]
 
-const activeTab = ref('dns-lookup')
-
-// Local state retained strictly for header metric summary cards
-const dnsEventsCount = ref<number>(0)
-const dnsCacheCount = ref<number>(0)
-const dnsCachePercent = ref<string>('')
-const lanDevicesCount = ref<number>(0)
-const activeLeasesCount = ref<number>(0)
+const activeTab = ref('status')
 
 const dashboardTabs: TabItem[] = [
+    { id: 'status', label: 'Status' },
     { id: 'dns-lookup', label: 'DNS Lookup' },
     { id: 'lan-devices', label: 'LAN Devices' },
     { id: 'dhcp', label: 'DHCP' },
@@ -61,42 +55,12 @@ const handleSelect = async (option: DropdownOption): Promise<void> => {
     }
 }
 
-const refreshDashboardMetrics = async (): Promise<void> => {
-    try {
-        const [logsData, cacheData, devicesData, leasesData] = await Promise.allSettled([
-            getDnsEvents({ pageNumber: 1, pageSize: 5 }),
-            getDnsCacheResponses({ pageNumber: 1, pageSize: 5 }),
-            getDiscoveredNetworkDevices({ pageNumber: 1, pageSize: 5 }),
-            getLeases(true, { pageNumber: 1, pageSize: 5 }),
-        ])
-
-        dnsCachePercent.value = ''
-
-        if (logsData.status === 'fulfilled') {
-            dnsEventsCount.value = logsData.value.totalCount
-        }
-
-        if (cacheData.status === 'fulfilled') {
-            dnsCacheCount.value = cacheData.value.totalCount
-            if (dnsCacheCount.value > 0 && dnsEventsCount.value > 0) {
-                dnsCachePercent.value = `{(dnsCacheCount.value / dnsEventsCount.value).toFixed(2)}%`
-            }
-        }
-
-        if (devicesData.status === 'fulfilled') {
-            lanDevicesCount.value = devicesData.value.totalCount
-        }
-
-        if (leasesData.status === 'fulfilled') {
-            activeLeasesCount.value = leasesData.value.totalCount
-        }
-    } catch (err) {
-        console.error('Failed to load dashboard metrics', err)
-    }
-}
+const refreshDashboardMetrics = async (): Promise<void> => {}
 
 const handleSelectTab = (id: string) => {
     switch (id) {
+        case 'status':
+            break
         case 'lan-devices':
             break
         case 'dhcp':
@@ -155,25 +119,6 @@ onMounted(() => {
         </div>
     </div>
 
-    <!-- Stat Cards Grid -->
-    <div class="wt-stats-grid">
-        <div class="wt-dialog wt-stat-box">
-            <div class="wt-title">DNS</div>
-            <div class="wt-body">
-                <div class="wt-stat-value">Query {{ dnsEventsCount }}</div>
-                <div class="wt-stat-value">Cached {{ dnsCacheCount }}</div>
-            </div>
-        </div>
-        <div class="wt-dialog wt-stat-box">
-            <div class="wt-title">DHCP Leases</div>
-            <div class="wt-body wt-stat-value">{{ activeLeasesCount }}</div>
-        </div>
-        <div class="wt-dialog wt-stat-box">
-            <div class="wt-title">LAN Devices</div>
-            <div class="wt-body wt-stat-value">{{ lanDevicesCount }}</div>
-        </div>
-    </div>
-
     <!-- Modularized Tab Navigation -->
     <WhiptailTabs
         v-model="activeTab"
@@ -181,6 +126,7 @@ onMounted(() => {
         :tabs="dashboardTabs"
         class="wt-full-width"
     >
+        <template #status> </template>
         <template #dns-lookup>
             <DnsLookupTab />
         </template>

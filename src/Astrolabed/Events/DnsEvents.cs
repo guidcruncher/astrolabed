@@ -17,7 +17,9 @@ public sealed record DnsResponseEvent(
     string QueryName,
     string QueryType,
     string Status,
-    IPAddress? ResponseIp)
+    IPAddress? ResponseIp,
+    long TimestampEpoch,
+    bool IsBlocked)
     : EventRecord(Timestamp);
 
 public sealed record DnsUpstreamLatencyEvent(

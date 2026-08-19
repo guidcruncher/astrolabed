@@ -89,6 +89,7 @@ onMounted(() => {
         <!-- Control Toolbar -->
         <div class="wt-toolbar">
             <div class="wt-toolbar-actions">
+                Total: {{ leasesPaged.totalCount }} &nbsp;
                 <WhiptailButton
                     :class="activeOnly ? 'wt-btn-active' : 'wt-btn-secondary'"
                     @click="toggleActiveOnly"

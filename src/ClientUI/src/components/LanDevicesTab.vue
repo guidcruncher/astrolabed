@@ -66,6 +66,7 @@ onMounted(() => {
 
 <template>
     <div class="wt-lan-toolbar">
+        Total: {{ lanDevicesPaged.totalCount }} &nbsp;
         <WhiptailButton class="wt-btn-ok" :disabled="loading" @click="fetchDevices">
             {{ loading ? 'Refreshing...' : 'Refresh' }}
         </WhiptailButton>

@@ -98,6 +98,7 @@ onMounted(() => {
     <div class="wt-cache-tab">
         <div class="wt-cache-header">
             <div class="wt-cache-actions">
+                Total: {{ pagedResult.totalCount }} &nbsp;
                 <WhiptailButton :disabled="loading" @click="fetchCache">
                     {{ loading ? 'Refreshing...' : 'Refresh Cache' }}
                 </WhiptailButton>

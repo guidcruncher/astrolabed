@@ -40,7 +40,7 @@ public class HostsTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         var cache = new DnsCache(cacheOptions, cacheLogger);
-        return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory, cache);
+        return new RuleEngine.RuleEngine(wrappedOpts, logger, clientFactory, cache, new NullDnsMetrics());
     }
 
     private static HostsFileSource CreateHostsSource(params string[] files)

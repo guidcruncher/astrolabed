@@ -31,6 +31,7 @@ public sealed class DnsForwarderService
     public async Task<PooledBuffer?> ProcessAsync(
         byte[] request,
         IPEndPoint remote,
+    string clientName,
         CancellationToken ct)
     {
         if (request == null || request.Length < 12)
@@ -42,7 +43,7 @@ public sealed class DnsForwarderService
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        var context = new DnsRequestContext(request, requestId);
+        var context = new DnsRequestContext(request, requestId, remote.Address.ToString(), clientName);
 
         if (string.IsNullOrEmpty(context.Domain))
         {

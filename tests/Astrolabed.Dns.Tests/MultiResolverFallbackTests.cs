@@ -57,7 +57,7 @@ public sealed class MultiResolverFallbackTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 50 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         var cache = new DnsCache(cacheOptions, cacheLogger);
-        return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache);
+        return new Astrolabed.Dns.RuleEngine.RuleEngine(Options.Create(options), logger, clientFactory, cache, new NullDnsMetrics());
     }
 
     [Fact]
