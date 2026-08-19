@@ -101,7 +101,7 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
                 offset += 5;
                 break;
             }
-            if (len >= 192)
+            if ((len & 0xC0) == 0xC0)
             {
                 offset += 6;
                 break;
@@ -125,9 +125,11 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
 
     private static int ExtractEdns0PayloadSize(byte[] request)
     {
-        if (request.Length < 12) return 512;
+        if (request == null || request.Length < 12) return 512;
 
         ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(4, 2));
+        ushort anCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(6, 2));
+        ushort nsCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(8, 2));
         ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(request.AsSpan(10, 2));
 
         if (arCount == 0) return 512;
@@ -141,6 +143,12 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
             if (offset < 0 || offset + 4 > request.Length) return 512;
             offset += 4; // Type + Class
         }
+
+        // Skip Answer Section
+        if (!SkipResourceRecords(request, ref offset, anCount)) return 512;
+
+        // Skip Authority Section
+        if (!SkipResourceRecords(request, ref offset, nsCount)) return 512;
 
         // Search Additional Section specifically for OPT Record (TYPE 41)
         for (int i = 0; i < arCount; i++)
@@ -163,20 +171,46 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
         return 512;
     }
 
+    private static bool SkipResourceRecords(byte[] buffer, ref int offset, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            offset = SkipDomainName(buffer, offset);
+            if (offset < 0 || offset + 10 > buffer.Length) return false;
+
+            ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset + 8, 2));
+            offset += 10 + rdLength;
+            if (offset > buffer.Length) return false;
+        }
+
+        return true;
+    }
+
     private static int SkipDomainName(byte[] buffer, int offset)
     {
+        int pointerJumps = 0;
         while (offset < buffer.Length)
         {
             byte len = buffer[offset];
             if (len == 0) return offset + 1;
-            if ((len & 0xC0) == 0xC0) return offset + 2; // Pointer
+            if ((len & 0xC0) == 0xC0)
+            {
+                if (offset + 2 > buffer.Length) return -1;
+                return offset + 2; // Compression Pointer (2 bytes)
+            }
             offset += len + 1;
+            if (++pointerJumps > 128) return -1; // Circuit break circular loops
         }
         return -1;
     }
 
     private static DnsHandlerResult ParseDnsResponse(byte[] buffer)
     {
+        if (buffer == null || buffer.Length < 12)
+        {
+            return CreateErrorResult("FORMERR", buffer ?? Array.Empty<byte>());
+        }
+
         ushort flags = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(2, 2));
         int rcode = flags & 0x0F;
         string rcodeName = MapRcodeToString(rcode);
@@ -205,6 +239,10 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
             {
                 answers.Add(record);
             }
+            else
+            {
+                break;
+            }
         }
 
         // Parse Authority RRs
@@ -214,6 +252,10 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
             {
                 authorities.Add(record);
             }
+            else
+            {
+                break;
+            }
         }
 
         // Parse Additional RRs
@@ -222,6 +264,10 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
             if (TryParseResourceRecord(buffer, ref offset, out var record))
             {
                 additionals.Add(record);
+            }
+            else
+            {
+                break;
             }
         }
 
@@ -248,7 +294,11 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
         record = null!;
         if (offset >= buffer.Length) return false;
 
-        string name = ReadDomainName(buffer, ref offset);
+        if (!TryReadDomainName(buffer, ref offset, out string name))
+        {
+            return false;
+        }
+
         if (offset + 10 > buffer.Length) return false;
 
         ushort typeCode = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset, 2));
@@ -258,7 +308,11 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
 
         offset += 10;
 
-        if (offset + rdLength > buffer.Length) return false;
+        // Strict boundary check before reading RDATA
+        if (offset > buffer.Length || rdLength > (buffer.Length - offset))
+        {
+            return false;
+        }
 
         string data = ParseRecordData(buffer, offset, typeCode, rdLength);
         offset += rdLength;
@@ -267,7 +321,7 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
         {
             Name = name,
             Type = MapTypeCodeToString(typeCode),
-            Class = classCode == 1 ? "IN" : classCode.ToString(),
+            Class = typeCode == 41 ? "NONE" : (classCode == 1 ? "IN" : classCode.ToString()),
             TimeToLive = ttl,
             Data = data
         };
@@ -275,46 +329,107 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
         return true;
     }
 
-    private static string ReadDomainName(byte[] buffer, ref int offset)
+    private static bool TryReadDomainName(byte[] buffer, ref int offset, out string domain)
     {
+        domain = string.Empty;
         var sb = new StringBuilder();
         int current = offset;
         bool jumped = false;
         int originalOffset = offset;
+        int jumps = 0;
 
-        while (current < buffer.Length && buffer[current] != 0)
+        while (current < buffer.Length)
         {
-            if ((buffer[current] & 0xC0) == 0xC0)
+            byte len = buffer[current];
+            if (len == 0)
             {
+                if (!jumped) originalOffset = current + 1;
+                domain = sb.Length == 0 ? "." : sb.ToString().TrimEnd('.');
+                offset = originalOffset;
+                return true;
+            }
+
+            if ((len & 0xC0) == 0xC0)
+            {
+                if (current + 1 >= buffer.Length) return false;
                 if (!jumped)
                 {
                     originalOffset = current + 2;
                     jumped = true;
                 }
-                current = ((buffer[current] & 0x3F) << 8) | buffer[current + 1];
+                current = ((len & 0x3F) << 8) | buffer[current + 1];
+                if (++jumps > 10) return false; // Prevent circular compression pointers
                 continue;
             }
 
-            int len = buffer[current++];
-            if (sb.Length > 0) sb.Append('.');
-            sb.Append(Encoding.ASCII.GetString(buffer, current, len));
+            current++;
+            if (current + len > buffer.Length) return false;
+
+            sb.Append(Encoding.ASCII.GetString(buffer, current, len)).Append('.');
             current += len;
         }
 
-        offset = jumped ? originalOffset : current + 1;
-        return sb.ToString();
+        return false;
     }
 
     private static string ParseRecordData(byte[] buffer, int offset, ushort typeCode, ushort rdLength)
     {
-        return typeCode switch
+        if (buffer == null || offset < 0 || rdLength < 0 || offset > buffer.Length || (offset + rdLength) > buffer.Length)
         {
-            1 when rdLength == 4 => new IPAddress(buffer[offset..(offset + 4)]).ToString(),
-            28 when rdLength == 16 => new IPAddress(buffer[offset..(offset + 16)]).ToString(),
-            2 or 5 or 12 => ReadDomainName(buffer, ref offset),
-            16 => Encoding.UTF8.GetString(buffer, offset, rdLength),
-            _ => BitConverter.ToString(buffer, offset, rdLength).Replace("-", string.Empty)
-        };
+            return string.Empty;
+        }
+
+        try
+        {
+            switch (typeCode)
+            {
+                case 1 when rdLength == 4:
+                    return new IPAddress(buffer.AsSpan(offset, 4)).ToString();
+
+                case 28 when rdLength == 16:
+                    return new IPAddress(buffer.AsSpan(offset, 16)).ToString();
+
+                case 2:  // NS
+                case 5:  // CNAME
+                case 12: // PTR
+                    {
+                        int ptr = offset;
+                        if (TryReadDomainName(buffer, ref ptr, out var domain))
+                        {
+                            return domain;
+                        }
+                        break;
+                    }
+
+                case 16: // TXT
+                    {
+                        if (rdLength > 0)
+                        {
+                            int curr = offset;
+                            int end = offset + rdLength;
+                            var sb = new StringBuilder();
+                            while (curr < end)
+                            {
+                                byte strLen = buffer[curr++];
+                                if (curr + strLen > end) break;
+                                sb.Append('"').Append(Encoding.UTF8.GetString(buffer, curr, strLen)).Append("\" ");
+                                curr += strLen;
+                            }
+                            return sb.ToString().TrimEnd();
+                        }
+                        break;
+                    }
+
+                case 41: // OPT Record
+                    return $"PayloadSize: {BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset - 8, 2))}, RDLength: {rdLength}";
+            }
+
+            return Convert.ToHexString(buffer.AsSpan(offset, rdLength));
+        }
+        catch
+        {
+            return Convert.ToHexString(buffer.AsSpan(offset, rdLength));
+        }
     }
 
     private static string MapRcodeToString(int rcode) => rcode switch
@@ -339,6 +454,7 @@ public sealed class DnsRequestHandler : IDnsRequestHandler
         16 => "TXT",
         28 => "AAAA",
         33 => "SRV",
+        41 => "OPT",
         255 => "ANY",
         _ => $"TYPE_{type}"
     };

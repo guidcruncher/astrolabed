@@ -82,6 +82,82 @@ public static class DnsResponseParser
         return true;
     }
 
+    public static bool TryExtractEdeOption(ReadOnlySpan<byte> buffer, out ReadOnlySpan<byte> edeOptionSpan)
+    {
+        edeOptionSpan = default;
+        if (buffer.Length < 12) return false;
+
+        ushort qdCount = (ushort)((buffer[4] << 8) | buffer[5]);
+        ushort anCount = (ushort)((buffer[6] << 8) | buffer[7]);
+        ushort nsCount = (ushort)((buffer[8] << 8) | buffer[9]);
+        ushort arCount = (ushort)((buffer[10] << 8) | buffer[11]);
+
+        int offset = 12;
+
+        for (int i = 0; i < qdCount; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) return false;
+            offset += 4;
+            if (offset > buffer.Length) return false;
+        }
+
+        if (!SkipResourceRecords(buffer, ref offset, anCount)) return false;
+        if (!SkipResourceRecords(buffer, ref offset, nsCount)) return false;
+
+        for (int i = 0; i < arCount; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) break;
+            if (offset + 10 > buffer.Length) break;
+
+            ushort type = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+            ushort rdLength = (ushort)((buffer[offset + 8] << 8) | buffer[offset + 9]);
+
+            offset += 10;
+            if (offset + rdLength > buffer.Length) break;
+
+            if (type == 41) // OPT Record (EDNS)
+            {
+                int current = offset;
+                int end = offset + rdLength;
+
+                while (current + 4 <= end)
+                {
+                    ushort optionCode = (ushort)((buffer[current] << 8) | buffer[current + 1]);
+                    ushort optionLength = (ushort)((buffer[current + 2] << 8) | buffer[current + 3]);
+
+                    if (current + 4 + optionLength > end) break;
+
+                    if (optionCode == 15) // EDNS Option 15: Extended DNS Error
+                    {
+                        edeOptionSpan = buffer.Slice(current, 4 + optionLength);
+                        return true;
+                    }
+
+                    current += 4 + optionLength;
+                }
+            }
+
+            offset += rdLength;
+        }
+
+        return false;
+    }
+
+    private static bool SkipResourceRecords(ReadOnlySpan<byte> buffer, ref int offset, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) return false;
+            if (offset + 10 > buffer.Length) return false;
+
+            ushort rdLength = (ushort)((buffer[offset + 8] << 8) | buffer[offset + 9]);
+            offset += 10 + rdLength;
+            if (offset > buffer.Length) return false;
+        }
+
+        return true;
+    }
+
     private static List<DnsResourceRecord> ReadResourceRecords(byte[] buffer, ref int offset, int count, out DnsExtendedError? extendedError)
     {
         extendedError = null;
@@ -204,6 +280,11 @@ public static class DnsResponseParser
     }
 
     private static bool TrySkipDomainName(byte[] buffer, ref int offset)
+    {
+        return TrySkipDomainNameSpan(buffer, ref offset);
+    }
+
+    private static bool TrySkipDomainNameSpan(ReadOnlySpan<byte> buffer, ref int offset)
     {
         while (offset < buffer.Length)
         {

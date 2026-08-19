@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAstrolabedApi, type DiscoveredLanDevice,type DnsResponse,type DnsExtendedError } from '../composables/useAstrolabedApi'
+import {
+    useAstrolabedApi,
+    type DiscoveredLanDevice,
+    type DnsResponse,
+    type DnsExtendedError,
+} from '../composables/useAstrolabedApi'
 import type { WhiptailOption } from './types'
 import { useDnsUtils } from '../composables/useDnsUtils'
 
@@ -104,14 +109,27 @@ const handleDnsLookup = async (): Promise<void> => {
                 <span class="terminal-comment">;; global options: +cmd</span><br />
                 <span class="terminal-comment">;; Got answer:</span><br />
                 <span class="terminal-comment">
-                    ;; -&gt;&gt;HEADER&lt;&lt;- opcode: {{ queryResult.header?.opCode ?? 'QUERY' }}, status:
+                    ;; -&gt;&gt;HEADER&lt;&lt;- opcode: {{ queryResult.header?.opCode ?? 'QUERY' }},
+                    status:
                     <span class="terminal-highlight">
                         {{ getDnsStatusLabel(queryResult.responseCode) }}
                     </span>
-                    , id: {{ queryResult.header?.transactionId ?? Math.floor(Math.random() * 60000) }}
-                </span><br />
+                    , id:
+                    {{
+                        queryResult.header?.transactionId ?? Math.floor(Math.random() * 60000)
+                    }} </span
+                ><br />
                 <span class="terminal-comment">
-                    ;; flags: {{ queryResult.header?.authoritativeAnswer ? 'aa ' : '' }}{{ queryResult.header?.truncated ? 'tc ' : '' }}{{ queryResult.header?.recursionDesired ? 'rd ' : '' }}{{ queryResult.header?.recursionAvailable ? 'ra ' : '' }}{{ queryResult.header?.authenticData ? 'ad ' : '' }}{{ queryResult.header?.checkingDisabled ? 'cd ' : '' }}; QUERY: {{ queryResult.header?.questionCount ?? 1 }}, ANSWER: {{ queryResult.header?.answerCount ?? parsedAnswers.length }}, AUTHORITY: {{ queryResult.header?.nameServerCount ?? 0 }}, ADDITIONAL: {{ queryResult.header?.additionalCount ?? 0 }}
+                    ;; flags: {{ queryResult.header?.authoritativeAnswer ? 'aa ' : ''
+                    }}{{ queryResult.header?.truncated ? 'tc ' : ''
+                    }}{{ queryResult.header?.recursionDesired ? 'rd ' : ''
+                    }}{{ queryResult.header?.recursionAvailable ? 'ra ' : ''
+                    }}{{ queryResult.header?.authenticData ? 'ad ' : ''
+                    }}{{ queryResult.header?.checkingDisabled ? 'cd ' : '' }}; QUERY:
+                    {{ queryResult.header?.questionCount ?? 1 }}, ANSWER:
+                    {{ queryResult.header?.answerCount ?? parsedAnswers.length }}, AUTHORITY:
+                    {{ queryResult.header?.nameServerCount ?? 0 }}, ADDITIONAL:
+                    {{ queryResult.header?.additionalCount ?? 0 }}
                 </span>
             </div>
 
@@ -120,7 +138,9 @@ const handleDnsLookup = async (): Promise<void> => {
                 <div class="terminal-section-header">;; OPT PSEUDOSECTION:</div>
                 <div class="terminal-comment">; EDNS: version: 0, flags:; udp: 1232</div>
                 <div class="terminal-comment">
-                    ; EDE: {{ extendedError.code }} ({{ extendedError.name }}){{ extendedError.extraText ? `: (${extendedError.extraText})` : '' }}
+                    ; EDE: {{ extendedError.code }} ({{ extendedError.name }}){{
+                        extendedError.extraText ? `: (${extendedError.extraText})` : ''
+                    }}
                 </div>
             </div>
 
@@ -149,12 +169,8 @@ const handleDnsLookup = async (): Promise<void> => {
                         </span>
                         <span class="terminal-ttl">{{ ans.timeToLive ?? 300 }}</span>
                         <span class="terminal-class">{{ ans.class || 'IN' }}</span>
-                        <span class="terminal-type">{{
-                            ans.type || selectedRecordType
-                        }}</span>
-                        <span class="terminal-data">{{
-                            ans.data || ans
-                        }}</span>
+                        <span class="terminal-type">{{ ans.type || selectedRecordType }}</span>
+                        <span class="terminal-data">{{ ans.data || ans }}</span>
                     </div>
                 </template>
                 <div v-else class="terminal-comment">
