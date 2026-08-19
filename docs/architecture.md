@@ -6,48 +6,42 @@ Below are simple mermaid diagrams illustrating the high-level architecture and r
 
 ```mermaid
 graph TD
-    classDef boundaryStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
-    classDef coreStyle fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#fff
-    classDef engineStyle fill:#111827,stroke:#34d399,stroke-width:2px,color:#fff
-    classDef dataStyle fill:#1f2937,stroke:#fbbf24,stroke-width:2px,color:#fff
-    classDef extStyle fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#fff
-
     subgraph Transport ["Network Inbound Interface"]
-        UdpListener["UDP Server Listener"] :::boundaryStyle
-        TcpListener["TCP Server Listener"] :::boundaryStyle
-        DohListener["DoH / HTTPS Endpoint"] :::boundaryStyle
+        UdpListener["UDP Server Listener"]
+        TcpListener["TCP Server Listener"]
+        DohListener["DoH / HTTPS Endpoint"]
     end
 
-    subgraph Pipeline ["DnsPipeline (Request / Response Pipeline)"]
-        ContextBuilder["Context Builder & Decoder"] :::engineStyle
-        RespBuilder["Response Builder & Encoder"] :::engineStyle
+    subgraph Pipeline ["DnsPipeline Request / Response Pipeline"]
+        ContextBuilder["Context Builder & Decoder"]
+        RespBuilder["Response Builder & Encoder"]
     end
 
-    subgraph CoreEngine ["RuleEngine (Core Resolution Hub)"]
-        MatchHub["Rule Matcher Hub"] :::coreStyle
-        ExecHub["Query Executor"] :::coreStyle
+    subgraph CoreEngine ["RuleEngine Core Resolution Hub"]
+        MatchHub["Rule Matcher Hub"]
+        ExecHub["Query Executor"]
         
-        subgraph Snapshot ["State Snapshot (Lock-Free Read)"]
-            HostsTable["Hosts Dictionary"] :::dataStyle
-            RulesAutomata["Rule Compiler & Automata"] :::dataStyle
-            UpstreamChain["Upstream Chain Builder"] :::dataStyle
+        subgraph Snapshot ["State Snapshot Lock-Free Read"]
+            HostsTable["Hosts Dictionary"]
+            RulesAutomata["Rule Compiler & Automata"]
+            UpstreamChain["Upstream Chain Builder"]
         end
     end
 
     subgraph SystemServices ["Cross-Cutting Services"]
-        Cache["IDnsCache (DNS Cache)"] :::engineStyle
-        Metrics["IDnsMetrics (Telemetry & Events)"] :::engineStyle
-        Options["IOptionsMonitor (Configuration)"] :::engineStyle
+        Cache["IDnsCache DNS Cache"]
+        Metrics["IDnsMetrics Telemetry & Events"]
+        Options["IOptionsMonitor Configuration"]
     end
 
     subgraph DynamicLoaders ["Background State Loaders"]
-        HostsLoader["Hosts File Sources"] :::dataStyle
-        BlocklistLoader["Blocklist Sources"] :::dataStyle
+        HostsLoader["Hosts File Sources"]
+        BlocklistLoader["Blocklist Sources"]
     end
 
     subgraph UpstreamResolvers ["External DNS Upstreams"]
-        PrimaryDns["Primary Upstream (e.g. DoH / DoT)"] :::extStyle
-        FallbackDns["Fallback Upstream (e.g. UDP)"] :::extStyle
+        PrimaryDns["Primary Upstream e.g. DoH / DoT"]
+        FallbackDns["Fallback Upstream e.g. UDP"]
     end
 
     %% Flow Connections
@@ -70,6 +64,20 @@ graph TD
     
     RespBuilder --> Metrics
     RespBuilder --> Transport
+
+    %% Class Definitions
+    classDef boundaryStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+    classDef coreStyle fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#fff
+    classDef engineStyle fill:#111827,stroke:#34d399,stroke-width:2px,color:#fff
+    classDef dataStyle fill:#1f2937,stroke:#fbbf24,stroke-width:2px,color:#fff
+    classDef extStyle fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#fff
+
+    %% Class Assignments
+    class UdpListener,TcpListener,DohListener boundaryStyle
+    class ContextBuilder,RespBuilder,Cache,Metrics,Options engineStyle
+    class MatchHub,ExecHub coreStyle
+    class HostsTable,RulesAutomata,UpstreamChain,HostsLoader,BlocklistLoader dataStyle
+    class PrimaryDns,FallbackDns extStyle
 ```
 
 ## DNS request sequence
