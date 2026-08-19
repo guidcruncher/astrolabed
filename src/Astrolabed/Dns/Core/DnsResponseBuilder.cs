@@ -5,9 +5,10 @@ using System.Net.Sockets;
 
 namespace Astrolabed.Dns.Core;
 
-internal static class DnsResponseBuilder
+public static class DnsResponseBuilder
 {
     private const int HeaderSize = 12;
+    private const ushort OptionCodeEdnsError = 15;
 
     public static int GetQuestionEnd(ReadOnlySpan<byte> req)
     {
@@ -197,6 +198,17 @@ internal static class DnsResponseBuilder
         return resp;
     }
 
+    public static byte[] BuildRcodeResponseWithEde(byte[] req, int rcode, ushort edeCode)
+    {
+        byte[] baseResponse = BuildRcodeResponse(req, rcode);
+        if (baseResponse.Length < HeaderSize)
+        {
+            return baseResponse;
+        }
+
+        return AttachEdeOption(baseResponse, edeCode);
+    }
+
     public static byte[] BuildStaticIpResponse(byte[] req, IPAddress ip, int ttlSeconds = 60)
     {
         ArgumentNullException.ThrowIfNull(req);
@@ -261,6 +273,72 @@ internal static class DnsResponseBuilder
         }
 
         return resp;
+    }
+
+    public static byte[] AttachUpstreamEde(byte[] baseResponse, ReadOnlySpan<byte> upstreamEdeBytes)
+    {
+        if (baseResponse == null || baseResponse.Length < HeaderSize || upstreamEdeBytes.IsEmpty)
+        {
+            return baseResponse ?? Array.Empty<byte>();
+        }
+
+        int optHeaderLen = 11;
+        int optionHeaderLen = 4;
+        int totalOptLen = optHeaderLen + optionHeaderLen + upstreamEdeBytes.Length;
+
+        byte[] finalResponse = GC.AllocateUninitializedArray<byte>(baseResponse.Length + totalOptLen);
+        baseResponse.CopyTo(finalResponse, 0);
+
+        Span<byte> optSpan = finalResponse.AsSpan(baseResponse.Length);
+
+        optSpan[0] = 0x00;
+        BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(1, 2), 41);
+        BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(3, 2), 1232);
+        BinaryPrimitives.WriteUInt32BigEndian(optSpan.Slice(5, 4), 0);
+
+        ushort rdLength = (ushort)(optionHeaderLen + upstreamEdeBytes.Length);
+        BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(9, 2), rdLength);
+
+        BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(11, 2), OptionCodeEdnsError);
+        BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(13, 2), (ushort)upstreamEdeBytes.Length);
+
+        upstreamEdeBytes.CopyTo(optSpan.Slice(15));
+
+        ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(finalResponse.AsSpan(10, 2));
+        arCount++;
+        BinaryPrimitives.WriteUInt16BigEndian(finalResponse.AsSpan(10, 2), arCount);
+
+        return finalResponse;
+    }
+
+    public static byte[] AttachEdeOption(byte[] baseResponse, ushort edeCode)
+    {
+        if (baseResponse == null || baseResponse.Length < HeaderSize)
+        {
+            return baseResponse ?? Array.Empty<byte>();
+        }
+
+        ReadOnlySpan<byte> optRecordSpan = stackalloc byte[]
+        {
+            0x00,
+            0x00, 0x29,
+            0x04, 0xD0,
+            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x06,
+            (byte)(OptionCodeEdnsError >> 8), (byte)(OptionCodeEdnsError & 0xFF),
+            0x00, 0x02,
+            (byte)(edeCode >> 8), (byte)(edeCode & 0xFF)
+        };
+
+        byte[] finalResponse = GC.AllocateUninitializedArray<byte>(baseResponse.Length + optRecordSpan.Length);
+        baseResponse.CopyTo(finalResponse, 0);
+        optRecordSpan.CopyTo(finalResponse.AsSpan(baseResponse.Length));
+
+        ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(finalResponse.AsSpan(10, 2));
+        arCount++;
+        BinaryPrimitives.WriteUInt16BigEndian(finalResponse.AsSpan(10, 2), arCount);
+
+        return finalResponse;
     }
 
     public static byte[] BuildServfail(byte[] req) => BuildRcodeResponse(req, 2);

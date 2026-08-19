@@ -11,6 +11,7 @@ using Astrolabed.Events;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+
 namespace Astrolabed.Dns.RuleEngine;
 
 public sealed class RuleEngine : IDisposable
@@ -27,6 +28,7 @@ public sealed class RuleEngine : IDisposable
     private bool _disposed;
 
     public IDnsCache Cache { get; }
+    public bool BlockAll {get; private set;}
 
     public RuleEngine(
         IOptions<DnsForwarderOptions> options,
@@ -42,6 +44,7 @@ public sealed class RuleEngine : IDisposable
         _logger = logger;
         _metrics = metrics;
 
+BlockAll = true;
         Cache = dnsCache;
 
         _compiler = new RuleCompiler(options, logger, clientFactory);
@@ -60,6 +63,12 @@ public sealed class RuleEngine : IDisposable
 
         _compiler.BuildAutomata();
     }
+
+public bool setBlockAll(bool state) {
+BlockAll =state;
+return BlockAll;
+}
+
 
     public async Task AddHostsAsync(IHostsFileSource src)
     {
@@ -87,7 +96,14 @@ public sealed class RuleEngine : IDisposable
     public async Task<byte[]> QueryAsync(DnsRequestContext context, RuleResult match, CancellationToken ct)
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
-
+if (BlockAll) {
+if (isDebug)
+            {
+                _logger.LogDebug("Request {RequestId}: Globally Blocked {Domain} using mode {Mode}",
+                    context.RequestId, context.Domain, _options.BlockResponse.Mode);
+            }
+ return _blockBuilder.BuildBlockResponse(context.RawRequest);
+}
         if (Cache.TryGet(context, out var cached) && cached != null)
         {
             if (isDebug)
@@ -121,7 +137,7 @@ public sealed class RuleEngine : IDisposable
                                  QueryType: Enum.GetName(typeof(DnsType), context.QType),
                                  Status: DnsResponseCode.Refused,
                                  ResponseIp: null));
-            return _blockBuilder.BuildBlockResponse(context.RawRequest); ;
+            return _blockBuilder.BuildBlockResponse(context.RawRequest);
         }
 
         var upstreams = _chainBuilder.BuildChain(match, context.Domain, context.RequestId);
