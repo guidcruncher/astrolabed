@@ -4,7 +4,7 @@ SOLUTION = Astrolabed.Dns.sln
 PROJECT = src/Astrolabed.Dns/Astrolabed.Dns.csproj
 CONFIG ?= Release
 
-.PHONY: all build run clean restore test publish
+.PHONY: all build run clean restore test publish format
 
 all: build
 
@@ -27,3 +27,6 @@ clean:
 	dotnet clean $(SOLUTION)
 	rm -rf ./publish
 	rm -rf src/Astrolabed.Dns/bin src/Astrolabed.Dns/obj
+
+format:
+	dotnet format $(SOLUTION)
