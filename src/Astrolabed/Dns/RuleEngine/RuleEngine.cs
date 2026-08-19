@@ -139,7 +139,7 @@ public sealed class RuleEngine : IDisposable
                                  ClientIp: System.Net.IPAddress.Parse(context.ClientIp),
                                  ClientName: context.ClientName,
                                  QueryName: context.Domain,
-                                 QueryType: Enum.GetName(typeof(DnsType), context.QType),
+                                 QueryType: Enum.GetName(typeof(DnsType), context.QType) ?? "UNKNOWN",
                                  Status: DnsResponseCode.Refused,
                                  ResponseIp: null));
             return BuildBlockResponse(context.RawRequest);
