@@ -32,42 +32,50 @@ export interface NtpResponse {
     errorMessage: string | null
 }
 
+export interface DnsExtendedError {
+  code: number;
+  name: string;
+  extraText?: string | null;
+}
+
 export interface DnsResourceRecord {
-    name: string
-    type: string
-    class: string
-    timeToLive: number
-    data: string
+  name: string;
+  type: string;
+  class: string;
+  timeToLive: number;
+  data: string;
 }
 
 export interface DnsHeader {
-    transactionId: number
-    isResponse: boolean
-    opCode: string
-    authoritativeAnswer: boolean
-    truncated: boolean
-    recursionDesired: boolean
-    recursionAvailable: boolean
-    authenticData: boolean
-    checkingDisabled: boolean
-    questionCount: number
-    answerCount: number
-    nameServerCount: number
-    additionalCount: number
+  transactionId: number;
+  isResponse: boolean;
+  opCode: string;
+  authoritativeAnswer: boolean;
+  truncated: boolean;
+  recursionDesired: boolean;
+  recursionAvailable: boolean;
+  authenticData: boolean;
+  checkingDisabled: boolean;
+  questionCount: number;
+  answerCount: number;
+  nameServerCount: number;
+  additionalCount: number;
+  extendedError?: DnsExtendedError | null;
 }
 
 export interface DnsResponse {
-    success: boolean
-    server: string
-    queryName: string
-    queryType: string
-    responseCode: string
-    elapsed: string
-    header: DnsHeader
-    answers: DnsResourceRecord[]
-    authorities: DnsResourceRecord[]
-    additionals: DnsResourceRecord[]
-    errorMessage?: string | null
+  success: boolean;
+  server: string;
+  queryName: string;
+  queryType: string;
+  responseCode: string;
+  elapsed: string; // Formatted as standard TimeSpan string (e.g., "00:00:00.123") or duration in ms
+  header: DnsHeader;
+  answers: DnsResourceRecord[];
+  authorities: DnsResourceRecord[];
+  additionals: DnsResourceRecord[];
+  extendedError?: DnsExtendedError | null;
+  errorMessage?: string | null;
 }
 
 export interface DhcpLease {

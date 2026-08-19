@@ -6,11 +6,13 @@ import type { ColumnDef, PagedResult, WhiptailOption } from './types'
 const config = defineModel<DnsOptions>({ required: true })
 
 const blockModeOptions: WhiptailOption[] = [
+    { label: 'FILTERED', value: 'FILTERED' },
     { label: 'NXDOMAIN', value: 'NXDOMAIN' },
     { label: 'NODATA', value: 'NODATA' },
     { label: 'REFUSED', value: 'REFUSED' },
     { label: 'SERVFAIL', value: 'SERVFAIL' },
-    { label: 'STATIC_IP', value: 'STATIC_IP' },
+    { label: 'CUSTOMIP', value: 'CUSTOMIP' },
+    { label: 'ZEROIP', value: 'ZEROIP' },
 ]
 
 // Column definitions for DataGrids

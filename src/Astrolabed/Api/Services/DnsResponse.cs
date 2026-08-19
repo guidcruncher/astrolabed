@@ -15,6 +15,7 @@ public sealed record DnsResponse
     public required IReadOnlyList<DnsResourceRecord> Answers { get; init; }
     public required IReadOnlyList<DnsResourceRecord> Authorities { get; init; }
     public required IReadOnlyList<DnsResourceRecord> Additionals { get; init; }
+    public DnsExtendedError? ExtendedError { get; init; }
     public string? ErrorMessage { get; init; }
 }
 
@@ -33,6 +34,14 @@ public sealed record DnsHeader
     public required ushort AnswerCount { get; init; }
     public required ushort NameServerCount { get; init; }
     public required ushort AdditionalCount { get; init; }
+    public DnsExtendedError? ExtendedError { get; init; }
+}
+
+public sealed record DnsExtendedError
+{
+    public required ushort Code { get; init; }
+    public required string Name { get; init; }
+    public string? ExtraText { get; init; }
 }
 
 public sealed record DnsResourceRecord
