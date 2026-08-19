@@ -6,87 +6,70 @@ Below are simple mermaid diagrams illustrating the high-level architecture and r
 
 ```mermaid
 graph TD
-    classDef client fill:#34495e,stroke:#2c3e50,color:#fff;
-    classDef core fill:#2980b9,stroke:#1f618d,color:#fff;
-    classDef rule fill:#27ae60,stroke:#1e8449,color:#fff;
-    classDef upstream fill:#8e44ad,stroke:#6c3483,color:#fff;
-    classDef util fill:#d35400,stroke:#a04000,color:#fff;
+    classDef boundaryStyle fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
+    classDef coreStyle fill:#1e1b4b,stroke:#818cf8,stroke-width:2px,color:#fff
+    classDef engineStyle fill:#111827,stroke:#34d399,stroke-width:2px,color:#fff
+    classDef dataStyle fill:#1f2937,stroke:#fbbf24,stroke-width:2px,color:#fff
+    classDef extStyle fill:#1e293b,stroke:#94a3b8,stroke-width:2px,color:#fff
 
-    subgraph Clients["Clients & Network Traffic"]
-        DNS_Client["DNS Client Requests<br/>(UDP / TCP / DoH)"]:::client
+    subgraph Transport ["Network Inbound Interface"]
+        UdpListener["UDP Server Listener"] :::boundaryStyle
+        TcpListener["TCP Server Listener"] :::boundaryStyle
+        DohListener["DoH / HTTPS Endpoint"] :::boundaryStyle
     end
 
-    subgraph CoreEngine["Astrolabed.Dns.Core"]
-        Server["DnsServer Listener<br/>• Dual-Stack Socket Engine<br/>• Bounded Worker Channel<br/>• Zero-Alloc ArrayPool<byte>"]:::core
-        Parser["DnsParser & DnsMessage<br/>• Wire-Format Parsing<br/>• Pointer Recursion Guard (Max 128)"]:::core
-        Forwarder["DnsForwarderService<br/>• Pipeline Orchestration<br/>• EDNS0 Truncation Inspection"]:::core
-        CachingDecorator["CachingDnsClientDecorator<br/>• In-Memory Fast Lookup<br/>• Dynamic TTL Expiration"]:::core
+    subgraph Pipeline ["DnsPipeline (Request / Response Pipeline)"]
+        ContextBuilder["Context Builder & Decoder"] :::engineStyle
+        RespBuilder["Response Builder & Encoder"] :::engineStyle
     end
 
-    subgraph RuleEngine["Astrolabed.Dns.RuleEngine"]
-        Cache["DnsCache<br/>• ConcurrentDictionary Storage<br/>• Single-Capacity Eviction Channel<br/>• TransID & 0x20 Case Patching<br/>• NXDOMAIN Water Torture Guard"]:::rule
-        Compiler["RuleCompiler<br/>• Pattern Categorization"]:::rule
+    subgraph CoreEngine ["RuleEngine (Core Resolution Hub)"]
+        MatchHub["Rule Matcher Hub"] :::coreStyle
+        ExecHub["Query Executor"] :::coreStyle
         
-        subgraph Matchers["Matching Engine"]
-            Exact["Exact Matcher<br/>(Dictionary<string, CompiledRule>)"]:::rule
-            Suffix["SuffixTrie<br/>(*.domain.com)"]:::rule
-            Prefix["PrefixTrie<br/>(domain.*)"]:::rule
-            Aho["AhoCorasickMatcher<br/>(*keyword*)"]:::rule
-            RegexM["Regex Rules"]:::rule
-            HostM["HostMatcher<br/>(Host-to-IP Specificity)"]:::rule
+        subgraph Snapshot ["State Snapshot (Lock-Free Read)"]
+            HostsTable["Hosts Dictionary"] :::dataStyle
+            RulesAutomata["Rule Compiler & Automata"] :::dataStyle
+            UpstreamChain["Upstream Chain Builder"] :::dataStyle
         end
-
-        ChainBuilder["ResolverChainBuilder<br/>• Chain Routing Assignment"]:::rule
-        BlockBuilder["BlockResponseBuilder<br/>• Synthesizes NXDOMAIN/REFUSED<br/>• Remaps ZeroIP / CustomIP"]:::rule
-        Executor["QueryExecutor<br/>• Upstream Timeout CTS Loops"]:::rule
     end
 
-    subgraph Transport["Upstream Clients (DefaultDnsClientFactory)"]
-        UdpClient["UdpDnsClient"]:::upstream
-        TcpClient["TcpDnsClient"]:::upstream
-        DohClient["DohDnsClient (RFC 8484)"]:::upstream
+    subgraph SystemServices ["Cross-Cutting Services"]
+        Cache["IDnsCache (DNS Cache)"] :::engineStyle
+        Metrics["IDnsMetrics (Telemetry & Events)"] :::engineStyle
+        Options["IOptionsMonitor (Configuration)"] :::engineStyle
     end
 
-    subgraph Utilities["Utilities"]
-        ListPool["ListPool<T><br/>• Lock-free Thread-Local Array Pooling"]:::util
+    subgraph DynamicLoaders ["Background State Loaders"]
+        HostsLoader["Hosts File Sources"] :::dataStyle
+        BlocklistLoader["Blocklist Sources"] :::dataStyle
     end
 
-    %% Ingestion Flow
-    DNS_Client -->|Raw Byte Packets| Server
-    Server -->|Parse Request| Parser
-    Server -->|Context Envelope| Forwarder
-    
-    %% Pipeline & Cache Checking
-    Forwarder -->|1. Try Get Cached| Cache
-    Forwarder -->|2. Check Rules| Compiler
-    
-    %% Matching Process
-    Compiler --> Matchers
-    Matchers -->|Host Match| HostM
-    Matchers -->|Exact Match| Exact
-    Matchers -->|Suffix Match| Suffix
-    Matchers -->|Prefix Match| Prefix
-    Matchers -->|Substring Match| Aho
-    Matchers -->|Pattern Match| RegexM
+    subgraph UpstreamResolvers ["External DNS Upstreams"]
+        PrimaryDns["Primary Upstream (e.g. DoH / DoT)"] :::extStyle
+        FallbackDns["Fallback Upstream (e.g. UDP)"] :::extStyle
+    end
 
-    %% Routing Decisions
-    Matchers -->|Rule Match / Result| ChainBuilder
-    
-    %% Action Branching
-    ChainBuilder -->|Blocked Query| BlockBuilder
-    BlockBuilder -->|Synthesized Block Response| Forwarder
-    
-    ChainBuilder -->|Allowed Query / Upstreams| Executor
-    Executor -->|Forward Query| CachingDecorator
-    
-    %% Upstream Protocols
-    CachingDecorator --> UdpClient
-    CachingDecorator --> TcpClient
-    CachingDecorator --> DohClient
+    %% Flow Connections
+    Transport --> ContextBuilder
+    ContextBuilder --> MatchHub
 
-    %% Storage & Memory Optimizations
-    Executor -->|Store Positive Response| Cache
-    Executor .->|Rent / Return Lists| ListPool
+    MatchHub <--> Cache
+    MatchHub -. Reads .-> Snapshot
+    
+    HostsLoader -- Async Swap --> Snapshot
+    BlocklistLoader -- Async Swap --> Snapshot
+    Options -. Reload .-> Snapshot
+
+    MatchHub --> ExecHub
+    ExecHub --> PrimaryDns
+    ExecHub --> FallbackDns
+
+    ExecHub --> RespBuilder
+    MatchHub -- Blocked/Cached --> RespBuilder
+    
+    RespBuilder --> Metrics
+    RespBuilder --> Transport
 ```
 
 ## DNS request sequence
@@ -94,37 +77,39 @@ graph TD
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as DNS Client
-    participant Listener as DnsServer Listener
-    participant Forwarder as DnsForwarderService
-    participant Cache as DnsCache
-    participant Engine as RuleEngine & Matchers
-    participant Executor as QueryExecutor
-    participant Upstream as Upstream DNS (UDP/TCP/DoH)
+    actor Client as Client App / Host
+    participant RuleEngine as Astrolabed DNS Engine
+    participant Cache as IDnsCache
+    participant Snapshot as State Snapshot (Rules/Hosts)
+    participant Upstream as External Upstream DNS
 
-    Client->>Listener: Transmit DNS Query Packet
-    Listener->>Listener: Parse Wire Format & Validate Pointer Loops
-    Listener->>Forwarder: Enqueue DnsRequestContext
+    Note over Client, Upstream: --- Scenario 1: Allowed Request (Cache Miss -> Forwarded) ---
+    Client->>RuleEngine: 1. Send DNS Query (e.g., example.com)
+    RuleEngine->>Cache: 2. TryGet(context)
+    Cache-->>RuleEngine: 3. Cache MISS
+    RuleEngine->>Snapshot: 4. Match("example.com")
+    Snapshot-->>RuleEngine: 5. RuleResult (Block = False, Upstreams = [PrimaryDNS])
     
-    Forwarder->>Cache: TryGet(RequestContext)
-    alt Cache Hit
-        Cache-->>Forwarder: Cached Response Buffer
-        Forwarder->>Forwarder: Patch TxID, RD Flag, 0x20 Case
-        Forwarder-->>Client: Return Cached Response Packet
-    else Cache Miss
-        Forwarder->>Engine: Match Domain & Rule Logic
-        alt Rule Action: Block
-            Engine-->>Forwarder: Synthesize Block Response (NXDOMAIN / Custom IP)
-            Forwarder-->>Client: Return Synthesized Response
-        else Rule Action: Allow
-            Engine->>Executor: Build & Assign Resolver Chain
-            Executor->>Upstream: Forward Query via UDP / TCP / DoH
-            Upstream-->>Executor: Raw DNS Response
-            Executor->>Cache: Store Response (if TTL > 0)
-            Executor-->>Forwarder: DNS Response Packet
-            Forwarder-->>Client: Return DNS Response
-        end
-    end
+    RuleEngine->>Upstream: 6. Forward Query
+    Upstream-->>RuleEngine: 7. DNS Response Payload (IP: 93.184.216.34)
+    RuleEngine->>Cache: 8. Store response with TTL
+    RuleEngine-->>Client: 9. Return Response (A 93.184.216.34)
+
+    Note over Client, Upstream: --- Scenario 2: Blocked Request (Match Blocklist Rule) ---
+    Client->>RuleEngine: 10. Send DNS Query (e.g., ad.tracker.com)
+    RuleEngine->>Cache: 11. TryGet(context)
+    Cache-->>RuleEngine: 12. Cache MISS
+    RuleEngine->>Snapshot: 13. Match("ad.tracker.com")
+    Snapshot-->>RuleEngine: 14. RuleResult (Block = True)
+    
+    Note over RuleEngine: Construct Block Response<br/>(NXDOMAIN / Refused / 0.0.0.0 based on Mode)
+    RuleEngine-->>Client: 15. Return Block Response (e.g., NXDOMAIN + EDE Code 15)
+
+    Note over Client, Upstream: --- Scenario 3: Cached Allowed Request (Cache Hit) ---
+    Client->>RuleEngine: 16. Send DNS Query (e.g., example.com)
+    RuleEngine->>Cache: 17. TryGet(context)
+    Cache-->>RuleEngine: 18. Cache HIT (Payload found)
+    RuleEngine-->>Client: 19. Immediate Return Cached Response (No Upstream/Rule Evaluation)
 ```
 
 ## DHCP flow (simplified)
@@ -135,17 +120,19 @@ sequenceDiagram
     actor Client as DHCP Client
     participant Server as DHCP Server
 
-    Note over Client, Server: Phase 1: Discovery
-    Client->>Server: DHCPDISCOVER (Broadcast 255.255.255.255)
-    
-    Note over Client, Server: Phase 2: Offer
-    Server->>Client: DHCPOFFER (Unicast / Broadcast with Offered IP & Options)
-    
-    Note over Client, Server: Phase 3: Request
-    Client->>Server: DHCPREQUEST (Broadcast - Confirming Selected Offer)
-    
-    Note over Client, Server: Phase 4: Acknowledgment
-    Server->>Client: DHCPACK (Unicast / Broadcast - Lease Granted, Subnet, Gateway, DNS)
+    Note over Client, Server: 1. Discover Phase (Broadcast)
+    Client->>Server: UDP/67 (Src: 0.0.0.0:68, Dst: 255.255.255.255:67)<br/><b>DHCPDISCOVER</b> (Client MAC, Requested IP)
+
+    Note over Client, Server: 2. Offer Phase (Unicast or Broadcast)
+    Server-->>Client: UDP/68 (Src: ServerIP:67, Dst: OfferedIP/255.255.255.255:68)<br/><b>DHCPOFFER</b> (Offered IP, Subnet Mask, Lease Time, Gateway)
+
+    Note over Client, Server: 3. Request Phase (Broadcast)
+    Client->>Server: UDP/67 (Src: 0.0.0.0:68, Dst: 255.255.255.255:67)<br/><b>DHCPREQUEST</b> (Selected Server IP, Accepted Offered IP)
+
+    Note over Client, Server: 4. Acknowledgment Phase (Unicast or Broadcast)
+    Server-->>Client: UDP/68 (Src: ServerIP:67, Dst: OfferedIP/255.255.255.255:68)<br/><b>DHCPACK</b> (IP Assignment, DNS Servers, Lease Duration)
+
+    Note over Client: Client assigns IP to interface & starts Lease Timer
 ```
 
 ## NTP flow (simplified)
@@ -153,18 +140,16 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Client as NTP Client
-    participant Server as NTP Stratum Server
+    actor Client as NTP Client (Mode 3)
+    participant Server as NTP Server / Stratum 1 (Mode 4)
 
-    Note over Client: Record Timestamp t1 (Transmit Time)
-    Client->>Server: NTP Request Packet (t1)
-    
-    Note over Server: Record Timestamp t2 (Receive Time)
-    Note over Server: Process Request & Record t3 (Transmit Time)
-    Server-->>Client: NTP Response Packet (t1, t2, t3)
-    
-    Note over Client: Record Timestamp t4 (Destination Time)
-    
-    Note over Client: Calculate Metrics:<br/>Round-Trip Delay = (t4 - t1) - (t3 - t2)<br/>Clock Offset = ((t2 - t1) + (t3 - t4)) / 2
-    Note over Client: Adjust System Clock
+    Note over Client: Client records Originate Timestamp (t1)
+    Client->>Server: UDP/123: Client Request Packet<br/>[Transmit Timestamp = t1]
+
+    Note over Server: Server receives packet at Receive Timestamp (t2)<br/>Server processes and sets Transmit Timestamp (t3)
+    Server-->>Client: UDP/123: Server Response Packet<br/>[Originate = t1, Receive = t2, Transmit = t3]
+
+    Note over Client: Client receives packet at Destination Timestamp (t4)
+
+    Note over Client: <b>Client Clock Calculation:</b><br/>Round-Trip Delay (d) = (t4 - t1) - (t3 - t2)<br/>Clock Offset (θ) = ((t2 - t1) + (t3 - t4)) / 2<br/><i>Adjusts local system clock by θ</i>
 ```
