@@ -22,7 +22,7 @@ namespace Astrolabed.Dns.Tests
 
             var parsed = DnsParser.Parse(resp);
 
-            Assert.Equal("3", parsed.ResponseCode);
+            Assert.Equal(DnsResponseCode.NonExistentDomain, parsed.ResponseCode);
             Assert.Single(parsed.Questions);
             Assert.Equal("example.com", parsed.Questions[0].Name);
             Assert.Equal(DnsType.A, parsed.Questions[0].Type);

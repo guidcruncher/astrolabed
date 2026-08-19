@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Net;
 
 using Astrolabed.Data;
+using Astrolabed.Data.Entities;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Events;
 
@@ -37,7 +38,7 @@ public sealed class DnsEventsController : ControllerBase
     /// Retrieves a paged list of all DNS response events.
     /// </summary>
     [HttpGet]
-    [ProducesResponseType(typeof(PagedResult<DnsResponseEvent>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DnsResponseEventDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetAll(
         [FromQuery, Range(1, int.MaxValue)] int pageNumber = 1,
@@ -53,7 +54,7 @@ public sealed class DnsEventsController : ControllerBase
     /// Retrieves a paged list of DNS response events within a specified time range.
     /// </summary>
     [HttpGet("range")]
-    [ProducesResponseType(typeof(PagedResult<DnsResponseEvent>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DnsResponseEventDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetByTimeRange(
         [FromQuery, Required] DateTimeOffset start,
@@ -76,7 +77,7 @@ public sealed class DnsEventsController : ControllerBase
     /// Retrieves a paged list of DNS response events filtered by client IP address.
     /// </summary>
     [HttpGet("client/{clientIp}")]
-    [ProducesResponseType(typeof(PagedResult<DnsResponseEvent>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DnsResponseEventDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetByClientIp(
         string clientIp,
@@ -98,7 +99,7 @@ public sealed class DnsEventsController : ControllerBase
     /// Retrieves a paged list of DNS response events filtered by DNS status code (e.g. NOERROR, NXDOMAIN).
     /// </summary>
     [HttpGet("status/{status}")]
-    [ProducesResponseType(typeof(PagedResult<DnsResponseEvent>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<DnsResponseEventDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult GetByStatus(
         string status,

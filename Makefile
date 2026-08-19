@@ -4,10 +4,12 @@ BUILD_DIR = bin/
 RUNTIME = linux-x64
 IMAGE_NAME ?= guidcruncher/astrolabed
 
-.PHONY: api all build clean run dev test restore publish metrics benchmark format format-json dns docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish
+.PHONY: api all build clean run dev test restore publish metrics benchmark format format-json dns docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish db
 
 all: restore build
 
+db:
+	@sqlite3 ../netdns-runtime/astrolabed.db
 api:
 	@curl -s -X GET "http://127.0.0.1:1081/api/v1/leases" | jq
 

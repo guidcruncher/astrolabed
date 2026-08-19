@@ -28,7 +28,7 @@ public static class DnsParser
         offset += 2;
 
         msg.IsResponse = (flags & 0x8000) != 0;
-        msg.ResponseCode = (flags & 0x000F).ToString();
+        msg.ResponseCode = (DnsResponseCode)(flags & 0x000F);
 
         ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(offset));
         offset += 2;

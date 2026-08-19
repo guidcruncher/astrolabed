@@ -119,7 +119,7 @@ public sealed class RuleEngine : IDisposable
                                  ClientName: context.ClientName,
                                  QueryName: context.Domain,
                                  QueryType: Enum.GetName(typeof(DnsType), context.QType),
-                                 Status: "BLOCKED",
+                                 Status: DnsResponseCode.Refused,
                                  ResponseIp: null));
             return _blockBuilder.BuildBlockResponse(context.RawRequest); ;
         }
