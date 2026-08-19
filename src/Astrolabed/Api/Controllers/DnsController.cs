@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Astrolabed.Api.Services;
 using Astrolabed.Data;
 using Astrolabed.Dns;
+using Astrolabed.Dns.Core;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;

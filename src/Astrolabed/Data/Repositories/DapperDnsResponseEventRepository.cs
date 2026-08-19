@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Data.Entities;
+using Astrolabed.Dns.Core;
 using Astrolabed.Events;
 
 using Dapper;
@@ -59,7 +60,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
             ClientName = e.ClientName,
             QueryName = e.QueryName,
             QueryType = e.QueryType,
-            Status = e.Status,
+            Status = e.Status.ToMnemonic(),
             ResponseIp = e.ResponseIp?.ToString()
         });
 
@@ -90,7 +91,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
             ClientName = e.ClientName,
             QueryName = e.QueryName,
             QueryType = e.QueryType,
-            Status = e.Status,
+            Status = e.Status.ToMnemonic(),
             ResponseIp = e.ResponseIp?.ToString()
         }).ConfigureAwait(false);
 
@@ -126,7 +127,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
                 ClientName = e.ClientName,
                 QueryName = e.QueryName,
                 QueryType = e.QueryType,
-                Status = e.Status,
+                Status = e.Status.ToMnemonic(),
                 ResponseIp = e.ResponseIp?.ToString()
             }, tx);
 
@@ -140,7 +141,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
     // ----------------------------------------------------------------------
     // QUERIES
     // ----------------------------------------------------------------------
-    public PagedResult<DnsResponseEvent> GetByTimeRange(
+    public PagedResult<DnsResponseEventDto> GetByTimeRange(
         DateTimeOffset start,
         DateTimeOffset end,
         int pageNumber = 1,
@@ -171,10 +172,10 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         int totalCount = multi.ReadFirst<int>();
         var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
 
-        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
+        return new PagedResult<DnsResponseEventDto>(items, totalCount, pageNumber, pageSize);
     }
 
-    public PagedResult<DnsResponseEvent> GetByClientIp(
+    public PagedResult<DnsResponseEventDto> GetByClientIp(
         IPAddress clientIp,
         int pageNumber = 1,
         int pageSize = 100)
@@ -204,10 +205,10 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         int totalCount = multi.ReadFirst<int>();
         var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
 
-        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
+        return new PagedResult<DnsResponseEventDto>(items, totalCount, pageNumber, pageSize);
     }
 
-    public PagedResult<DnsResponseEvent> GetByStatus(
+    public PagedResult<DnsResponseEventDto> GetByStatus(
         string status,
         int pageNumber = 1,
         int pageSize = 100)
@@ -237,10 +238,10 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         int totalCount = multi.ReadFirst<int>();
         var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
 
-        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
+        return new PagedResult<DnsResponseEventDto>(items, totalCount, pageNumber, pageSize);
     }
 
-    public PagedResult<DnsResponseEvent> GetAll(
+    public PagedResult<DnsResponseEventDto> GetAll(
         int pageNumber = 1,
         int pageSize = 100)
     {
@@ -266,7 +267,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         int totalCount = multi.ReadFirst<int>();
         var items = multi.Read<DnsResponseEventRaw>().Select(Map).ToList();
 
-        return new PagedResult<DnsResponseEvent>(items, totalCount, pageNumber, pageSize);
+        return new PagedResult<DnsResponseEventDto>(items, totalCount, pageNumber, pageSize);
     }
 
     // ----------------------------------------------------------------------
@@ -307,9 +308,9 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         }
     }
 
-    private static DnsResponseEvent Map(DnsResponseEventRaw r)
+    private static DnsResponseEventDto Map(DnsResponseEventRaw r)
     {
-        return new DnsResponseEvent(
+        return new DnsResponseEventDto(
             TimestampEpoch: r.TimestampEpoch,
             IsBlocked: r.IsBlocked == 1,
             Timestamp: DateTimeOffset.Parse(r.Timestamp),

@@ -1,5 +1,6 @@
 using System.Text;
 
+using Astrolabed.Dns.Core;
 using Astrolabed.Events;
 
 namespace Astrolabed.Metrics;
@@ -45,11 +46,11 @@ public sealed class MetricsRegistry
     {
         Interlocked.Increment(ref _dnsResponsesTotal);
 
-        if (string.Equals(evt.Status, "NXDOMAIN", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(evt.Status.ToMnemonic(), "NXDOMAIN", StringComparison.OrdinalIgnoreCase))
         {
             Interlocked.Increment(ref _dnsNxDomainTotal);
         }
-        else if (string.Equals(evt.Status, "SERVFAIL", StringComparison.OrdinalIgnoreCase))
+        else if (string.Equals(evt.Status.ToMnemonic(), "SERVFAIL", StringComparison.OrdinalIgnoreCase))
         {
             Interlocked.Increment(ref _dnsServFailTotal);
         }

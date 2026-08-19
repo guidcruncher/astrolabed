@@ -3,6 +3,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Data;
+using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Api.Services;
 

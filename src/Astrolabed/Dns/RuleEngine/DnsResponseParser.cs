@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-using Astrolabed.Api.Services;
+using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -41,9 +41,9 @@ public static class DnsResponseParser
             if (offset > buffer.Length) return false;
         }
 
-        var answers = ReadResourceRecords(buffer, ref offset, anCount);
-        var authorities = ReadResourceRecords(buffer, ref offset, nsCount);
-        var additionals = ReadResourceRecords(buffer, ref offset, arCount);
+        var answers = ReadResourceRecords(buffer, ref offset, anCount, out _);
+        var authorities = ReadResourceRecords(buffer, ref offset, nsCount, out _);
+        var additionals = ReadResourceRecords(buffer, ref offset, arCount, out var extendedError);
 
         var header = new DnsHeader
         {
@@ -59,7 +59,8 @@ public static class DnsResponseParser
             QuestionCount = qdCount,
             AnswerCount = anCount,
             NameServerCount = nsCount,
-            AdditionalCount = arCount
+            AdditionalCount = arCount,
+            ExtendedError = extendedError
         };
 
         response = new DnsResponse
@@ -74,15 +75,93 @@ public static class DnsResponseParser
             Answers = answers,
             Authorities = authorities,
             Additionals = additionals,
+            ExtendedError = extendedError,
             ErrorMessage = rcodeVal == 0 ? null : $"DNS Response Code: {FormatRCode(rcodeVal)}"
         };
 
         return true;
     }
 
-    private static List<DnsResourceRecord> ReadResourceRecords(byte[] buffer, ref int offset, int count)
+    public static bool TryExtractEdeOption(ReadOnlySpan<byte> buffer, out ReadOnlySpan<byte> edeOptionSpan)
     {
-        var records = new List<DnsResourceRecord>();
+        edeOptionSpan = default;
+        if (buffer.Length < 12) return false;
+
+        ushort qdCount = (ushort)((buffer[4] << 8) | buffer[5]);
+        ushort anCount = (ushort)((buffer[6] << 8) | buffer[7]);
+        ushort nsCount = (ushort)((buffer[8] << 8) | buffer[9]);
+        ushort arCount = (ushort)((buffer[10] << 8) | buffer[11]);
+
+        int offset = 12;
+
+        for (int i = 0; i < qdCount; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) return false;
+            offset += 4;
+            if (offset > buffer.Length) return false;
+        }
+
+        if (!SkipResourceRecords(buffer, ref offset, anCount)) return false;
+        if (!SkipResourceRecords(buffer, ref offset, nsCount)) return false;
+
+        for (int i = 0; i < arCount; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) break;
+            if (offset + 10 > buffer.Length) break;
+
+            ushort type = (ushort)((buffer[offset] << 8) | buffer[offset + 1]);
+            ushort rdLength = (ushort)((buffer[offset + 8] << 8) | buffer[offset + 9]);
+
+            offset += 10;
+            if (offset + rdLength > buffer.Length) break;
+
+            if (type == 41) // OPT Record (EDNS)
+            {
+                int current = offset;
+                int end = offset + rdLength;
+
+                while (current + 4 <= end)
+                {
+                    ushort optionCode = (ushort)((buffer[current] << 8) | buffer[current + 1]);
+                    ushort optionLength = (ushort)((buffer[current + 2] << 8) | buffer[current + 3]);
+
+                    if (current + 4 + optionLength > end) break;
+
+                    if (optionCode == 15) // EDNS Option 15: Extended DNS Error
+                    {
+                        edeOptionSpan = buffer.Slice(current, 4 + optionLength);
+                        return true;
+                    }
+
+                    current += 4 + optionLength;
+                }
+            }
+
+            offset += rdLength;
+        }
+
+        return false;
+    }
+
+    private static bool SkipResourceRecords(ReadOnlySpan<byte> buffer, ref int offset, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (!TrySkipDomainNameSpan(buffer, ref offset)) return false;
+            if (offset + 10 > buffer.Length) return false;
+
+            ushort rdLength = (ushort)((buffer[offset + 8] << 8) | buffer[offset + 9]);
+            offset += 10 + rdLength;
+            if (offset > buffer.Length) return false;
+        }
+
+        return true;
+    }
+
+    private static List<DnsResource> ReadResourceRecords(byte[] buffer, ref int offset, int count, out DnsExtendedError? extendedError)
+    {
+        extendedError = null;
+        var records = new List<DnsResource>();
 
         for (int i = 0; i < count; i++)
         {
@@ -97,10 +176,18 @@ public static class DnsResponseParser
             offset += 10;
             if (offset + rdLength > buffer.Length) break;
 
+            if (type == 41) // OPT Record (EDNS)
+            {
+                if (TryParseExtendedDnsError(buffer, offset, rdLength, out var ede))
+                {
+                    extendedError = ede;
+                }
+            }
+
             string data = FormatRecordData(type, qclass, ttl, buffer, offset, rdLength);
             offset += rdLength;
 
-            records.Add(new DnsResourceRecord
+            records.Add(new DnsResource
             {
                 Name = name,
                 Type = FormatType(type),
@@ -111,6 +198,46 @@ public static class DnsResponseParser
         }
 
         return records;
+    }
+
+    private static bool TryParseExtendedDnsError(byte[] buffer, int offset, int rdLength, out DnsExtendedError? extendedError)
+    {
+        extendedError = null;
+        int current = offset;
+        int end = offset + rdLength;
+
+        while (current + 4 <= end)
+        {
+            ushort optionCode = (ushort)((buffer[current] << 8) | buffer[current + 1]);
+            ushort optionLength = (ushort)((buffer[current + 2] << 8) | buffer[current + 3]);
+            current += 4;
+
+            if (current + optionLength > end) break;
+
+            if (optionCode == 15 && optionLength >= 2) // EDNS Option 15: Extended DNS Error
+            {
+                ushort edeCode = (ushort)((buffer[current] << 8) | buffer[current + 1]);
+                string? extraText = null;
+
+                if (optionLength > 2)
+                {
+                    extraText = Encoding.UTF8.GetString(buffer, current + 2, optionLength - 2).TrimEnd('\0');
+                }
+
+                extendedError = new DnsExtendedError
+                {
+                    Code = edeCode,
+                    Name = FormatEdeCode(edeCode),
+                    ExtraText = string.IsNullOrWhiteSpace(extraText) ? null : extraText
+                };
+
+                return true;
+            }
+
+            current += optionLength;
+        }
+
+        return false;
     }
 
     private static bool TryReadDomainName(byte[] buffer, ref int offset, out string domain)
@@ -153,6 +280,11 @@ public static class DnsResponseParser
     }
 
     private static bool TrySkipDomainName(byte[] buffer, ref int offset)
+    {
+        return TrySkipDomainNameSpan(buffer, ref offset);
+    }
+
+    private static bool TrySkipDomainNameSpan(ReadOnlySpan<byte> buffer, ref int offset)
     {
         while (offset < buffer.Length)
         {
@@ -319,6 +451,39 @@ public static class DnsResponseParser
 
         return Convert.ToHexString(buffer, offset, length);
     }
+
+    private static string FormatEdeCode(ushort edeCode) => edeCode switch
+    {
+        0 => "Other Error",
+        1 => "Unsupported DNSKEY Algorithm",
+        2 => "Unsupported DS Digest Type",
+        3 => "Stale Answer",
+        4 => "Forged Answer",
+        5 => "DNSSEC Indeterminate",
+        6 => "DNSSEC Bogus",
+        7 => "Signature Expired",
+        8 => "Signature Not Yet Valid",
+        9 => "DNSKEY Missing",
+        10 => "RRSIGs Missing",
+        11 => "No Zone Key Bit Set",
+        12 => "NSEC Missing",
+        13 => "Cached Error",
+        14 => "Not Ready",
+        15 => "Blocked",
+        16 => "Censored",
+        17 => "Filtered",
+        18 => "Prohibited",
+        19 => "Stale NXDOMAIN Answer",
+        20 => "Not Authoritative",
+        21 => "Not Supported",
+        22 => "No Reachable Authority",
+        23 => "Network Error",
+        24 => "Invalid Data",
+        25 => "Signature Expired Before Inception",
+        26 => "Too Many Records",
+        27 => "Unsupported AAAA Guard",
+        _ => $"EDE_{edeCode}"
+    };
 
     private static string FormatOpCode(byte opCode) => opCode switch
     {

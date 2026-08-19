@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { useAstrolabedApi, type DiscoveredLanDevice } from '../composables/useAstrolabedApi'
+import {
+    useAstrolabedApi,
+    type DiscoveredLanDevice,
+    type DnsResponse,
+    type DnsExtendedError,
+} from '../composables/useAstrolabedApi'
 import type { WhiptailOption } from './types'
 import { useDnsUtils } from '../composables/useDnsUtils'
 
@@ -10,7 +15,7 @@ const { loading, queryDns } = useAstrolabedApi()
 
 const selectedDomain = ref('')
 const selectedRecordType = ref('A')
-const queryResult = ref<any>(null)
+const queryResult = ref<DnsResponse | null>(null)
 const queryDurationMs = ref<number | null>(null)
 
 const commonDomains: WhiptailOption[] = [
@@ -30,13 +35,17 @@ const parsedAnswers = computed(() => {
     const res = queryResult.value
 
     if (Array.isArray(res.answers)) return res.answers
-    if (Array.isArray(res.Answer)) return res.Answer
     if (Array.isArray(res)) return res
-    if (typeof res === 'object' && res.data) {
+    if (typeof res === 'object' && 'data' in res && res.data) {
         return Array.isArray(res.data) ? res.data : [res.data]
     }
 
     return []
+})
+
+const extendedError = computed<DnsExtendedError | null>(() => {
+    if (!queryResult.value) return null
+    return queryResult.value.extendedError ?? queryResult.value.header?.extendedError ?? null
 })
 
 const handleDnsLookup = async (): Promise<void> => {
@@ -100,12 +109,39 @@ const handleDnsLookup = async (): Promise<void> => {
                 <span class="terminal-comment">;; global options: +cmd</span><br />
                 <span class="terminal-comment">;; Got answer:</span><br />
                 <span class="terminal-comment">
-                    ;; -&gt;&gt;HEADER&lt;&lt;- opcode: QUERY, status:
+                    ;; -&gt;&gt;HEADER&lt;&lt;- opcode: {{ queryResult.header?.opCode ?? 'QUERY' }},
+                    status:
                     <span class="terminal-highlight">
-                        {{ getDnsStatusLabel(queryResult.responseCode ?? queryResult.status) }}
+                        {{ getDnsStatusLabel(queryResult.responseCode) }}
                     </span>
-                    , id: {{ Math.floor(Math.random() * 60000) }}
+                    , id:
+                    {{
+                        queryResult.header?.transactionId ?? Math.floor(Math.random() * 60000)
+                    }} </span
+                ><br />
+                <span class="terminal-comment">
+                    ;; flags: {{ queryResult.header?.authoritativeAnswer ? 'aa ' : ''
+                    }}{{ queryResult.header?.truncated ? 'tc ' : ''
+                    }}{{ queryResult.header?.recursionDesired ? 'rd ' : ''
+                    }}{{ queryResult.header?.recursionAvailable ? 'ra ' : ''
+                    }}{{ queryResult.header?.authenticData ? 'ad ' : ''
+                    }}{{ queryResult.header?.checkingDisabled ? 'cd ' : '' }}; QUERY:
+                    {{ queryResult.header?.questionCount ?? 1 }}, ANSWER:
+                    {{ queryResult.header?.answerCount ?? parsedAnswers.length }}, AUTHORITY:
+                    {{ queryResult.header?.nameServerCount ?? 0 }}, ADDITIONAL:
+                    {{ queryResult.header?.additionalCount ?? 0 }}
                 </span>
+            </div>
+
+            <!-- OPT PSEUDOSECTION (EDNS & Extended Errors) -->
+            <div v-if="extendedError" class="terminal-section">
+                <div class="terminal-section-header">;; OPT PSEUDOSECTION:</div>
+                <div class="terminal-comment">; EDNS: version: 0, flags:; udp: 1232</div>
+                <div class="terminal-comment">
+                    ; EDE: {{ extendedError.code }} ({{ extendedError.name }}){{
+                        extendedError.extraText ? `: (${extendedError.extraText})` : ''
+                    }}
+                </div>
             </div>
 
             <div class="terminal-section">
@@ -126,20 +162,15 @@ const handleDnsLookup = async (): Promise<void> => {
                         <span class="terminal-name">
                             {{
                                 ans.name ||
-                                ans.domain ||
                                 (selectedDomain.endsWith('.')
                                     ? selectedDomain
                                     : selectedDomain + '.')
                             }}
                         </span>
-                        <span class="terminal-ttl">{{ ans.ttl ?? ans.TTL ?? 300 }}</span>
-                        <span class="terminal-class">IN</span>
-                        <span class="terminal-type">{{
-                            ans.type || ans.typeStr || selectedRecordType
-                        }}</span>
-                        <span class="terminal-data">{{
-                            ans.data || ans.value || ans.address || ans
-                        }}</span>
+                        <span class="terminal-ttl">{{ ans.timeToLive ?? 300 }}</span>
+                        <span class="terminal-class">{{ ans.class || 'IN' }}</span>
+                        <span class="terminal-type">{{ ans.type || selectedRecordType }}</span>
+                        <span class="terminal-data">{{ ans.data || ans }}</span>
                     </div>
                 </template>
                 <div v-else class="terminal-comment">

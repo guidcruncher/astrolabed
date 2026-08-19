@@ -20,8 +20,8 @@ Controls global Domain Name System (DNS) server behavior, listening sockets, for
 | Caching.TtlSeconds | Integer (seconds) | 300 | Default Time-To-Live duration in seconds for cached DNS query records. |
 | Caching.MaxEntries | Integer | 2000 | Maximum number of entries allowed in the DNS memory cache before LRU eviction. |
 | Caching.CleanupIntervalMinutes | Integer (minutes) | 15 | Interval in minutes for running background task to purge expired cache records. |
-| BlockResponse.Mode | String (Enum) | "NXDOMAIN" | Response mode for blocked domains. Options include NXDOMAIN, REFUSED, or StaticIp. |
-| BlockResponse.StaticIp | String (IPv4) | "0.0.0.0" | Static IP address returned when Mode is set to static IP override. |
+| BlockResponse.Mode | String (Enum) | "NXDOMAIN" | Response mode for blocked domains. Options include NXDOMAIN, REFUSED, SERVFAIL, FILTERED, ZEROIP or CUSTOMIP. |
+| BlockResponse.StaticIp | String (IPv4) | "0.0.0.0" | Static IP address returned when Mode is set to CUSTOMIP override. |
 | BlockResponse.Ttl | Integer (seconds) | 60 | TTL value returned to clients for blocked DNS responses. |
 | ConditionalForwarding.Enabled | Boolean | true | Enables forwarding local network domain queries to a primary DHCP/router DNS server. |
 | ConditionalForwarding.DhcpServerIp | String (IPv4) | "192.168.1.1" | IP address of the DHCP/upstream router server handling local hostname resolution. |

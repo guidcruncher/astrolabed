@@ -252,7 +252,7 @@ public sealed class DnsServer : BackgroundService
 
         try
         {
-            string? clientName = await _clientNameResolver.Resolve(clientEp.Address, ct).ConfigureAwait(false);
+            string clientName = (await _clientNameResolver.Resolve(clientEp.Address, ct).ConfigureAwait(false)) ?? "";
             var parsed = DnsMessage.TryParse(requestBuffer);
 
             if (parsed is not null)
@@ -271,7 +271,7 @@ public sealed class DnsServer : BackgroundService
             var response = await _forwarder.ProcessAsync(
                 requestBytes,
                 clientEp,
-        clientName,
+                clientName,
                 ct).ConfigureAwait(false);
 
             if (response is not null)
@@ -305,7 +305,7 @@ public sealed class DnsServer : BackgroundService
                         ClientName: clientName,
                         QueryName: resp.QuestionName,
                         QueryType: resp.QuestionType,
-                        Status: resp.ResponseCode.ToString(),
+                        Status: resp.ResponseCode,
                         ResponseIp: resp.AnswerAddress));
                 }
 
@@ -357,7 +357,7 @@ public sealed class DnsServer : BackgroundService
         {
             var parsed = DnsMessage.TryParse(packet.Buffer);
             IPAddress clientIp = ((IPEndPoint)packet.RemoteEndPoint).Address;
-            string? clientName = await _clientNameResolver.Resolve(clientIp, ct).ConfigureAwait(false);
+            string clientName = (await _clientNameResolver.Resolve(clientIp, ct).ConfigureAwait(false)) ?? "";
 
             if (parsed is not null)
             {
@@ -375,7 +375,7 @@ public sealed class DnsServer : BackgroundService
             var response = await _forwarder.ProcessAsync(
                 requestBytes,
                 (IPEndPoint)packet.RemoteEndPoint,
-        clientName,
+                clientName,
                 ct).ConfigureAwait(false);
 
             if (response is not null)
@@ -398,7 +398,7 @@ public sealed class DnsServer : BackgroundService
                         ClientName: clientName,
                         QueryName: resp.QuestionName,
                         QueryType: resp.QuestionType,
-                        Status: resp.ResponseCode.ToString(),
+                        Status: resp.ResponseCode,
                         ResponseIp: resp.AnswerAddress));
                 }
 

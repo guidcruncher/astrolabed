@@ -5,9 +5,10 @@ using System.Net.Sockets;
 
 namespace Astrolabed.Dns.Core;
 
-internal static class DnsResponseBuilder
+public static class DnsResponseBuilder
 {
     private const int HeaderSize = 12;
+    private const ushort OptionCodeEdnsError = 15;
 
     public static int GetQuestionEnd(ReadOnlySpan<byte> req)
     {
@@ -197,6 +198,17 @@ internal static class DnsResponseBuilder
         return resp;
     }
 
+    public static byte[] BuildRcodeResponseWithEde(byte[] req, int rcode, ushort edeCode)
+    {
+        byte[] baseResponse = BuildRcodeResponse(req, rcode);
+        if (baseResponse.Length < HeaderSize)
+        {
+            return baseResponse;
+        }
+
+        return AttachEdeOption(baseResponse, edeCode);
+    }
+
     public static byte[] BuildStaticIpResponse(byte[] req, IPAddress ip, int ttlSeconds = 60)
     {
         ArgumentNullException.ThrowIfNull(req);
@@ -261,6 +273,122 @@ internal static class DnsResponseBuilder
         }
 
         return resp;
+    }
+
+    public static byte[] AttachEdeOption(byte[] baseResponse, ushort edeCode)
+    {
+        Span<byte> edeSpan = stackalloc byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(edeSpan, edeCode);
+
+        return AttachUpstreamEde(baseResponse, edeSpan);
+    }
+
+    public static byte[] AttachUpstreamEde(byte[] baseResponse, ReadOnlySpan<byte> upstreamEdeBytes)
+    {
+        if (baseResponse == null || baseResponse.Length < HeaderSize || upstreamEdeBytes.IsEmpty)
+        {
+            return baseResponse ?? Array.Empty<byte>();
+        }
+
+        ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(baseResponse.AsSpan(10, 2));
+
+        if (arCount > 0 && TryFindOptRecord(baseResponse, out int optHeaderOffset, out int rdataOffset, out ushort optRdLen))
+        {
+            int extraLen = 4 + upstreamEdeBytes.Length;
+            byte[] finalResp = GC.AllocateUninitializedArray<byte>(baseResponse.Length + extraLen);
+
+            int rdataEnd = rdataOffset + optRdLen;
+
+            // Copy up to current RDATA end
+            baseResponse.AsSpan(0, rdataEnd).CopyTo(finalResp);
+
+            // Write new EDE Option at end of existing RDATA
+            Span<byte> edeDataSpan = finalResp.AsSpan(rdataEnd);
+            BinaryPrimitives.WriteUInt16BigEndian(edeDataSpan.Slice(0, 2), OptionCodeEdnsError);
+            BinaryPrimitives.WriteUInt16BigEndian(edeDataSpan.Slice(2, 2), (ushort)upstreamEdeBytes.Length);
+            upstreamEdeBytes.CopyTo(edeDataSpan.Slice(4));
+
+            // Copy remaining packet bytes past current OPT RDATA if present
+            if (baseResponse.Length > rdataEnd)
+            {
+                baseResponse.AsSpan(rdataEnd).CopyTo(finalResp.AsSpan(rdataEnd + extraLen));
+            }
+
+            // Update RDLENGTH field in the existing OPT record
+            ushort newRdLen = (ushort)(optRdLen + extraLen);
+            BinaryPrimitives.WriteUInt16BigEndian(finalResp.AsSpan(rdataOffset - 2, 2), newRdLen);
+
+            return finalResp;
+        }
+        else
+        {
+            int optHeaderLen = 11;
+            int optionHeaderLen = 4;
+            int totalOptLen = optHeaderLen + optionHeaderLen + upstreamEdeBytes.Length;
+
+            byte[] finalResp = GC.AllocateUninitializedArray<byte>(baseResponse.Length + totalOptLen);
+            baseResponse.CopyTo(finalResp, 0);
+
+            Span<byte> optSpan = finalResp.AsSpan(baseResponse.Length);
+
+            optSpan[0] = 0x00;
+            BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(1, 2), 41);
+            BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(3, 2), 1232);
+            BinaryPrimitives.WriteUInt32BigEndian(optSpan.Slice(5, 4), 0);
+
+            ushort rdLength = (ushort)(optionHeaderLen + upstreamEdeBytes.Length);
+            BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(9, 2), rdLength);
+
+            BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(11, 2), OptionCodeEdnsError);
+            BinaryPrimitives.WriteUInt16BigEndian(optSpan.Slice(13, 2), (ushort)upstreamEdeBytes.Length);
+
+            upstreamEdeBytes.CopyTo(optSpan.Slice(15));
+
+            BinaryPrimitives.WriteUInt16BigEndian(finalResp.AsSpan(10, 2), (ushort)(arCount + 1));
+
+            return finalResp;
+        }
+    }
+
+    private static bool TryFindOptRecord(ReadOnlySpan<byte> buffer, out int optHeaderOffset, out int rdataOffset, out ushort rdLen)
+    {
+        optHeaderOffset = 0;
+        rdataOffset = 0;
+        rdLen = 0;
+
+        try
+        {
+            ushort arCount = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(10, 2));
+            if (arCount == 0) return false;
+
+            int offset = GetQuestionEnd(buffer);
+
+            for (int i = 0; i < arCount; i++)
+            {
+                int recordStart = offset;
+                offset = SkipName(buffer, offset);
+
+                if (offset + 10 > buffer.Length) return false;
+
+                ushort type = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset, 2));
+                rdLen = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset + 8, 2));
+
+                if (type == 41)
+                {
+                    optHeaderOffset = recordStart;
+                    rdataOffset = offset + 10;
+                    return true;
+                }
+
+                offset += 10 + rdLen;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
     }
 
     public static byte[] BuildServfail(byte[] req) => BuildRcodeResponse(req, 2);

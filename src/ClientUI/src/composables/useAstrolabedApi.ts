@@ -32,6 +32,12 @@ export interface NtpResponse {
     errorMessage: string | null
 }
 
+export interface DnsExtendedError {
+    code: number
+    name: string
+    extraText?: string | null
+}
+
 export interface DnsResourceRecord {
     name: string
     type: string
@@ -54,6 +60,7 @@ export interface DnsHeader {
     answerCount: number
     nameServerCount: number
     additionalCount: number
+    extendedError?: DnsExtendedError | null
 }
 
 export interface DnsResponse {
@@ -62,11 +69,12 @@ export interface DnsResponse {
     queryName: string
     queryType: string
     responseCode: string
-    elapsed: string
+    elapsed: string // Formatted as standard TimeSpan string (e.g., "00:00:00.123") or duration in ms
     header: DnsHeader
     answers: DnsResourceRecord[]
     authorities: DnsResourceRecord[]
     additionals: DnsResourceRecord[]
+    extendedError?: DnsExtendedError | null
     errorMessage?: string | null
 }
 

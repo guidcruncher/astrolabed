@@ -32,22 +32,22 @@ public interface IDnsResponseEventRepository
     /// <summary>
     /// Retrieves records matching the specified time frame with pagination.
     /// </summary>
-    PagedResult<DnsResponseEvent> GetByTimeRange(DateTimeOffset start, DateTimeOffset end, int pageNumber = 1, int pageSize = 100);
+    PagedResult<DnsResponseEventDto> GetByTimeRange(DateTimeOffset start, DateTimeOffset end, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
     /// Retrieves records filtered by the requesting client's IP address with pagination.
     /// </summary>
-    PagedResult<DnsResponseEvent> GetByClientIp(IPAddress clientIp, int pageNumber = 1, int pageSize = 100);
+    PagedResult<DnsResponseEventDto> GetByClientIp(IPAddress clientIp, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
     /// Retrieves records matching a specific DNS response status (e.g. NOERROR, NXDOMAIN) with pagination.
     /// </summary>
-    PagedResult<DnsResponseEvent> GetByStatus(string status, int pageNumber = 1, int pageSize = 100);
+    PagedResult<DnsResponseEventDto> GetByStatus(string status, int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
     /// Retrieves all records with pagination.
     /// </summary>
-    PagedResult<DnsResponseEvent> GetAll(int pageNumber = 1, int pageSize = 100);
+    PagedResult<DnsResponseEventDto> GetAll(int pageNumber = 1, int pageSize = 100);
 
     /// <summary>
     /// Purges events older than the specified cutoff timestamp.

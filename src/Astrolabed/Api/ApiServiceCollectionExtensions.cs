@@ -32,11 +32,11 @@ public static class ApiServiceCollectionExtensions
         services.AddSingleton(mainHost.Services.GetRequiredService<IDhcpLeaseReader>());
 
         services.AddSingleton<IDnsCache>(sharedCache);
+	services.AddSingleton<DnsForwarderService, DnsForwarderService>();
         services.AddSingleton(mainHost.Services.GetRequiredService<IClientNameResolver>());
         services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
         services.AddSingleton(mainHost.Services.GetRequiredService<IHostsFileSource>());
 
-        services.AddSingleton<IDnsRequestHandler, DnsRequestHandler>();
         services.AddTransient<IDnsService, DnsService>();
 
         // 4. NTP Services

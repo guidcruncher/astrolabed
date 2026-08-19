@@ -17,7 +17,7 @@ public sealed class DnsMessage
     public List<DnsResourceRecord> Additionals { get; } = new();
 
     // Metrics fields
-    public string ResponseCode { get; set; } = "NOERROR";
+    public DnsResponseCode ResponseCode { get; set; } = DnsResponseCode.NoError;
 
     /// <summary>
     /// Safely extracts the first valid A or AAAA IP address from the answer section.

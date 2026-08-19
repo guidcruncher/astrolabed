@@ -1,5 +1,7 @@
 using System.Net;
 
+using Astrolabed.Dns.Core;
+
 namespace Astrolabed.Events;
 
 public sealed record DnsQueryEvent(
@@ -16,7 +18,7 @@ public sealed record DnsResponseEvent(
     string? ClientName,
     string QueryName,
     string QueryType,
-    string Status,
+    DnsResponseCode Status,
     IPAddress? ResponseIp,
     long TimestampEpoch,
     bool IsBlocked)
