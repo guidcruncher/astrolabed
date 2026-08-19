@@ -1,5 +1,6 @@
 // File: src/Astrolabed.Dns/Resolvers/DummyPtrResolver.cs
 using Astrolabed.Dns.Options;
+
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Resolvers;

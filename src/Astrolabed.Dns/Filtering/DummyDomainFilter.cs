@@ -1,7 +1,9 @@
 // File: src/Astrolabed.Dns/Filtering/DummyDomainFilter.cs
 using System;
 using System.Collections.Generic;
+
 using Astrolabed.Dns.Options;
+
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Filtering;

@@ -2,6 +2,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Text;
+
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
@@ -61,7 +62,7 @@ public static class DnsWireParser
         for (int i = 0; i < arCount; i++)
         {
             if (!TryReadResourceRecord(buffer, ref offset, out var rr)) return false;
-            
+
             if (rr!.Type == DnsType.OPT)
             {
                 var edns = new EdnsOptions

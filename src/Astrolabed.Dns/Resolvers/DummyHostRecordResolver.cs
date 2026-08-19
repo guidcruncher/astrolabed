@@ -1,8 +1,10 @@
 // File: src/Astrolabed.Dns/Resolvers/DummyHostRecordResolver.cs
 using System;
 using System.Net;
+
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
+
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Resolvers;
