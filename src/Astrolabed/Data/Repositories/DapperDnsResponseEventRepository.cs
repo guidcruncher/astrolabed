@@ -310,7 +310,7 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
     private static DnsResponseEvent Map(DnsResponseEventRaw r)
     {
         return new DnsResponseEvent(
-        TimestampEpoch: r.TimestampEpoch,
+            TimestampEpoch: r.TimestampEpoch,
             IsBlocked: r.IsBlocked == 1,
             Timestamp: DateTimeOffset.Parse(r.Timestamp),
             ClientIp: IPAddress.Parse(r.ClientIp),
@@ -322,15 +322,16 @@ public class DapperDnsResponseEventRepository : IDnsResponseEventRepository
         );
     }
 
-    private record DnsResponseEventRaw(
-        string Timestamp,
-        string ClientIp,
-        string? ClientName,
-        string QueryName,
-        string QueryType,
-        string Status,
-        string? ResponseIp,
-        long TimestampEpoch,
-    int IsBlocked
-    );
+    private class DnsResponseEventRaw
+    {
+        public string Timestamp { get; set; } = string.Empty;
+        public string ClientIp { get; set; } = string.Empty;
+        public string? ClientName { get; set; }
+        public string QueryName { get; set; } = string.Empty;
+        public string QueryType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? ResponseIp { get; set; }
+        public long TimestampEpoch { get; set; }
+        public long IsBlocked { get; set; }
+    }
 }

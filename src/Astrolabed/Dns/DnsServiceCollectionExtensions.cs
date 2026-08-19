@@ -113,7 +113,7 @@ public static class DnsServiceCollectionExtensions
 
         // DNS Infrastructure Clients
         services.AddSingleton<IDnsClientFactory, DefaultDnsClientFactory>();
-
+	services.AddSingleton<IClientNameResolver, ClientNameResolver>();
         services.AddSingleton<IConditionalDnsForwarder, ConditionalDnsForwarder>();
 
         // Register default IDnsClient using IOptions
