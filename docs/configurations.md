@@ -34,15 +34,10 @@ For documenstion on configuration see [configurationdocs.md](configurationdocs.m
     "Resolvers": [
       {
         "Name": "LocalDNS",
-        "Address": "127.0.0.1",
-        "Port": 5353,
-        "Rule": "^localdev\\.",
+        "Address": "192.168.1.1",
+        "Port": 53,
+        "Rule": "(^|\\.)168\\.192\\.in-addr\\.arpa$",
         "Block": false
-      },
-      {
-        "Name": "BlockDevAds",
-        "Rule": "^(ads|tracking)\\.",
-        "Block": true
       }
     ],
     "Blocklists": [],
