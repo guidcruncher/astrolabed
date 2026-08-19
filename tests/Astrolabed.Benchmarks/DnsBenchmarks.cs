@@ -111,7 +111,7 @@ public class DnsBenchmarks
         _cache = new DnsCache(cacheOptions, cacheLogger);
         _engine = new Astrolabed.Dns.RuleEngine.RuleEngine(wrappedOptions, logger, clientFactory, _cache, new NullDnsMetrics());
 
-        _context = new DnsRequestContext(_query, "benchmark-id", "127.0.0.1");
+        _context = new DnsRequestContext(_query, "benchmark-id", "127.0.0.1", "localhost");
 
         // Warm cache
         _cache.Store(_context, _sampleResponse, TimeSpan.FromMinutes(5));

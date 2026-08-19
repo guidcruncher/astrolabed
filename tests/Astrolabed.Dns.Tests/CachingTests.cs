@@ -52,7 +52,7 @@ public class CachingTests
         var cacheOptions = Options.Create(new CachingOptions { MaxEntries = 100 });
         var cacheLogger = NullLogger<DnsCache>.Instance;
         var cache = new DnsCache(cacheOptions, cacheLogger);
-        var context = new DnsRequestContext(query, "req-123", "127.0.0.1");
+        var context = new DnsRequestContext(query, "req-123", "127.0.0.1", "localhost");
 
         cache.Store(context, response, TimeSpan.FromMinutes(1));
 

@@ -16,12 +16,12 @@ public readonly struct DnsRequestContext
     public byte[] RawRequest { get; }
     public string RequestId { get; }
 
-    public DnsRequestContext(byte[] rawRequest, string requestId, string clientIp)
+    public DnsRequestContext(byte[] rawRequest, string requestId, string clientIp, string clientHame)
     {
         RawRequest = rawRequest;
         RequestId = requestId;
         ClientIp = clientIp;
-        ClientName = "";
+        ClientName = clientHame;
 
         if (rawRequest.Length >= 12)
         {
