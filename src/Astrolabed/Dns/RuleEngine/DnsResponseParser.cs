@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 
-using Astrolabed.Api.Services;
+using Astrolabed.Dns.Core;
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -158,10 +158,10 @@ public static class DnsResponseParser
         return true;
     }
 
-    private static List<DnsResourceRecord> ReadResourceRecords(byte[] buffer, ref int offset, int count, out DnsExtendedError? extendedError)
+    private static List<DnsResource> ReadResourceRecords(byte[] buffer, ref int offset, int count, out DnsExtendedError? extendedError)
     {
         extendedError = null;
-        var records = new List<DnsResourceRecord>();
+        var records = new List<DnsResource>();
 
         for (int i = 0; i < count; i++)
         {
@@ -187,7 +187,7 @@ public static class DnsResponseParser
             string data = FormatRecordData(type, qclass, ttl, buffer, offset, rdLength);
             offset += rdLength;
 
-            records.Add(new DnsResourceRecord
+            records.Add(new DnsResource
             {
                 Name = name,
                 Type = FormatType(type),

@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Astrolabed.Api.Services;
+namespace Astrolabed.Dns.Core;
 
 public sealed record DnsResponse
 {
@@ -12,9 +12,9 @@ public sealed record DnsResponse
     public required string ResponseCode { get; init; }
     public required TimeSpan Elapsed { get; init; }
     public required DnsHeader Header { get; init; }
-    public required IReadOnlyList<DnsResourceRecord> Answers { get; init; }
-    public required IReadOnlyList<DnsResourceRecord> Authorities { get; init; }
-    public required IReadOnlyList<DnsResourceRecord> Additionals { get; init; }
+    public required IReadOnlyList<DnsResource> Answers { get; init; }
+    public required IReadOnlyList<DnsResource> Authorities { get; init; }
+    public required IReadOnlyList<DnsResource> Additionals { get; init; }
     public DnsExtendedError? ExtendedError { get; init; }
     public string? ErrorMessage { get; init; }
 }
@@ -44,7 +44,7 @@ public sealed record DnsExtendedError
     public string? ExtraText { get; init; }
 }
 
-public sealed record DnsResourceRecord
+public sealed record DnsResource
 {
     public required string Name { get; init; }
     public required string Type { get; init; }

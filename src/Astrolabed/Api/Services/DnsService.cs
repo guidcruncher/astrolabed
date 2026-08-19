@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Data;
 using Astrolabed.Dns;
+using Astrolabed.Dns.Core;
 using Astrolabed.Dns.RuleEngine;
 
 using Microsoft.Extensions.Logging;
@@ -20,24 +21,23 @@ namespace Astrolabed.Api.Services;
 public sealed class DnsService : IDnsService
 {
     private readonly ILogger<DnsService> _logger;
-    private readonly IDnsRequestHandler _handler;
     private readonly DnsForwarderOptions _options;
     private readonly IDnsCache _dnsCache;
+    private readonly DnsForwarderService _forwarder;
 
     public DnsService(
         ILogger<DnsService> logger,
-        IDnsRequestHandler handler,
+    DnsForwarderService forwarder,
         IDnsCache dnsCache,
         IOptions<DnsForwarderOptions> options)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(options);
 
         _dnsCache = dnsCache;
         _logger = logger;
-        _handler = handler;
         _options = options.Value;
+        _forwarder = forwarder;
     }
 
     public void FlushCache()
@@ -106,37 +106,38 @@ public sealed class DnsService : IDnsService
 
         var sw = Stopwatch.StartNew();
 
-        using var udp = new UdpClient(endpoint.AddressFamily);
-
         try
         {
-            udp.Connect(endpoint);
-
             // 1. Build standard DNS query wire format packet
-            var queryBytes = BuildDnsQueryPacket(name, type);
-
+            var requestBytes = BuildDnsQueryPacket(name, type);
+            var response = await _forwarder.ProcessAsync(
+                    requestBytes,
+                    IPEndPoint.Parse("127.0.0.1"),
+                    "localhost", cancellationToken).ConfigureAwait(false);
             // 2. Transmit and receive via UDP
-            await udp.SendAsync(queryBytes, cancellationToken).ConfigureAwait(false);
-            var receiveResult = await udp.ReceiveAsync(cancellationToken).ConfigureAwait(false);
 
             sw.Stop();
 
-            // 3. Delegate response handling/parsing using internal IDnsRequestHandler
-            var handlerResult = await _handler.HandleAsync(receiveResult.Buffer, endpoint, cancellationToken).ConfigureAwait(false);
-
-            return new DnsResponse
+            var resp = DnsResponseDeserializer.Deserialize(response, endpoint.Address.ToString(), sw.Elapsed, name, type);
+            if (resp == null)
             {
-                Success = handlerResult.Success,
-                Server = endpoint.ToString(),
-                QueryName = name,
-                QueryType = type.ToUpperInvariant(),
-                ResponseCode = handlerResult.ResponseCode ?? "NOERROR",
-                Elapsed = sw.Elapsed,
-                Header = ParseDnsHeader(receiveResult.Buffer),
-                Answers = handlerResult.Answers ?? Array.Empty<DnsResourceRecord>(),
-                Authorities = handlerResult.Authorities ?? Array.Empty<DnsResourceRecord>(),
-                Additionals = handlerResult.Additionals ?? Array.Empty<DnsResourceRecord>()
-            };
+                resp = new DnsResponse
+                {
+                    Success = false,
+                    Server = endpoint.ToString(),
+                    QueryName = name,
+                    QueryType = type.ToUpperInvariant(),
+                    ResponseCode = "SERVFAIL",
+                    Elapsed = sw.Elapsed,
+                    ErrorMessage = "",
+                    Header = CreateFallbackHeader(),
+                    Answers = Array.Empty<DnsResource>(),
+                    Authorities = Array.Empty<DnsResource>(),
+                    Additionals = Array.Empty<DnsResource>()
+                };
+            }
+            return resp;
+
         }
         catch (Exception ex)
         {
@@ -153,9 +154,9 @@ public sealed class DnsService : IDnsService
                 Elapsed = sw.Elapsed,
                 ErrorMessage = ex.Message,
                 Header = CreateFallbackHeader(),
-                Answers = Array.Empty<DnsResourceRecord>(),
-                Authorities = Array.Empty<DnsResourceRecord>(),
-                Additionals = Array.Empty<DnsResourceRecord>()
+                Answers = Array.Empty<DnsResource>(),
+                Authorities = Array.Empty<DnsResource>(),
+                Additionals = Array.Empty<DnsResource>()
             };
         }
     }

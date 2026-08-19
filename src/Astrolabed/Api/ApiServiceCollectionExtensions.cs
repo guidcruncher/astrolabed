@@ -36,7 +36,6 @@ public static class ApiServiceCollectionExtensions
         services.AddSingleton(mainHost.Services.GetRequiredService<Astrolabed.Dns.RuleEngine.RuleEngine>());
         services.AddSingleton(mainHost.Services.GetRequiredService<IHostsFileSource>());
 
-        services.AddSingleton<IDnsRequestHandler, DnsRequestHandler>();
         services.AddTransient<IDnsService, DnsService>();
 
         // 4. NTP Services
