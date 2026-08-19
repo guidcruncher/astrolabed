@@ -17,23 +17,21 @@ public sealed class DnsForwarderService
     private readonly ILogger<DnsForwarderService> _logger;
     private readonly DnsForwarderOptions _options;
     private readonly RuleEngine.RuleEngine _ruleEngine;
-    private readonly IClientNameResolver _clientNameResolver;
 
     public DnsForwarderService(
         ILogger<DnsForwarderService> logger,
         IOptions<DnsForwarderOptions> options,
-        RuleEngine.RuleEngine ruleEngine,
-    IClientNameResolver clientNameResolver)
+        RuleEngine.RuleEngine ruleEngine)
     {
         _logger = logger;
         _options = options.Value;
         _ruleEngine = ruleEngine;
-        _clientNameResolver = clientNameResolver;
     }
 
     public async Task<PooledBuffer?> ProcessAsync(
         byte[] request,
         IPEndPoint remote,
+    string clientName,
         CancellationToken ct)
     {
         if (request == null || request.Length < 12)
@@ -45,7 +43,6 @@ public sealed class DnsForwarderService
             ? Guid.CreateVersion7().ToString("N")
             : string.Empty;
 
-        var clientName = await _clientNameResolver.Resolve(remote.Address, ct).ConfigureAwait(false);
         var context = new DnsRequestContext(request, requestId, remote.Address.ToString(), clientName);
 
         if (string.IsNullOrEmpty(context.Domain))
