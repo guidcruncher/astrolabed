@@ -1,113 +1,29 @@
-SOLUTION = Astrolabed.sln
-PROJECT = src/Astrolabed/Astrolabed.csproj
-BUILD_DIR = bin/
-RUNTIME = linux-x64
-IMAGE_NAME ?= guidcruncher/astrolabed
+# File: Makefile
 
-.PHONY: api all build clean run dev test restore publish metrics benchmark format format-json dns docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish db
+SOLUTION = Astrolabed.Dns.sln
+PROJECT = src/Astrolabed.Dns/Astrolabed.Dns.csproj
+CONFIG ?= Release
 
-all: restore build
+.PHONY: all build run clean restore test publish
 
-db:
-	@sqlite3 ../netdns-runtime/astrolabed.db
-api:
-	@curl -s -X GET "http://127.0.0.1:1081/api/v1/leases" | jq
-
-dns:
-	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
-	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
-
-ntp:
-	@python3 ./tests/scripts/test_ntp.py
-
-dhcp:
-	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68
-	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
-
-mkdocs-install:
-	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin
-
-docs:
-	mkdocs serve --dev-addr 0.0.0.0:8000 --config-file ./mkdocs.yml --watch ./docs
-
-metrics:
-	curl -v http://127.0.0.1:1080/metrics
+all: build
 
 restore:
-	cd ./src/ClientUI && npm install
 	dotnet restore $(SOLUTION)
 
-build:
-	cd ./src/ClientUI && npm run build
-	dotnet build $(SOLUTION) -c Release
+build: restore
+	dotnet build $(SOLUTION) -c $(CONFIG) --no-restore
 
-format:
-	cd ./src/ClientUI && npm run format
-	dotnet format $(SOLUTION)
-
-format-json:
-	@for f in ./src/Astrolabed/*.json; do \
-		[ -f "$$f" ] || continue; \
-		echo "$$f"; \
-		tmp=$$(mktemp) && { jq '.' "$$f" > "$$tmp" && mv "$$tmp" "$$f" || rm -f "$$tmp"; }; \
-	done
-
-run:
-	cd ./src/ClientUI && npm run build
-	ASPNETCORE_ENVIRONMENT=Production \
-	DOTNET_ENVIRONMENT=Production \
-	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
-
-dev:
-	cd ./src/ClientUI && npm run dev-build
-	ASPNETCORE_ENVIRONMENT=Development \
-	DOTNET_ENVIRONMENT=Development \
-	dotnet run --project $(PROJECT) -c Debug -- --config appsettings.Development.json
-
-benchmark:
-	dotnet run -c Release --project tests/Astrolabed.Benchmarks/Astrolabed.Benchmarks.csproj
+run: build
+	dotnet run --project $(PROJECT) -c $(CONFIG) --no-build
 
 test:
-	dotnet test $(SOLUTION) -c Release
-
-clean:
-	cd ./src/ClientUI && npm run clean
-	dotnet clean $(SOLUTION)
-	rm -rf $(BUILD_DIR) publish/ BenchmarkDotNet.Artifacts
-	find . -type d \( -name "bin" -o -name "obj" \) -exec rm -rf {} +
+	dotnet test $(SOLUTION) -c $(CONFIG)
 
 publish:
-	dotnet publish $(PROJECT) -c Release -r $(RUNTIME) --self-contained false -o publish/
+	dotnet publish $(PROJECT) -c $(CONFIG) -o ./publish
 
-docker-build:
-	docker buildx build \
-		--file ./Dockerfile \
-		--tag docker.io/$(IMAGE_NAME):latest \
-		--progress=plain \
-		.
-
-docker-run:
-	docker compose -f ./docker-compose.yml down -v
-	docker compose -f ./docker-compose.yml build --no-cache
-	docker compose -f ./docker-compose.yml up -d
-	docker compose -f ./docker-compose.yml logs -f
-
-docker-shell:
-	docker compose exec -it astrolabed bash
-
-docker-run-dev:
-	docker compose -f ./docker-compose-dev.yml down -v
-	docker compose -f ./docker-compose-dev.yml build --no-cache
-	docker compose -f ./docker-compose-dev.yml up -d
-	docker compose -f ./docker-compose-dev.yml logs -f
-
-docker-stop:
-	docker compose -f ./docker-compose.yml down
-
-docker-publish:
-	docker buildx build \
-		--file ./Dockerfile \
-		--tag docker.io/$(IMAGE_NAME):latest \
-		--progress=plain \
-		--push \
-		.
+clean:
+	dotnet clean $(SOLUTION)
+	rm -rf ./publish
+	rm -rf src/Astrolabed.Dns/bin src/Astrolabed.Dns/obj
