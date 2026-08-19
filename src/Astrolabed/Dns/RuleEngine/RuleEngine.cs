@@ -1,6 +1,7 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
+using System.Net;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -10,7 +11,6 @@ using Astrolabed.Events;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-
 
 namespace Astrolabed.Dns.RuleEngine;
 
@@ -24,17 +24,20 @@ public sealed class RuleEngine : IDisposable
     private readonly RuleMatcher _matcher;
     private readonly ResolverChainBuilder _chainBuilder;
     private readonly QueryExecutor _executor;
-    private readonly BlockResponseBuilder _blockBuilder;
     private bool _disposed;
 
+    private const ushort EdeCodeBlocked = 15;
+    private const ushort EdeCodeFiltered = 17;
+
     public IDnsCache Cache { get; }
-    public bool BlockAll {get; private set;}
+    public bool BlockAll { get; private set; }
 
     public RuleEngine(
         IOptions<DnsForwarderOptions> options,
         ILogger<RuleEngine> logger,
         IDnsClientFactory clientFactory,
-    IDnsCache dnsCache, IDnsMetrics metrics)
+        IDnsCache dnsCache,
+        IDnsMetrics metrics)
     {
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(logger);
@@ -44,13 +47,12 @@ public sealed class RuleEngine : IDisposable
         _logger = logger;
         _metrics = metrics;
 
-BlockAll = true;
+        BlockAll = false;
         Cache = dnsCache;
 
         _compiler = new RuleCompiler(options, logger, clientFactory);
         _matcher = new RuleMatcher(_compiler, logger);
         _chainBuilder = new ResolverChainBuilder(options, _compiler.DefaultClient, _compiler.FallbackResolvers, clientFactory, logger);
-        _blockBuilder = new BlockResponseBuilder(options);
         _executor = new QueryExecutor(Cache, options, logger);
 
         if (_options.Resolvers != null)
@@ -64,11 +66,11 @@ BlockAll = true;
         _compiler.BuildAutomata();
     }
 
-public bool setBlockAll(bool state) {
-BlockAll =state;
-return BlockAll;
-}
-
+    public bool setBlockAll(bool state)
+    {
+        BlockAll = state;
+        return BlockAll;
+    }
 
     public async Task AddHostsAsync(IHostsFileSource src)
     {
@@ -96,14 +98,17 @@ return BlockAll;
     public async Task<byte[]> QueryAsync(DnsRequestContext context, RuleResult match, CancellationToken ct)
     {
         bool isDebug = _logger.IsEnabled(LogLevel.Debug);
-if (BlockAll) {
-if (isDebug)
+
+        if (BlockAll)
+        {
+            if (isDebug)
             {
                 _logger.LogDebug("Request {RequestId}: Globally Blocked {Domain} using mode {Mode}",
-                    context.RequestId, context.Domain, _options.BlockResponse.Mode);
+                    context.RequestId, context.Domain, _options.BlockResponse?.Mode);
             }
- return _blockBuilder.BuildBlockResponse(context.RawRequest);
-}
+            return BuildBlockResponse(context.RawRequest);
+        }
+
         if (Cache.TryGet(context, out var cached) && cached != null)
         {
             if (isDebug)
@@ -124,7 +129,7 @@ if (isDebug)
             if (isDebug)
             {
                 _logger.LogDebug("Request {RequestId}: Blocked {Domain} using mode {Mode}",
-                    context.RequestId, context.Domain, _options.BlockResponse.Mode);
+                    context.RequestId, context.Domain, _options.BlockResponse?.Mode);
             }
 
             _metrics.RecordDnsResponse(new DnsResponseEvent(
@@ -137,7 +142,7 @@ if (isDebug)
                                  QueryType: Enum.GetName(typeof(DnsType), context.QType),
                                  Status: DnsResponseCode.Refused,
                                  ResponseIp: null));
-            return _blockBuilder.BuildBlockResponse(context.RawRequest);
+            return BuildBlockResponse(context.RawRequest);
         }
 
         var upstreams = _chainBuilder.BuildChain(match, context.Domain, context.RequestId);
@@ -149,7 +154,7 @@ if (isDebug)
             _logger.LogError("Request {RequestId}: All upstreams failed for {Domain}, returning SERVFAIL",
                 context.RequestId, context.Domain);
 
-            return BlockResponseBuilder.BuildServfail(context.RawRequest);
+            return DnsResponseBuilder.BuildServfail(context.RawRequest);
         }
 
         return response;
@@ -164,6 +169,88 @@ if (isDebug)
     {
         _compiler.AddRules(rules, block);
         _compiler.BuildAutomata();
+    }
+
+    private byte[] BuildBlockResponse(byte[] rawRequest, ReadOnlySpan<byte> upstreamEdeBytes = default)
+    {
+        if (rawRequest == null || rawRequest.Length < 12)
+        {
+            return DnsResponseBuilder.BuildServfail(rawRequest ?? Array.Empty<byte>());
+        }
+
+        if (!upstreamEdeBytes.IsEmpty)
+        {
+            byte[] baseResp = DnsResponseBuilder.BuildRcodeResponse(rawRequest, 2);
+            return DnsResponseBuilder.AttachUpstreamEde(baseResp, upstreamEdeBytes);
+        }
+
+        string mode = _options.BlockResponse?.Mode ?? "NxDomain";
+
+        return mode.ToLowerInvariant() switch
+        {
+            "nxdomain" => DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked),
+            "refused" => DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 5, EdeCodeBlocked),
+            "filtered" => DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 5, EdeCodeFiltered),
+            "nodata" => DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 0, EdeCodeBlocked),
+            "servfail" => DnsResponseBuilder.BuildServfail(rawRequest),
+            "zeroip" => BuildZeroIpResponse(rawRequest),
+            "customip" => BuildCustomIpResponse(rawRequest),
+            _ => DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked)
+        };
+    }
+
+    private static byte[] BuildZeroIpResponse(byte[] rawRequest)
+    {
+        var msg = DnsMessage.TryParse(rawRequest);
+        if (msg == null)
+        {
+            return DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked);
+        }
+
+        string qType = msg.QuestionType;
+
+        if (string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1")
+        {
+            return DnsResponseBuilder.BuildStaticIpResponse(rawRequest, IPAddress.Any);
+        }
+
+        if (string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28")
+        {
+            return DnsResponseBuilder.BuildStaticIpResponse(rawRequest, IPAddress.IPv6Any);
+        }
+
+        return DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked);
+    }
+
+    private byte[] BuildCustomIpResponse(byte[] rawRequest)
+    {
+        var msg = DnsMessage.TryParse(rawRequest);
+        if (msg == null)
+        {
+            return DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked);
+        }
+
+        string customIp = _options.BlockResponse?.StaticIp ?? "0.0.0.0";
+        if (!IPAddress.TryParse(customIp, out var ip))
+        {
+            ip = IPAddress.Any;
+        }
+
+        string qType = msg.QuestionType;
+
+        if ((string.Equals(qType, "A", StringComparison.OrdinalIgnoreCase) || qType == "1") &&
+            ip.AddressFamily == AddressFamily.InterNetwork)
+        {
+            return DnsResponseBuilder.BuildStaticIpResponse(rawRequest, ip);
+        }
+
+        if ((string.Equals(qType, "AAAA", StringComparison.OrdinalIgnoreCase) || qType == "28") &&
+            ip.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            return DnsResponseBuilder.BuildStaticIpResponse(rawRequest, ip);
+        }
+
+        return DnsResponseBuilder.BuildRcodeResponseWithEde(rawRequest, 3, EdeCodeBlocked);
     }
 
     public void Dispose()

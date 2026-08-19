@@ -34,7 +34,7 @@ internal sealed class QueryExecutor
     {
         if (upstreams.Count == 0)
         {
-            return BlockResponseBuilder.BuildServfail(context.RawRequest);
+            return DnsResponseBuilder.BuildServfail(context.RawRequest);
         }
 
         int timeoutMs = _options.UpstreamTimeoutMs > 0 ? _options.UpstreamTimeoutMs : 2000;
@@ -71,6 +71,6 @@ internal sealed class QueryExecutor
             }
         }
 
-        return BlockResponseBuilder.BuildServfail(context.RawRequest);
+        return DnsResponseBuilder.BuildServfail(context.RawRequest);
     }
 }
