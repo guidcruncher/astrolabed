@@ -2,15 +2,16 @@
 using System;
 using System.Buffers;
 using System.Collections.Immutable;
-using System.IO.Pipelines;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 using Astrolabed.Dns.Cache;
+using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
+using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -22,19 +23,25 @@ public sealed class DnsEngine : BackgroundService
 {
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
     private readonly IDnsCache _cache;
+    private readonly IDomainFilter _domainFilter;
+    private readonly IHostRecordResolver _hostResolver;
+    private readonly IPtrResolver _ptrResolver;
     private readonly ILogger<DnsEngine> _logger;
     private readonly Channel<Astrolabed.Dns.Models.UdpReceiveResult> _incomingChannel;
-    private readonly IDisposable? _optionsChangeToken;
-
-    private EngineStateSnapshot _snapshot;
 
     public DnsEngine(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
         IDnsCache cache,
+        IDomainFilter domainFilter,
+        IHostRecordResolver hostResolver,
+        IPtrResolver ptrResolver,
         ILogger<DnsEngine> logger)
     {
         _optionsMonitor = optionsMonitor;
         _cache = cache;
+        _domainFilter = domainFilter;
+        _hostResolver = hostResolver;
+        _ptrResolver = ptrResolver;
         _logger = logger;
 
         var initialOptions = _optionsMonitor.CurrentValue;
@@ -45,53 +52,12 @@ public sealed class DnsEngine : BackgroundService
             SingleWriter = true,
             AllowSynchronousContinuations = true
         });
-
-        _snapshot = BuildStateSnapshot(initialOptions);
-
-        // Bind IOptionsMonitor to dynamic atomic snapshot swapping
-        _optionsChangeToken = _optionsMonitor.OnChange(OnOptionsChanged);
-    }
-
-    private void OnOptionsChanged(DnsEngineOptions newOptions)
-    {
-        var nextSnapshot = BuildStateSnapshot(newOptions);
-        Interlocked.Exchange(ref _snapshot, nextSnapshot);
-        _logger.LogInformation("Hot-reloaded engine snapshot with {Hosts} hosts, {BlockCount} blocked domains, and {UpstreamCount} upstreams.",
-            nextSnapshot.Hosts.Count, nextSnapshot.BlockedDomains.Count, nextSnapshot.UpstreamResolvers.Count);
-    }
-
-    private static EngineStateSnapshot BuildStateSnapshot(DnsEngineOptions options)
-    {
-        var hostsBuilder = ImmutableDictionary.CreateBuilder<string, IPAddress>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (host, ipStr) in options.Hosts)
-        {
-            if (IPAddress.TryParse(ipStr, out var ip)) hostsBuilder[host] = ip;
-        }
-
-        var ptrBuilder = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var (ptr, host) in options.PtrRecords)
-        {
-            ptrBuilder[ptr] = host;
-        }
-
-        var upstreamsBuilder = ImmutableList.CreateBuilder<IPAddress>();
-        foreach (var ipStr in options.UpstreamResolvers)
-        {
-            if (IPAddress.TryParse(ipStr, out var ip)) upstreamsBuilder.Add(ip);
-        }
-
-        return new EngineStateSnapshot(
-            Hosts: hostsBuilder.ToImmutable(),
-            PtrRecords: ptrBuilder.ToImmutable(),
-            BlockedDomains: options.BlockedDomains.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase),
-            UpstreamResolvers: upstreamsBuilder.ToImmutable()
-        );
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation("Starting Optimized DNS Engine on Port {Port}...", options.Port);
+        _logger.LogInformation("Starting  DNS Engine on Port {Port}...", options.Port);
 
         var workerTasks = new Task[options.ProcessingThreads];
         for (int i = 0; i < options.ProcessingThreads; i++)
@@ -150,8 +116,7 @@ public sealed class DnsEngine : BackgroundService
 
         try
         {
-            var state = Volatile.Read(ref _snapshot);
-
+            // 1. Cache Check
             if (_cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload))
             {
                 responseBytes = cachedPayload;
@@ -159,12 +124,13 @@ public sealed class DnsEngine : BackgroundService
                 return;
             }
 
-            if (state.BlockedDomains.Contains(request.QuestionName))
+            // 2. Blocklist / Allowlist Filter Evaluation
+            if (!_domainFilter.IsAllowed(request.QuestionName) && _domainFilter.IsBlocked(request.QuestionName, out var reason))
             {
                 var ede = new ExtendedDnsError
                 {
                     InfoCode = ExtendedDnsErrorCode.Filtered,
-                    ExtraText = "Blocked by security filter rule"
+                    ExtraText = reason ?? "Blocked by policy filter"
                 };
 
                 responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: ede);
@@ -172,47 +138,45 @@ public sealed class DnsEngine : BackgroundService
                 return;
             }
 
-            if (request.QuestionType == DnsType.A || request.QuestionType == DnsType.AAAA)
+            // 3. Hosts File Resolution (A / AAAA)
+            if ((request.QuestionType == DnsType.A || request.QuestionType == DnsType.AAAA) &&
+                _hostResolver.TryResolveHost(request.QuestionName, request.QuestionType, out var matchedIp))
             {
-                if (state.Hosts.TryGetValue(request.QuestionName, out var matchedIp))
+                var record = new DnsResourceRecord
                 {
-                    var record = new DnsResourceRecord
-                    {
-                        Name = request.QuestionName,
-                        Type = request.QuestionType,
-                        Ttl = 300,
-                        ParsedIp = matchedIp
-                    };
+                    Name = request.QuestionName,
+                    Type = request.QuestionType,
+                    Ttl = 300,
+                    ParsedIp = matchedIp
+                };
 
-                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
-                    resolutionSource = "HOSTS_FILE";
-                    return;
-                }
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
+                resolutionSource = "HOSTS_FILE";
+                return;
             }
 
-            if (request.QuestionType == DnsType.PTR)
+            // 4. Reverse PTR Lookup Resolution
+            if (request.QuestionType == DnsType.PTR && _ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain != null)
             {
-                if (state.PtrRecords.TryGetValue(request.QuestionName, out var hostname))
+                var ptrBuffer = new byte[256];
+                int ptrOffset = 0;
+                DnsWireBuilder.EncodeDomainName(ptrBuffer, ref ptrOffset, targetDomain);
+
+                var record = new DnsResourceRecord
                 {
-                    var ptrBuffer = new byte[256];
-                    int ptrOffset = 0;
-                    DnsWireBuilder.EncodeDomainName(ptrBuffer, ref ptrOffset, hostname);
+                    Name = request.QuestionName,
+                    Type = DnsType.PTR,
+                    Ttl = 300,
+                    Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
+                };
 
-                    var record = new DnsResourceRecord
-                    {
-                        Name = request.QuestionName,
-                        Type = DnsType.PTR,
-                        Ttl = 300,
-                        Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
-                    };
-
-                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
-                    resolutionSource = "LOCAL_PTR";
-                    return;
-                }
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
+                resolutionSource = "LOCAL_PTR";
+                return;
             }
 
-            responseBytes = await ExecuteUpstreamQueryAsync(state, rawPacket, ct).ConfigureAwait(false);
+            // 5. Upstream Forwarding
+            responseBytes = await ExecuteUpstreamQueryAsync(rawPacket, ct).ConfigureAwait(false);
             resolutionSource = "UPSTREAM";
 
             if (responseBytes != null)
@@ -243,11 +207,14 @@ public sealed class DnsEngine : BackgroundService
         }
     }
 
-    private async Task<byte[]?> ExecuteUpstreamQueryAsync(EngineStateSnapshot state, byte[] rawRequest, CancellationToken ct)
+    private async Task<byte[]?> ExecuteUpstreamQueryAsync(byte[] rawRequest, CancellationToken ct)
     {
-        if (state.UpstreamResolvers.Count == 0) return null;
+        var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
+        if (upstreams.Count == 0) return null;
 
-        var upstreamEp = new IPEndPoint(state.UpstreamResolvers[0], 53);
+        if (!IPAddress.TryParse(upstreams[0], out var upstreamIp)) return null;
+
+        var upstreamEp = new IPEndPoint(upstreamIp, 53);
         using var upstreamSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         upstreamSocket.ReceiveTimeout = 2000;
 
@@ -263,10 +230,5 @@ public sealed class DnsEngine : BackgroundService
             return null;
         }
     }
-
-    public override void Dispose()
-    {
-        _optionsChangeToken?.Dispose();
-        base.Dispose();
-    }
 }
+
