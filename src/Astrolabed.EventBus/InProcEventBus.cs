@@ -2,6 +2,7 @@ namespace Astrolabed.EventBus;
 
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

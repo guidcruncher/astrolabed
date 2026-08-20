@@ -3,6 +3,7 @@ namespace Astrolabed.EventBus;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Extension methods for configuring the in-process event bus in Microsoft DI containers.
@@ -17,10 +18,10 @@ public static class EventBusServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddRootEventBroker(this IServiceCollection services, IConfiguration? configuration = null)
     {
-        services.AddOptions<EventBusOptions>();
+        var optionsBuilder = services.AddOptions<EventBusOptions>();
         if (configuration is not null)
         {
-            services.Configure<EventBusOptions>(configuration.GetSection("EventBus"));
+            optionsBuilder.Bind(configuration.GetSection("EventBus"));
         }
 
         services.TryAddSingleton<InProcEventBroker>();
