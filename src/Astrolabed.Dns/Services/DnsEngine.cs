@@ -232,8 +232,62 @@ public sealed class DnsEngine : BackgroundService
                     ExtraText = reason ?? "Blocked by policy filter"
                 };
 
-                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
-                resolutionSource = "BLOCKED_EDE";
+                var options = _optionsMonitor.CurrentValue;
+
+                switch (options.BlockedResponseMode)
+                {
+                    case BlockedResponseMode.NxDomain:
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NXDomain, ede: filterEde);
+                        resolutionSource = "BLOCKED_NXDOMAIN";
+                        break;
+
+                    case BlockedResponseMode.ServFail:
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: filterEde);
+                        resolutionSource = "BLOCKED_SERVFAIL";
+                        break;
+
+                    case BlockedResponseMode.ZeroIp:
+                        var zeroIp = request.QuestionType == DnsType.AAAA ? IPAddress.IPv6Any : IPAddress.Any;
+                        var zeroRecord = new DnsResourceRecord
+                        {
+                            Name = request.QuestionName,
+                            Type = request.QuestionType,
+                            Class = 1,
+                            Ttl = 60,
+                            ParsedIp = zeroIp
+                        };
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { zeroRecord }, filterEde);
+                        resolutionSource = "BLOCKED_ZERO_IP";
+                        break;
+
+                    case BlockedResponseMode.CustomIp:
+                        if (IPAddress.TryParse(options.CustomBlockedIp, out var customIp))
+                        {
+                            var customRecord = new DnsResourceRecord
+                            {
+                                Name = request.QuestionName,
+                                Type = request.QuestionType,
+                                Class = 1,
+                                Ttl = 60,
+                                ParsedIp = customIp
+                            };
+                            responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { customRecord }, filterEde);
+                            resolutionSource = "BLOCKED_CUSTOM_IP";
+                        }
+                        else
+                        {
+                            responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
+                            resolutionSource = "BLOCKED_REFUSED_FALLBACK";
+                        }
+                        break;
+
+                    case BlockedResponseMode.Refused:
+                    default:
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
+                        resolutionSource = "BLOCKED_REFUSED";
+                        break;
+                }
+
                 return responseBytes;
             }
 

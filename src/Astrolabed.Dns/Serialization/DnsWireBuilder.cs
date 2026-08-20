@@ -2,6 +2,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Text;
 
 using Astrolabed.Dns.Models;
 
@@ -32,15 +33,16 @@ public static class DnsWireBuilder
         var answerList = answers != null ? new List<DnsResourceRecord>(answers) : new List<DnsResourceRecord>();
         BinaryPrimitives.WriteUInt16BigEndian(header[6..8], (ushort)answerList.Count);
 
-        // Authority & Additional Counts
+        // Authority Count (0)
         BinaryPrimitives.WriteUInt16BigEndian(header[8..10], 0);
+
+        // Additional Count (1 if EDE present for EDNS0 OPT RR, else 0)
         BinaryPrimitives.WriteUInt16BigEndian(header[10..12], ede != null ? (ushort)1 : (ushort)0);
 
         var buffer = new List<byte>();
         buffer.AddRange(header.ToArray());
 
         // Re-encode Question section to preserve original query domain format
-        int offset = buffer.Count;
         byte[] domainBuffer = new byte[256];
         int domainOffset = 0;
         EncodeDomainName(domainBuffer, ref domainOffset, request.QuestionName);
@@ -59,6 +61,12 @@ public static class DnsWireBuilder
         foreach (var rr in answerList)
         {
             EncodeResourceRecord(buffer, rr);
+        }
+
+        // Encode EDNS0 OPT Pseudo-RR containing Extended DNS Error (RFC 8914) if provided
+        if (ede != null)
+        {
+            EncodeEdnsOption(buffer, ede);
         }
 
         return buffer.ToArray();
@@ -109,6 +117,43 @@ public static class DnsWireBuilder
             BinaryPrimitives.WriteUInt16BigEndian(rdLength, (ushort)rr.Data.Length);
             buffer.AddRange(rdLength);
             buffer.AddRange(rr.Data);
+        }
+    }
+
+    private static void EncodeEdnsOption(List<byte> buffer, ExtendedDnsError ede)
+    {
+        buffer.Add(0); // Root Domain Name "."
+
+        byte[] optHeader = new byte[8];
+        BinaryPrimitives.WriteUInt16BigEndian(optHeader.AsSpan(0, 2), 41); // Type OPT (41)
+        BinaryPrimitives.WriteUInt16BigEndian(optHeader.AsSpan(2, 2), 4096); // UDP Payload Size (4096)
+        // TTL field set to Extended RCODE=0, Version=0, Flags=0
+        BinaryPrimitives.WriteUInt32BigEndian(optHeader.AsSpan(4, 4), 0);
+        buffer.AddRange(optHeader);
+
+        byte[] extraTextBytes = string.IsNullOrEmpty(ede.ExtraText)
+            ? Array.Empty<byte>()
+            : Encoding.UTF8.GetBytes(ede.ExtraText);
+
+        ushort optionDataLength = (ushort)(2 + extraTextBytes.Length);
+        ushort totalRdataLength = (ushort)(4 + optionDataLength); // OptionCode (2) + OptionLength (2) + OptionDataLength
+
+        byte[] rdLength = new byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(rdLength, totalRdataLength);
+        buffer.AddRange(rdLength);
+
+        byte[] optionHeader = new byte[4];
+        BinaryPrimitives.WriteUInt16BigEndian(optionHeader.AsSpan(0, 2), 15); // Option Code 15 (EDE)
+        BinaryPrimitives.WriteUInt16BigEndian(optionHeader.AsSpan(2, 2), optionDataLength);
+        buffer.AddRange(optionHeader);
+
+        byte[] infoCodeBytes = new byte[2];
+        BinaryPrimitives.WriteUInt16BigEndian(infoCodeBytes, (ushort)ede.InfoCode);
+        buffer.AddRange(infoCodeBytes);
+
+        if (extraTextBytes.Length > 0)
+        {
+            buffer.AddRange(extraTextBytes);
         }
     }
 }
