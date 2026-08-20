@@ -48,6 +48,8 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
 
     public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
+	DnsContext context = new DnsContext(clientEndpoint.GetIPAddress());
+
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
@@ -223,7 +225,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "Failed to resolve query via upstream {Upstream}", upstream);
+                        _logger.LogWarning(ex, "[Context {Context}] Failed to resolve query via upstream {Upstream}", context.Id.ToString(), upstream);
                     }
                 }
             }
@@ -241,8 +243,8 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         }
         finally
         {
-            _logger.LogInformation("Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {Elapsed:F2}ms",
-                request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
+            _logger.LogInformation("Context [{Context}] Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {Elapsed:F2}ms",
+                context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
         }
     }
 }
