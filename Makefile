@@ -4,7 +4,7 @@ SOLUTION = Astrolabed.Dns.sln
 PROJECT = src/Astrolabed.Dns/Astrolabed.Dns.csproj
 CONFIG ?= Release
 
-.PHONY: all build run clean restore test publish format dev dns dhcp
+.PHONY: all build run clean restore test publish format dev dns dhcp benchmark
 
 all: build
 
@@ -20,6 +20,8 @@ run: build
 dev:
 	dotnet run --project $(PROJECT) -c Development
 
+benchmark:
+	@python3 ./scripts/benchmark_dns.py --ip 127.0.0.1 --port 1053
 dns:
 	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
 	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
