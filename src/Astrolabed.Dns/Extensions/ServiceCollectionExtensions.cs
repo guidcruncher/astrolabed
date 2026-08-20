@@ -1,7 +1,6 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
 using System;
 using System.Collections.Generic;
-
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
@@ -9,7 +8,6 @@ using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Services;
 using Astrolabed.Dns.Upstream;
-
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,7 +29,15 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient();
 
         services.AddSingleton<IDnsCache, DnsCache>();
-        services.AddSingleton<IDomainFilter, DummyDomainFilter>();
+
+        // Domain Filter Rule Store registration (Handles deduplication, storage, and rule mutation)
+        services.AddSingleton<DomainFilterRuleStore>();
+        services.AddSingleton<IDomainFilterRuleStore>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
+        services.AddSingleton<IReadOnlyDomainFilterRules>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
+
+        // Domain Filter Evaluation Engine
+        services.AddSingleton<IDomainFilter, DomainFilter>();
+
         services.AddSingleton<IPtrResolver, PtrResolver>();
 
         // Hosts File Reader
@@ -45,7 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IHostsManager>(sp => sp.GetRequiredService<HostsManager>());
         services.AddHostedService<HostsManager>(sp => sp.GetRequiredService<HostsManager>());
 
-        // Live HostsEntry collection delegation (Resolves empty reference bug)
+        // Live HostsEntry collection delegation
         services.AddSingleton<IReadOnlyList<HostsEntry>, HostsEntryListWrapper>();
 
         // Host Record Resolver
