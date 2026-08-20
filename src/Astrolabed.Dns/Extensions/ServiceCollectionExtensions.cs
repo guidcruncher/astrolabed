@@ -1,6 +1,7 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
 using System;
 using System.Collections.Generic;
+
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
@@ -8,6 +9,7 @@ using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Services;
 using Astrolabed.Dns.Upstream;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
