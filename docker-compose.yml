@@ -34,9 +34,7 @@ services:
       - ./appsettings.json:/app/appsettings.json:ro
       - ./settings/:/etc/astrolabed:ro
 
-    healthcheck:
-      test: ["CMD-SHELL", "nc -z -u -w1 127.0.0.1 53 || exit 1"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-      start_period: 5s
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE

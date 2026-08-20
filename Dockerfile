@@ -16,7 +16,7 @@ RUN dotnet publish "Astrolabed.Dns.csproj" \
     /p:PublishReadyToRun=true
 
 # Runtime Stage
-FROM mcr.microsoft.com/dotnet/runtime:10.0-chiseled AS final
+FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 
 # Ensure directories exist for hosts and blocklist volumes
