@@ -24,7 +24,7 @@ benchmark:
 	@python3 ./scripts/benchmark_dns.py --ip 127.0.0.1 --port 1053
 dns:
 	@dig @127.0.0.1 -p 1053 bbc.com A
-	@dig @127.0.0.1 -p 1053 --tcp google.com A
+	@dig @127.0.0.1 -p 1053 +tcp google.com A
 	@dig @127.0.0.1 -p 1053 webtop.lan A
 	@dig @127.0.0.1 -p 1053 example.com A
 	@dig @127.0.0.1 -p 1053 -x 192.168.1.1
