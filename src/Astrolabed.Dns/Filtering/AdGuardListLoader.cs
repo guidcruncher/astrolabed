@@ -38,16 +38,11 @@ public sealed class AdGuardListLoader : IListLoader
             response.EnsureSuccessStatusCode();
             content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
         }
-        else if (uriOrPath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-        {
-            var fileUri = new Uri(uriOrPath);
-            _logger.LogInformation("Reading AdGuard rule list from local file URI: {FilePath}", fileUri.LocalPath);
-            content = await File.ReadAllTextAsync(fileUri.LocalPath, ct).ConfigureAwait(false);
-        }
         else
         {
-            _logger.LogInformation("Reading AdGuard rule list from local file path: {FilePath}", uriOrPath);
-            content = await File.ReadAllTextAsync(uriOrPath, ct).ConfigureAwait(false);
+            var filePath = ResolveFilePath(uriOrPath);
+            _logger.LogInformation("Reading AdGuard rule list from filesystem path: {FilePath}", filePath);
+            content = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
         }
 
         return ParseAdGuardRules(content);
@@ -59,6 +54,18 @@ public sealed class AdGuardListLoader : IListLoader
         _ruleStore.UpdateRules(allowRules, blockRules);
 
         _logger.LogInformation("Successfully updated IDomainFilterRuleStore with rules loaded from {Source}.", uriOrPath);
+    }
+
+    private static string ResolveFilePath(string uriOrPath)
+    {
+        string rawPath = uriOrPath;
+
+        if (uriOrPath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            rawPath = uriOrPath["file://".Length..];
+        }
+
+        return Path.GetFullPath(rawPath);
     }
 
     private (List<string> AllowRules, List<string> BlockRules) ParseAdGuardRules(string rawContent)

@@ -40,6 +40,15 @@ public static class ServiceCollectionExtensions
         // Domain Filter Evaluation Engine
         services.AddSingleton<IDomainFilter, DomainFilter>();
 
+        // List Loader registration
+        services.AddHttpClient<IListLoader, AdGuardListLoader>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        // Register Options-driven Domain Filter Rule Loader Service
+        services.AddAstrolabedDomainFilterRuleLoader(configuration);
+
         services.AddSingleton<IPtrResolver, PtrResolver>();
 
         // Hosts File Reader
@@ -71,6 +80,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
         services.AddHostedService<DnsEngine>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAstrolabedDomainFilterRuleLoader(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.Configure<DomainFilterRuleOptions>(
+            configuration.GetSection(DomainFilterRuleOptions.SectionName));
+
+        services.AddHostedService<DomainFilterRuleReloader>();
 
         return services;
     }
