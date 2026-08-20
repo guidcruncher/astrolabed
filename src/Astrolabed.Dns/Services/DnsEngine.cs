@@ -135,6 +135,7 @@ public sealed class DnsEngine : BackgroundService
         await using (var stream = client.GetStream())
         {
             var lengthBuffer = new byte[2];
+            var remoteEndPoint = client.Client?.RemoteEndPoint ?? new IPEndPoint(IPAddress.Loopback, 0);
 
             while (!ct.IsCancellationRequested && client.Connected)
             {
@@ -150,7 +151,7 @@ public sealed class DnsEngine : BackgroundService
                     int packetBytesRead = await ReadExactAsync(stream, packetBuffer, 0, packetLength, ct).ConfigureAwait(false);
                     if (packetBytesRead < packetLength) break;
 
-                    byte[]? response = await ProcessRequestAsync(packetBuffer.AsSpan(0, packetLength).ToArray(), client.Client.RemoteEndPoint!, ct).ConfigureAwait(false);
+                    byte[]? response = await ProcessRequestAsync(packetBuffer.AsSpan(0, packetLength).ToArray(), remoteEndPoint, ct).ConfigureAwait(false);
 
                     if (response != null)
                     {
@@ -215,7 +216,6 @@ public sealed class DnsEngine : BackgroundService
             // 1. Cache Check
             if (_cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload))
             {
-                // Make a defensive copy and overwrite Transaction ID with incoming request's ID
                 responseBytes = (byte[])cachedPayload.Clone();
                 BinaryPrimitives.WriteUInt16BigEndian(responseBytes.AsSpan(0, 2), request.TransactionId);
 
@@ -294,33 +294,43 @@ public sealed class DnsEngine : BackgroundService
                         return responseBytes;
                     }
                 }
-
             }
 
             // 5. Default Upstream Forwarding
             var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
-            if (upstreams.Count > 0)
+            if (upstreams != null && upstreams.Count > 0)
             {
-                var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(upstreams[0], rawPacket, ct).ConfigureAwait(false);
-
-                if (upstreamMessage != null)
+                foreach (var upstream in upstreams)
                 {
-                    upstreamMessage.TransactionId = request.TransactionId;
-                    responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
-                    resolutionSource = "UPSTREAM";
-                    _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
-                    return responseBytes;
+                    try
+                    {
+                        var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(upstream, rawPacket, ct).ConfigureAwait(false);
+
+                        if (upstreamMessage != null)
+                        {
+                            upstreamMessage.TransactionId = request.TransactionId;
+                            responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
+                            resolutionSource = "UPSTREAM";
+                            _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
+                            return responseBytes;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to resolve query via upstream {Upstream}", upstream);
+                    }
                 }
             }
 
+            // Fallback: If no hosts match and upstream fails/unreachable, return ServFail or NXDomain instead of dropping packet
             var servfailEde = new ExtendedDnsError
             {
                 InfoCode = ExtendedDnsErrorCode.NoReachableAuthority,
-                ExtraText = "Upstream resolvers unreachable"
+                ExtraText = "No host entry match and upstream resolvers unreachable"
             };
 
             responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: servfailEde);
-            resolutionSource = "UPSTREAM_SERVFAIL_EDE";
+            resolutionSource = "FALLBACK_SERVFAIL";
             return responseBytes;
         }
         finally

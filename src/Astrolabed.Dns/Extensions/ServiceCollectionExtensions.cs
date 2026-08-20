@@ -52,7 +52,7 @@ public static class ServiceCollectionExtensions
         services.AddTransient<IHostRecordResolver, HostRecordResolver>();
 
         // Upstream Clients
-        services.AddTransient<TcpUpstreamDnsClient>();
+        services.AddTransient<UdpUpstreamDnsClient>();
         services.AddTransient<TcpUpstreamDnsClient>();
 
         services.AddHttpClient<DoHUpstreamDnsClient>(client =>
