@@ -4,6 +4,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: astrolabed-dns-dev
+    hostname: astrolabed-dns-dev
     restart: unless-stopped
     ports:
       - "1053:53/udp"

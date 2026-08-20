@@ -1,9 +1,8 @@
 services:
   astrolabed-dns:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: docker.io/guidcruncher/astrolabed:latest
     container_name: astrolabed-dns-engine
+    hostnamee: astrolabed-dns
     restart: unless-stopped
 
     # Bypasses Docker user-land proxy for minimal UDP latency
