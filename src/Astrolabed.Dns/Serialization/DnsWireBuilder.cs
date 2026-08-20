@@ -1,177 +1,113 @@
 // File: src/Astrolabed.Dns/Serialization/DnsWireBuilder.cs
 using System;
-using System.Buffers.Binary;
 using System.Collections.Generic;
-using System.Text;
-
+using System.Buffers.Binary;
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
 
 public static class DnsWireBuilder
 {
-    public static byte[] BuildQuery(string domain, DnsType queryType, ushort transactionId, bool recursionDesired = true)
-    {
-        var buffer = new byte[512];
-        int offset = 0;
-
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(0, 2), transactionId);
-        ushort flags = (ushort)(recursionDesired ? 0x0100 : 0x0000);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(2, 2), flags);
-
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4, 2), 1);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(6, 2), 0);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(8, 2), 0);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(10, 2), 1);
-        offset = 12;
-
-        EncodeDomainName(buffer.AsSpan(), ref offset, domain);
-
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset, 2), (ushort)queryType);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset + 2, 2), 1);
-        offset += 4;
-
-        AppendOptRecord(buffer.AsSpan(), ref offset, 4096, 0, false, null);
-
-        return buffer.AsSpan(0, offset).ToArray();
-    }
-
     public static byte[] BuildResponse(
         DnsWireMessage request,
-        DnsResponseCode rcode,
+        DnsResponseCode responseCode,
         IEnumerable<DnsResourceRecord>? answers = null,
         ExtendedDnsError? ede = null)
     {
-        var buffer = new byte[4096];
-        int offset = 0;
+        Span<byte> header = stackalloc byte[12];
 
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(0, 2), request.TransactionId);
+        // 1. Crucial: Preserve incoming Transaction ID
+        BinaryPrimitives.WriteUInt16BigEndian(header[0..2], request.TransactionId);
 
-        ushort baseRCode = (ushort)((ushort)rcode & 0x0F);
-        ushort flags = 0x8400;
-        if (request.RecursionDesired) flags |= 0x0100;
-        flags |= baseRCode;
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(2, 2), flags);
+        // 2. Response Flags: QR=1 (Response), Opcode=0, AA=1, RD=1, RA=1, RCODE
+        ushort flags = 0x8180; // Standard response flags
+        flags |= (ushort)((byte)responseCode & 0x0F);
+        BinaryPrimitives.WriteUInt16BigEndian(header[2..4], flags);
 
-        ushort anCount = 0;
-        List<DnsResourceRecord>? answerList = answers != null ? new List<DnsResourceRecord>(answers) : null;
-        if (answerList != null) anCount = (ushort)answerList.Count;
+        // 3. Question Count (1)
+        BinaryPrimitives.WriteUInt16BigEndian(header[4..6], 1);
 
-        bool includeOpt = request.Edns != null || ede != null;
-        ushort arCount = (ushort)(includeOpt ? 1 : 0);
+        // Calculate Answer Count
+        var answerList = answers != null ? new List<DnsResourceRecord>(answers) : new List<DnsResourceRecord>();
+        BinaryPrimitives.WriteUInt16BigEndian(header[6..8], (ushort)answerList.Count);
 
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(4, 2), 1);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(6, 2), anCount);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(8, 2), 0);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(10, 2), arCount);
-        offset = 12;
+        // Authority & Additional Counts
+        BinaryPrimitives.WriteUInt16BigEndian(header[8..10], 0);
+        BinaryPrimitives.WriteUInt16BigEndian(header[10..12], ede != null ? (ushort)1 : (ushort)0);
 
-        EncodeDomainName(buffer.AsSpan(), ref offset, request.QuestionName);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset, 2), (ushort)request.QuestionType);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset + 2, 2), request.QuestionClass);
-        offset += 4;
+        var buffer = new List<byte>();
+        buffer.AddRange(header.ToArray());
 
-        if (answerList != null && rcode == DnsResponseCode.NoError)
+        // Re-encode Question section to preserve original query domain format
+        int offset = buffer.Count;
+        byte[] domainBuffer = new byte[256];
+        int domainOffset = 0;
+        EncodeDomainName(domainBuffer, ref domainOffset, request.QuestionName);
+        
+        for (int i = 0; i < domainOffset; i++)
         {
-            foreach (var record in answerList)
-            {
-                EncodeDomainName(buffer.AsSpan(), ref offset, record.Name);
-                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset, 2), (ushort)record.Type);
-                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset + 2, 2), record.Class);
-                BinaryPrimitives.WriteUInt32BigEndian(buffer.AsSpan(offset + 4, 4), record.Ttl);
-
-                byte[] rdata = record.Data;
-                if (record.ParsedIp != null)
-                {
-                    rdata = record.ParsedIp.GetAddressBytes();
-                }
-
-                BinaryPrimitives.WriteUInt16BigEndian(buffer.AsSpan(offset + 8, 2), (ushort)rdata.Length);
-                offset += 10;
-
-                rdata.CopyTo(buffer.AsSpan(offset));
-                offset += rdata.Length;
-            }
+            buffer.Add(domainBuffer[i]);
         }
 
-        if (includeOpt)
-        {
-            ushort payloadSize = request.Edns?.UdpPayloadSize ?? 4096;
-            byte extendedRCode = (byte)(((ushort)rcode >> 4) & 0xFF);
-            bool dnssecOk = request.Edns?.DnssecOk ?? false;
+        byte[] typeAndClass = new byte[4];
+        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(0, 2), (ushort)request.QuestionType);
+        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(2, 2), 1); // Class IN
+        buffer.AddRange(typeAndClass);
 
-            AppendOptRecord(buffer.AsSpan(), ref offset, payloadSize, extendedRCode, dnssecOk, ede);
+        // Encode Answer RRs
+        foreach (var rr in answerList)
+        {
+            EncodeResourceRecord(buffer, rr);
         }
 
-        return buffer.AsSpan(0, offset).ToArray();
+        return buffer.ToArray();
     }
 
-    private static void AppendOptRecord(
-        Span<byte> buffer,
-        ref int offset,
-        ushort udpPayloadSize,
-        byte extendedRCode,
-        bool dnssecOk,
-        ExtendedDnsError? ede)
+    public static void EncodeDomainName(byte[] buffer, ref int offset, string domain)
     {
-        buffer[offset++] = 0;
-
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), (ushort)DnsType.OPT);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset + 2, 2), udpPayloadSize);
-        offset += 4;
-
-        uint ttlFlags = ((uint)extendedRCode << 24);
-        if (dnssecOk) ttlFlags |= 0x8000;
-
-        BinaryPrimitives.WriteUInt32BigEndian(buffer.Slice(offset, 4), ttlFlags);
-        offset += 4;
-
-        int rdLengthOffset = offset;
-        offset += 2;
-
-        int rdataStart = offset;
-
-        if (ede != null)
-        {
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), 15);
-            offset += 2;
-
-            byte[] textBytes = string.IsNullOrEmpty(ede.ExtraText) ? Array.Empty<byte>() : Encoding.UTF8.GetBytes(ede.ExtraText);
-            ushort optionLen = (ushort)(2 + textBytes.Length);
-
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), optionLen);
-            offset += 2;
-
-            BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(offset, 2), (ushort)ede.InfoCode);
-            offset += 2;
-
-            if (textBytes.Length > 0)
-            {
-                textBytes.CopyTo(buffer.Slice(offset));
-                offset += textBytes.Length;
-            }
-        }
-
-        ushort totalRdLength = (ushort)(offset - rdataStart);
-        BinaryPrimitives.WriteUInt16BigEndian(buffer.Slice(rdLengthOffset, 2), totalRdLength);
-    }
-
-    public static void EncodeDomainName(Span<byte> buffer, ref int offset, string domain)
-    {
-        if (string.IsNullOrEmpty(domain))
-        {
-            buffer[offset++] = 0;
-            return;
-        }
-
-        string[] labels = domain.Split('.');
+        string[] labels = domain.TrimEnd('.').Split('.');
         foreach (var label in labels)
         {
-            byte len = (byte)Encoding.ASCII.GetBytes(label, buffer.Slice(offset + 1));
-            buffer[offset] = len;
-            offset += 1 + len;
+            buffer[offset++] = (byte)label.Length;
+            for (int i = 0; i < label.Length; i++)
+            {
+                buffer[offset++] = (byte)label[i];
+            }
+        }
+        buffer[offset++] = 0; // Root label terminator
+    }
+
+    private static void EncodeResourceRecord(List<byte> buffer, DnsResourceRecord rr)
+    {
+        byte[] domainBuffer = new byte[256];
+        int domainOffset = 0;
+        EncodeDomainName(domainBuffer, ref domainOffset, rr.Name);
+
+        for (int i = 0; i < domainOffset; i++)
+        {
+            buffer.Add(domainBuffer[i]);
         }
 
-        buffer[offset++] = 0;
+        byte[] rrHeader = new byte[8];
+        BinaryPrimitives.WriteUInt16BigEndian(rrHeader.AsSpan(0, 2), (ushort)rr.Type);
+        BinaryPrimitives.WriteUInt16BigEndian(rrHeader.AsSpan(2, 2), rr.Class == 0 ? (ushort)1 : rr.Class);
+        BinaryPrimitives.WriteUInt32BigEndian(rrHeader.AsSpan(4, 4), (uint)rr.Ttl);
+        buffer.AddRange(rrHeader);
+
+        if (rr.ParsedIp != null)
+        {
+            byte[] ipBytes = rr.ParsedIp.GetAddressBytes();
+            byte[] rdLength = new byte[2];
+            BinaryPrimitives.WriteUInt16BigEndian(rdLength, (ushort)ipBytes.Length);
+            buffer.AddRange(rdLength);
+            buffer.AddRange(ipBytes);
+        }
+        else if (rr.Data != null)
+        {
+            byte[] rdLength = new byte[2];
+            BinaryPrimitives.WriteUInt16BigEndian(rdLength, (ushort)rr.Data.Length);
+            buffer.AddRange(rdLength);
+            buffer.AddRange(rr.Data);
+        }
     }
 }

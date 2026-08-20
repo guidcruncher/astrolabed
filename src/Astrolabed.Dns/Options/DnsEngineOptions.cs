@@ -14,7 +14,7 @@ public sealed class DnsEngineOptions
     public int MaxCacheEntries { get; set; } = 100_000;
     public string LocalDomainSuffix { get; set; } = ".lan";
     public List<string> UpstreamResolvers { get; set; } = new() { "1.1.1.1", "8.8.8.8" };
-    public Dictionary<string, string> Hosts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<string> Hosts { get; set; } = new();
     public Dictionary<string, string> PtrRecords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public List<ConditionalPtrRule> ConditionalPtrRules { get; set; } = new();
     public List<string> BlockedDomains { get; set; } = new();

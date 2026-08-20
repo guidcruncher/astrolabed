@@ -1,13 +1,18 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
 using System;
+using System.Collections.Generic;
+
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
+using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Services;
 using Astrolabed.Dns.Upstream;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace Astrolabed.Dns.Extensions;
 
@@ -17,15 +22,17 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        // Explicitly bind section options
         services.Configure<DnsEngineOptions>(
             configuration.GetSection(DnsEngineOptions.SectionName));
 
-        // Required for IHttpClientFactory and AddHttpClient extension methods
+        services.Configure<HostsFileCollectionOptions>(
+            configuration.GetSection(HostsFileCollectionOptions.SectionName));
+
         services.AddHttpClient();
 
         services.AddSingleton<IDnsCache, DnsCache>();
         services.AddSingleton<IDomainFilter, DummyDomainFilter>();
-        services.AddSingleton<IHostRecordResolver, DummyHostRecordResolver>();
         services.AddSingleton<IPtrResolver, PtrResolver>();
 
         // Hosts File Reader
@@ -33,6 +40,17 @@ public static class ServiceCollectionExtensions
         {
             client.Timeout = TimeSpan.FromSeconds(10);
         });
+
+        // Register HostsManager Singleton and Hosted Service
+        services.AddSingleton<HostsManager>();
+        services.AddSingleton<IHostsManager>(sp => sp.GetRequiredService<HostsManager>());
+        services.AddHostedService<HostsManager>(sp => sp.GetRequiredService<HostsManager>());
+
+        // Live HostsEntry list injection
+        services.AddTransient<IReadOnlyList<HostsEntry>>(sp => sp.GetRequiredService<IHostsManager>().Entries);
+
+        // Host Record Resolver
+        services.AddTransient<IHostRecordResolver, HostRecordResolver>();
 
         // Upstream Clients
         services.AddTransient<UdpUpstreamDnsClient>();

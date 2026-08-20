@@ -242,6 +242,7 @@ public sealed class DnsEngine : BackgroundService
                 {
                     Name = request.QuestionName,
                     Type = request.QuestionType,
+                    Class = 1, // IN (Internet)
                     Ttl = 300,
                     ParsedIp = matchedIp
                 };
