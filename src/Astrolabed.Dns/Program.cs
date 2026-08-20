@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 
 using Astrolabed.Dns.Extensions;
+using Astrolabed.EventBus.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;

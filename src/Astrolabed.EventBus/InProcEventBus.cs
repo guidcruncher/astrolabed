@@ -1,5 +1,7 @@
 namespace Astrolabed.EventBus;
 
+using Astrolabed.EventBus.Options;
+
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 

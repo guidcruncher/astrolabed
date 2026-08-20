@@ -1,4 +1,4 @@
-namespace Astrolabed.EventBus;
+namespace Astrolabed.EventBus.Options;
 
 /// <summary>
 /// Configuration options for the in-process event bus.

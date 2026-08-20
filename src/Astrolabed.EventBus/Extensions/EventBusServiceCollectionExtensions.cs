@@ -1,9 +1,13 @@
-namespace Astrolabed.EventBus;
+using Astrolabed.EventBus.Options;
 
+using Astrolabed.EventBus.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+
+
+namespace Astrolabed.EventBus.Extensions;
 
 /// <summary>
 /// Extension methods for configuring the in-process event bus in Microsoft DI containers.
