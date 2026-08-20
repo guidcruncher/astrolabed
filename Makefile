@@ -47,6 +47,7 @@ clean:
 	dotnet clean $(SOLUTION)
 	rm -rf ./publish
 	rm -rf src/Astrolabed.Dns/bin src/Astrolabed.Dns/obj
+	rm -rf src/Astrolabed.EventBus/bin src/Astrolabed.EventBus/obj
 
 format:
 	dotnet format $(SOLUTION)
