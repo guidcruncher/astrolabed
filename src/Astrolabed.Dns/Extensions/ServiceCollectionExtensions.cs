@@ -79,6 +79,11 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
+        // Core Query Processing & Network Listeners Pattern
+        services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();
+        services.AddSingleton<IDnsListener, DnsUdpListener>();
+        services.AddSingleton<IDnsListener, DnsTcpListener>();
+
         services.AddHostedService<DnsEngine>();
 
         return services;

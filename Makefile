@@ -26,6 +26,7 @@ dns:
 	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
 	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
 	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 webtop.lan A
+	@python3 ./scripts/test_dns.py -s 127.0.0.1 -p 1053 example.com A
 	@dig @127.0.0.1 -p 1053 -x 192.168.1.1
 
 ntp:
