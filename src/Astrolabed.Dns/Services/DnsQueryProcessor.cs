@@ -50,7 +50,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
     {
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
-        if (!DnsWireParser.TryParse(rawPacket, out var request) || request == null)
+        if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
         {
             return null;
         }
@@ -61,9 +61,11 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         try
         {
             // 1. Cache Check
-            if (_cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload))
+            if (request.QuestionName is { Length: > 0 } &&
+                _cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload) &&
+                cachedPayload is byte[] payloadBytes)
             {
-                responseBytes = (byte[])cachedPayload.Clone();
+                responseBytes = (byte[])payloadBytes.Clone();
                 BinaryPrimitives.WriteUInt16BigEndian(responseBytes.AsSpan(0, 2), request.TransactionId);
 
                 resolutionSource = "CACHE";
@@ -71,7 +73,9 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             }
 
             // 2. Blocklist / Allowlist Filter Evaluation
-            if (!_domainFilter.IsAllowed(request.QuestionName) && _domainFilter.IsBlocked(request.QuestionName, out var reason))
+            if (request.QuestionName is { Length: > 0 } &&
+                !_domainFilter.IsAllowed(request.QuestionName) &&
+                _domainFilter.IsBlocked(request.QuestionName, out var reason))
             {
                 var filterEde = new ExtendedDnsError
                 {
@@ -103,7 +107,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                             Ttl = 60,
                             ParsedIp = zeroIp
                         };
-                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { zeroRecord }, filterEde);
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [zeroRecord], filterEde);
                         resolutionSource = "BLOCKED_ZERO_IP";
                         break;
 
@@ -118,7 +122,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                                 Ttl = 60,
                                 ParsedIp = customIp
                             };
-                            responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { customRecord }, filterEde);
+                            responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [customRecord], filterEde);
                             resolutionSource = "BLOCKED_CUSTOM_IP";
                         }
                         else
@@ -139,7 +143,8 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             }
 
             // 3. Hosts File Resolution (A / AAAA)
-            if ((request.QuestionType == DnsType.A || request.QuestionType == DnsType.AAAA) &&
+            if (request.QuestionName is { Length: > 0 } &&
+                (request.QuestionType == DnsType.A || request.QuestionType == DnsType.AAAA) &&
                 _hostResolver.TryResolveHost(request.QuestionName, request.QuestionType, out var matchedIp))
             {
                 var record = new DnsResourceRecord
@@ -151,16 +156,16 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                     ParsedIp = matchedIp
                 };
 
-                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
                 resolutionSource = "HOSTS_FILE";
                 return responseBytes;
             }
 
             // 4. Reverse PTR Lookup Resolution
-            if (request.QuestionType == DnsType.PTR)
+            if (request.QuestionType == DnsType.PTR && request.QuestionName is { Length: > 0 })
             {
                 // 4a. Static Overrides Match
-                if (_ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain != null)
+                if (_ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain is not null)
                 {
                     var ptrBuffer = new byte[256];
                     int ptrOffset = 0;
@@ -174,7 +179,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                         Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
                     };
 
-                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
+                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
                     resolutionSource = "LOCAL_PTR";
                     return responseBytes;
                 }
@@ -182,11 +187,11 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 // 4b. Conditional PTR Subnet Forwarding
                 if (_ptrResolver is PtrResolver concreteResolver &&
                     concreteResolver.TryGetConditionalForwarder(request.QuestionName, out var targetResolverIp) &&
-                    targetResolverIp != null)
+                    targetResolverIp is not null)
                 {
                     var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(targetResolverIp.ToString(), rawPacket, ct).ConfigureAwait(false);
 
-                    if (upstreamMessage != null)
+                    if (upstreamMessage is not null)
                     {
                         upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
@@ -199,7 +204,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
 
             // 5. Default Upstream Forwarding
             var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
-            if (upstreams != null && upstreams.Count > 0)
+            if (upstreams is { Count: > 0 })
             {
                 foreach (var upstream in upstreams)
                 {
@@ -207,7 +212,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                     {
                         var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(upstream, rawPacket, ct).ConfigureAwait(false);
 
-                        if (upstreamMessage != null)
+                        if (upstreamMessage is not null)
                         {
                             upstreamMessage.TransactionId = request.TransactionId;
                             responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
