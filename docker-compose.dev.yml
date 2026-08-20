@@ -1,21 +1,27 @@
-version: '3.8'
-
 services:
   astrolabed-dns:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: astrolabed-dns
+    container_name: astrolabed-dns-dev
     restart: unless-stopped
     ports:
-      - "1053:1053/udp"
-      - "1053:1053/tcp"
+      - "1053:53/udp"
+      - "1053:53/tcp"
+
     environment:
-      - Logging__LogLevel__Default=Information
+      - Logging__LogLevel__Default=Debug
       - DnsEngine__ListenAddress__Address=0.0.0.0
       - DnsEngine__ListenAddress__Port=53
-      - DnsEngine__ProcessingThreads=4
+      - DnsEngine__ProcessingThreads=2
+
     volumes:
-      # Mount configuration or host files if needed
       - ./appsettings.json:/app/appsettings.json:ro
       - ../netdns-runtime/:/etc/astrolabed/:ro
+
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z -u -w1 127.0.0.1 53 || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
