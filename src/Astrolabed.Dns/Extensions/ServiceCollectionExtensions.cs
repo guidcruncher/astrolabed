@@ -22,7 +22,6 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Explicitly bind section options
         services.Configure<DnsEngineOptions>(
             configuration.GetSection(DnsEngineOptions.SectionName));
 
@@ -41,19 +40,19 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        // Register HostsManager Singleton and Hosted Service
+        // Register HostsManager Singleton & HostedService
         services.AddSingleton<HostsManager>();
         services.AddSingleton<IHostsManager>(sp => sp.GetRequiredService<HostsManager>());
         services.AddHostedService<HostsManager>(sp => sp.GetRequiredService<HostsManager>());
 
-        // Live HostsEntry list injection
-        services.AddTransient<IReadOnlyList<HostsEntry>>(sp => sp.GetRequiredService<IHostsManager>().Entries);
+        // Live HostsEntry collection delegation (Resolves empty reference bug)
+        services.AddSingleton<IReadOnlyList<HostsEntry>, HostsEntryListWrapper>();
 
         // Host Record Resolver
         services.AddTransient<IHostRecordResolver, HostRecordResolver>();
 
         // Upstream Clients
-        services.AddTransient<UdpUpstreamDnsClient>();
+        services.AddTransient<TcpUpstreamDnsClient>();
         services.AddTransient<TcpUpstreamDnsClient>();
 
         services.AddHttpClient<DoHUpstreamDnsClient>(client =>

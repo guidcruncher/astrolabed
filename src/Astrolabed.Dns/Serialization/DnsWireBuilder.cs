@@ -1,7 +1,8 @@
 // File: src/Astrolabed.Dns/Serialization/DnsWireBuilder.cs
 using System;
-using System.Collections.Generic;
 using System.Buffers.Binary;
+using System.Collections.Generic;
+
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
@@ -43,7 +44,7 @@ public static class DnsWireBuilder
         byte[] domainBuffer = new byte[256];
         int domainOffset = 0;
         EncodeDomainName(domainBuffer, ref domainOffset, request.QuestionName);
-        
+
         for (int i = 0; i < domainOffset; i++)
         {
             buffer.Add(domainBuffer[i]);

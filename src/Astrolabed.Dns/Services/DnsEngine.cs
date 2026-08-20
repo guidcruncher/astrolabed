@@ -215,7 +215,10 @@ public sealed class DnsEngine : BackgroundService
             // 1. Cache Check
             if (_cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload))
             {
-                responseBytes = cachedPayload;
+                // Make a defensive copy and overwrite Transaction ID with incoming request's ID
+                responseBytes = (byte[])cachedPayload.Clone();
+                BinaryPrimitives.WriteUInt16BigEndian(responseBytes.AsSpan(0, 2), request.TransactionId);
+
                 resolutionSource = "CACHE";
                 return responseBytes;
             }
@@ -284,12 +287,14 @@ public sealed class DnsEngine : BackgroundService
 
                     if (upstreamMessage != null)
                     {
+                        upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                         resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
                         _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
                         return responseBytes;
                     }
                 }
+
             }
 
             // 5. Default Upstream Forwarding
@@ -300,6 +305,7 @@ public sealed class DnsEngine : BackgroundService
 
                 if (upstreamMessage != null)
                 {
+                    upstreamMessage.TransactionId = request.TransactionId;
                     responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                     resolutionSource = "UPSTREAM";
                     _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
