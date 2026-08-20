@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions
         // 3. Register Domain Filter & Resolvers
         services.AddSingleton<IDomainFilter, DummyDomainFilter>();
         services.AddSingleton<IHostRecordResolver, DummyHostRecordResolver>();
-        services.AddSingleton<IPtrResolver, DummyPtrResolver>();
+        services.AddSingleton<IPtrResolver, PtrResolver>();
 
         // 4. Register Background Engine Service
         services.AddHostedService<DnsEngine>();

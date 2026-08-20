@@ -16,12 +16,6 @@ public sealed class DnsEngineOptions
     public List<string> UpstreamResolvers { get; set; } = new() { "1.1.1.1", "8.8.8.8" };
     public Dictionary<string, string> Hosts { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> PtrRecords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public List<ConditionalPtrRule> ConditionalPtrRules { get; set; } = new();
     public List<string> BlockedDomains { get; set; } = new();
-}
-
-public sealed class AddressOptions
-{
-    public bool Enabled { get; set; } = true;
-    public string Address { get; set; } = "";
-    public int Port { get; set; } = 53;
 }

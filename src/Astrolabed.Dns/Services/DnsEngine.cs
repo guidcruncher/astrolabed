@@ -1,7 +1,6 @@
 // File: src/Astrolabed.Dns/Services/DnsEngine.cs
 using System;
 using System.Buffers;
-using System.Collections.Immutable;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -29,7 +28,7 @@ public sealed class DnsEngine : BackgroundService
     private readonly IHostRecordResolver _hostResolver;
     private readonly IPtrResolver _ptrResolver;
     private readonly ILogger<DnsEngine> _logger;
-    private readonly Channel<Astrolabed.Dns.Models.UdpReceiveResult> _incomingChannel;
+    private readonly Channel<DnsUdpReceiveResult> _incomingChannel;
 
     public DnsEngine(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -49,7 +48,7 @@ public sealed class DnsEngine : BackgroundService
         var initialOptions = _optionsMonitor.CurrentValue;
         ThreadPool.SetMinThreads(initialOptions.ProcessingThreads * 2, initialOptions.ProcessingThreads * 2);
 
-        _incomingChannel = Channel.CreateUnbounded<Astrolabed.Dns.Models.UdpReceiveResult>(new UnboundedChannelOptions
+        _incomingChannel = Channel.CreateUnbounded<DnsUdpReceiveResult>(new UnboundedChannelOptions
         {
             SingleWriter = true,
             AllowSynchronousContinuations = true
@@ -83,7 +82,7 @@ public sealed class DnsEngine : BackgroundService
                 var packetCopy = new byte[result.ReceivedBytes];
                 Array.Copy(buffer, 0, packetCopy, 0, result.ReceivedBytes);
 
-                _incomingChannel.Writer.TryWrite(new Astrolabed.Dns.Models.UdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
+                _incomingChannel.Writer.TryWrite(new DnsUdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
             }
         }
         finally
@@ -160,27 +159,46 @@ public sealed class DnsEngine : BackgroundService
             }
 
             // 4. Reverse PTR Lookup Resolution
-            if (request.QuestionType == DnsType.PTR && _ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain != null)
+            if (request.QuestionType == DnsType.PTR)
             {
-                var ptrBuffer = new byte[256];
-                int ptrOffset = 0;
-                DnsWireBuilder.EncodeDomainName(ptrBuffer, ref ptrOffset, targetDomain);
-
-                var record = new DnsResourceRecord
+                // 4a. Static Overrides Match
+                if (_ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain != null)
                 {
-                    Name = request.QuestionName,
-                    Type = DnsType.PTR,
-                    Ttl = 300,
-                    Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
-                };
+                    var ptrBuffer = new byte[256];
+                    int ptrOffset = 0;
+                    DnsWireBuilder.EncodeDomainName(ptrBuffer, ref ptrOffset, targetDomain);
 
-                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
-                resolutionSource = "LOCAL_PTR";
-                return;
+                    var record = new DnsResourceRecord
+                    {
+                        Name = request.QuestionName,
+                        Type = DnsType.PTR,
+                        Ttl = 300,
+                        Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
+                    };
+
+                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
+                    resolutionSource = "LOCAL_PTR";
+                    return;
+                }
+
+                // 4b. Conditional PTR Subnet Forwarding (Forward local subnet queries to router)
+                if (_ptrResolver is PtrResolver concreteResolver &&
+                    concreteResolver.TryGetConditionalForwarder(request.QuestionName, out var targetResolverIp) &&
+                    targetResolverIp != null)
+                {
+                    responseBytes = await ExecuteTargetedQueryAsync(targetResolverIp, rawPacket, ct).ConfigureAwait(false);
+                    resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
+
+                    if (responseBytes != null)
+                    {
+                        _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
+                        return;
+                    }
+                }
             }
 
-            // 5. Upstream Forwarding
-            responseBytes = await ExecuteUpstreamQueryAsync(rawPacket, ct).ConfigureAwait(false);
+            // 5. Default Upstream Forwarding
+            responseBytes = await ExecuteDefaultUpstreamQueryAsync(rawPacket, ct).ConfigureAwait(false);
             resolutionSource = "UPSTREAM";
 
             if (responseBytes != null)
@@ -211,14 +229,9 @@ public sealed class DnsEngine : BackgroundService
         }
     }
 
-    private async Task<byte[]?> ExecuteUpstreamQueryAsync(byte[] rawRequest, CancellationToken ct)
+    private async Task<byte[]?> ExecuteTargetedQueryAsync(IPAddress targetServer, byte[] rawRequest, CancellationToken ct)
     {
-        var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
-        if (upstreams.Count == 0) return null;
-
-        if (!IPAddress.TryParse(upstreams[0], out var upstreamIp)) return null;
-
-        var upstreamEp = new IPEndPoint(upstreamIp, 53);
+        var upstreamEp = new IPEndPoint(targetServer, 53);
         using var upstreamSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         upstreamSocket.ReceiveTimeout = 2000;
 
@@ -234,5 +247,14 @@ public sealed class DnsEngine : BackgroundService
             return null;
         }
     }
-}
 
+    private async Task<byte[]?> ExecuteDefaultUpstreamQueryAsync(byte[] rawRequest, CancellationToken ct)
+    {
+        var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
+        if (upstreams.Count == 0) return null;
+
+        if (!IPAddress.TryParse(upstreams[0], out var upstreamIp)) return null;
+
+        return await ExecuteTargetedQueryAsync(upstreamIp, rawRequest, ct).ConfigureAwait(false);
+    }
+}
