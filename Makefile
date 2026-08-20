@@ -3,6 +3,7 @@
 SOLUTION = Astrolabed.Dns.sln
 PROJECT = src/Astrolabed.Dns/Astrolabed.Dns.csproj
 CONFIG ?= Release
+IMAGE_NAME = guidcruncher/astrolabed
 
 .PHONY: all build run clean restore test publish format dev dns dhcp benchmark
 
@@ -78,7 +79,15 @@ docker-stop:
 docker-publish:
 	docker buildx build \
 		--file ./Dockerfile \
+		--tag docker.io/$(IMAGE_NAME):dev \
+		--progress=plain \
+		--push \
+		.
+docker-release:
+	docker buildx build \
+		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
+		--tag docker.io/${IMAGE_NAME}:dev \
 		--progress=plain \
 		--push \
 		.
