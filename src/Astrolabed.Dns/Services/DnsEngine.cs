@@ -59,7 +59,9 @@ public sealed class DnsEngine : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var options = _optionsMonitor.CurrentValue;
-        _logger.LogInformation("Starting  DNS Engine on Port {Port}...", options.Port);
+        var address = string.IsNullOrEmpty(options.ListenAddress.Address) ? IPAddress.Any : IPAddress.Parse(options.ListenAddress.Address);
+
+        _logger.LogInformation("Starting  DNS Engine on {Address}#{Port}...", address.ToString(), options.ListenAddress.Port);
 
         var workerTasks = new Task[options.ProcessingThreads];
         for (int i = 0; i < options.ProcessingThreads; i++)
@@ -69,7 +71,7 @@ public sealed class DnsEngine : BackgroundService
 
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        socket.Bind(new IPEndPoint(IPAddress.Any, options.Port));
+        socket.Bind(new IPEndPoint(address, options.ListenAddress.Port));
 
         var buffer = ArrayPool<byte>.Shared.Rent(4096);
         try
