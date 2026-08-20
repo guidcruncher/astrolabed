@@ -8,22 +8,29 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
+using Microsoft.Extensions.Logging;
+
+
 namespace Astrolabed.Dns.Services;
 
 public sealed class DnsTcpListener : IDnsListener
 {
     private readonly IDnsQueryProcessor _queryProcessor;
+    private readonly ILogger<DnsTcpListener> _logger;
 
-    public DnsTcpListener(IDnsQueryProcessor queryProcessor)
+    public DnsTcpListener(IDnsQueryProcessor queryProcessor, ILogger<DnsTcpListener> logger)
     {
         _queryProcessor = queryProcessor;
+        _logger = logger;
     }
 
     public async Task ListenAsync(IPAddress address, int port, CancellationToken ct)
     {
         var listener = new TcpListener(address, port);
+        _logger.LogInformation("Starting Tcp Listener on {Address}#{Port}", address.ToString(), port.ToString());
         listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         listener.Start();
+        _logger.LogInformation("Tcp Listener Started on {Address}#{Port}", address.ToString(), port.ToString());
 
         try
         {

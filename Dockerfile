@@ -36,8 +36,9 @@ ENV DOCKER=true \
     DOTNET_SYSTEM_NET_SOCKETS_PERTHREAD_COMPLETION_PORT=1
 
 COPY --from=build /app/publish .
+RUN rm /app/publish/appsettings*.* -rf
 
 # Run as non-root app user
-USER $APP_UID
+# USER $APP_UID
 
 ENTRYPOINT ["dotnet", "Astrolabed.Dns.dll"]

@@ -1,4 +1,5 @@
 // File: src/Astrolabed.Dns/Services/DnsEngine.cs
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -34,15 +35,34 @@ public sealed class DnsEngine : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // Yield execution immediately back to Host.StartAsync so application startup completes without hanging
+        await Task.Yield();
+
         var options = _optionsMonitor.CurrentValue;
-        var address = string.IsNullOrEmpty(options.ListenAddress.Address) ? IPAddress.Any : IPAddress.Parse(options.ListenAddress.Address);
+        var address = string.IsNullOrEmpty(options.ListenAddress.Address)
+            ? IPAddress.Any
+            : IPAddress.Parse(options.ListenAddress.Address);
         int port = options.ListenAddress.Port;
 
-        _logger.LogInformation("Starting DNS Engine with {Count} transport listeners on {Address}#{Port}...", _listeners.Count(), address.ToString(), port);
+        var listenerList = _listeners.ToList();
+        _logger.LogInformation("Starting DNS Engine with {Count} transport listeners on {Address}#{Port}...", listenerList.Count, address.ToString(), port);
 
-        var listenTasks = _listeners.Select(listener => listener.ListenAsync(address, port, stoppingToken));
+        var listenTasks = listenerList.Select(listener => Task.Run(async () =>
+        {
+            try
+            {
+                await listener.ListenAsync(address, port, stoppingToken).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                // Expected cancellation during shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Transport listener {ListenerType} encountered an unhandled exception.", listener.GetType().Name);
+            }
+        }, stoppingToken)).ToList();
 
         await Task.WhenAll(listenTasks).ConfigureAwait(false);
     }
 }
-

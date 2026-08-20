@@ -1,6 +1,7 @@
 // File: src/Astrolabed.Dns/Serialization/DnsWireParser.cs
 using System;
 using System.Buffers.Binary;
+using System.Collections.Generic;
 using System.Text;
 
 using Astrolabed.Dns.Models;
@@ -124,16 +125,30 @@ public static class DnsWireParser
 
         if (offset + rdLength > buffer.Length) return false;
 
-        var data = buffer.Slice(offset, rdLength).ToArray();
+        byte[] data;
         System.Net.IPAddress? parsedIp = null;
 
         if (type == DnsType.A && rdLength == 4)
         {
+            data = buffer.Slice(offset, rdLength).ToArray();
             parsedIp = new System.Net.IPAddress(data);
         }
         else if (type == DnsType.AAAA && rdLength == 16)
         {
+            data = buffer.Slice(offset, rdLength).ToArray();
             parsedIp = new System.Net.IPAddress(data);
+        }
+        else if (type == DnsType.CNAME || type == DnsType.NS || type == DnsType.PTR || type == DnsType.DNAME)
+        {
+            int rdataOffset = offset;
+            if (!TryReadDomainName(buffer, ref rdataOffset, out var targetDomain)) return false;
+
+            // Normalize and uncompress RDATA target domain into clean wire labels
+            data = EncodeUncompressedDomainName(targetDomain);
+        }
+        else
+        {
+            data = buffer.Slice(offset, rdLength).ToArray();
         }
 
         offset += rdLength;
@@ -147,14 +162,15 @@ public static class DnsWireParser
             Data = data,
             ParsedIp = parsedIp
         };
+
         return true;
     }
 
-    private static bool TryReadDomainName(ReadOnlySpan<byte> buffer, ref int offset, out string domain)
+    public static bool TryReadDomainName(ReadOnlySpan<byte> buffer, ref int offset, out string domain)
     {
         domain = string.Empty;
         int currentOffset = offset;
-        int maxJumps = 5;
+        int maxJumps = 10;
         int jumpsPerformed = 0;
         int originalOffset = -1;
 
@@ -169,18 +185,30 @@ public static class DnsWireParser
                 break;
             }
 
-            if ((length & 0xC0) == 0xC0)
+            byte labelType = (byte)(length & 0xC0);
+
+            // Check for Compression Pointer (11xxxxxx)
+            if (labelType == 0xC0)
             {
                 if (currentOffset + 1 >= buffer.Length) return false;
                 if (originalOffset == -1) originalOffset = currentOffset + 2;
 
                 ushort pointer = (ushort)(((length & 0x3F) << 8) | buffer[currentOffset + 1]);
+                if (pointer >= buffer.Length) return false; // Pointer out of bounds
+
                 currentOffset = pointer;
 
-                if (++jumpsPerformed > maxJumps) return false;
+                if (++jumpsPerformed > maxJumps) return false; // Prevent circular loop
                 continue;
             }
 
+            // Reject invalid label masks (01xxxxxx or 10xxxxxx)
+            if (labelType != 0x00)
+            {
+                return false;
+            }
+
+            // Standard label (00xxxxxx)
             currentOffset++;
             if (currentOffset + length > buffer.Length) return false;
 
@@ -192,5 +220,22 @@ public static class DnsWireParser
         offset = originalOffset != -1 ? originalOffset : currentOffset;
         domain = sb.ToString();
         return true;
+    }
+
+    private static byte[] EncodeUncompressedDomainName(string domain)
+    {
+        if (string.IsNullOrEmpty(domain) || domain == ".")
+            return [0];
+
+        var list = new List<byte>(domain.Length + 2);
+        string[] labels = domain.TrimEnd('.').Split('.');
+        foreach (var label in labels)
+        {
+            byte[] labelBytes = Encoding.ASCII.GetBytes(label);
+            list.Add((byte)labelBytes.Length);
+            list.AddRange(labelBytes);
+        }
+        list.Add(0);
+        return list.ToArray();
     }
 }
