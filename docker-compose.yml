@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  astrolabed-dns:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: astrolabed-dns-engine
+    restart: unless-stopped
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+    environment:
+      - Logging__LogLevel__Default=Information
+      - DnsEngine__ListenAddress__Address=0.0.0.0
+      - DnsEngine__ListenAddress__Port=53
+      - DnsEngine__ProcessingThreads=4
+    volumes:
+      # Mount configuration or host files if needed
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./settings/:/etc/astrolabed:ro

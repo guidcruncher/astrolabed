@@ -49,3 +49,36 @@ clean:
 
 format:
 	dotnet format $(SOLUTION)
+
+docker-build:
+	docker buildx build \
+		--file ./Dockerfile \
+		--tag docker.io/$(IMAGE_NAME):latest \
+		--progress=plain \
+		.
+
+docker-run:
+	docker compose -f ./docker-compose.yml down -v
+	docker compose -f ./docker-compose.yml build --no-cache
+	docker compose -f ./docker-compose.yml up -d
+	docker compose -f ./docker-compose.yml logs -f
+
+docker-shell:
+	docker compose exec -it astrolabed bash
+
+docker-run-dev:
+	docker compose -f ./docker-compose.dev.yml down -v
+	docker compose -f ./docker-compose.dev.yml build --no-cache
+	docker compose -f ./docker-compose.dev.yml up -d
+	docker compose -f ./docker-compose.dev.yml logs -f
+
+docker-stop:
+	docker compose -f ./docker-compose.yml down
+
+docker-publish:
+	docker buildx build \
+		--file ./Dockerfile \
+		--tag docker.io/$(IMAGE_NAME):latest \
+		--progress=plain \
+		--push \
+		.
