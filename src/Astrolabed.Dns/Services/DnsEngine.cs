@@ -1,6 +1,8 @@
 // File: src/Astrolabed.Dns/Services/DnsEngine.cs
 using System;
 using System.Buffers;
+using System.Buffers.Binary;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
@@ -13,6 +15,7 @@ using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
+using Astrolabed.Dns.Upstream;
 
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -27,8 +30,9 @@ public sealed class DnsEngine : BackgroundService
     private readonly IDomainFilter _domainFilter;
     private readonly IHostRecordResolver _hostResolver;
     private readonly IPtrResolver _ptrResolver;
+    private readonly IUpstreamClientFactory _upstreamClientFactory;
     private readonly ILogger<DnsEngine> _logger;
-    private readonly Channel<DnsUdpReceiveResult> _incomingChannel;
+    private readonly Channel<DnsUdpReceiveResult> _incomingUdpChannel;
 
     public DnsEngine(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -36,6 +40,7 @@ public sealed class DnsEngine : BackgroundService
         IDomainFilter domainFilter,
         IHostRecordResolver hostResolver,
         IPtrResolver ptrResolver,
+        IUpstreamClientFactory upstreamClientFactory,
         ILogger<DnsEngine> logger)
     {
         _optionsMonitor = optionsMonitor;
@@ -43,12 +48,13 @@ public sealed class DnsEngine : BackgroundService
         _domainFilter = domainFilter;
         _hostResolver = hostResolver;
         _ptrResolver = ptrResolver;
+        _upstreamClientFactory = upstreamClientFactory;
         _logger = logger;
 
         var initialOptions = _optionsMonitor.CurrentValue;
         ThreadPool.SetMinThreads(initialOptions.ProcessingThreads * 2, initialOptions.ProcessingThreads * 2);
 
-        _incomingChannel = Channel.CreateUnbounded<DnsUdpReceiveResult>(new UnboundedChannelOptions
+        _incomingUdpChannel = Channel.CreateUnbounded<DnsUdpReceiveResult>(new UnboundedChannelOptions
         {
             SingleWriter = true,
             AllowSynchronousContinuations = true
@@ -59,59 +65,146 @@ public sealed class DnsEngine : BackgroundService
     {
         var options = _optionsMonitor.CurrentValue;
         var address = string.IsNullOrEmpty(options.ListenAddress.Address) ? IPAddress.Any : IPAddress.Parse(options.ListenAddress.Address);
+        int port = options.ListenAddress.Port;
 
-        _logger.LogInformation("Starting  DNS Engine on {Address}#{Port}...", address.ToString(), options.ListenAddress.Port);
+        _logger.LogInformation("Starting DNS Engine (UDP/TCP) on {Address}#{Port}...", address.ToString(), port);
 
         var workerTasks = new Task[options.ProcessingThreads];
         for (int i = 0; i < options.ProcessingThreads; i++)
         {
-            workerTasks[i] = Task.Run(() => ProcessPacketQueueAsync(stoppingToken), stoppingToken);
+            workerTasks[i] = Task.Run(() => ProcessUdpPacketQueueAsync(stoppingToken), stoppingToken);
         }
 
+        var udpTask = Task.Run(() => ListenUdpAsync(address, port, stoppingToken), stoppingToken);
+        var tcpTask = Task.Run(() => ListenTcpAsync(address, port, stoppingToken), stoppingToken);
+
+        await Task.WhenAll(udpTask, tcpTask, Task.WhenAll(workerTasks)).ConfigureAwait(false);
+    }
+
+    private async Task ListenUdpAsync(IPAddress address, int port, CancellationToken ct)
+    {
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-        socket.Bind(new IPEndPoint(address, options.ListenAddress.Port));
+        socket.Bind(new IPEndPoint(address, port));
 
         var buffer = ArrayPool<byte>.Shared.Rent(4096);
         try
         {
-            while (!stoppingToken.IsCancellationRequested)
+            while (!ct.IsCancellationRequested)
             {
-                var result = await socket.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), stoppingToken).ConfigureAwait(false);
+                var result = await socket.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), ct).ConfigureAwait(false);
 
                 var packetCopy = new byte[result.ReceivedBytes];
                 Array.Copy(buffer, 0, packetCopy, 0, result.ReceivedBytes);
 
-                _incomingChannel.Writer.TryWrite(new DnsUdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
+                _incomingUdpChannel.Writer.TryWrite(new DnsUdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
             }
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
         finally
         {
             ArrayPool<byte>.Shared.Return(buffer);
-            _incomingChannel.Writer.Complete();
-            await Task.WhenAll(workerTasks).ConfigureAwait(false);
+            _incomingUdpChannel.Writer.Complete();
         }
     }
 
-    private async Task ProcessPacketQueueAsync(CancellationToken ct)
+    private async Task ListenTcpAsync(IPAddress address, int port, CancellationToken ct)
     {
-        var reader = _incomingChannel.Reader;
+        var listener = new TcpListener(address, port);
+        listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
+        listener.Start();
+
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                var tcpClient = await listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
+                _ = Task.Run(() => HandleTcpConnectionAsync(tcpClient, ct), ct);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    private async Task HandleTcpConnectionAsync(TcpClient client, CancellationToken ct)
+    {
+        using (client)
+        await using (var stream = client.GetStream())
+        {
+            var lengthBuffer = new byte[2];
+
+            while (!ct.IsCancellationRequested && client.Connected)
+            {
+                int bytesRead = await ReadExactAsync(stream, lengthBuffer, 0, 2, ct).ConfigureAwait(false);
+                if (bytesRead < 2) break;
+
+                ushort packetLength = BinaryPrimitives.ReadUInt16BigEndian(lengthBuffer);
+                if (packetLength == 0) continue;
+
+                var packetBuffer = ArrayPool<byte>.Shared.Rent(packetLength);
+                try
+                {
+                    int packetBytesRead = await ReadExactAsync(stream, packetBuffer, 0, packetLength, ct).ConfigureAwait(false);
+                    if (packetBytesRead < packetLength) break;
+
+                    byte[]? response = await ProcessRequestAsync(packetBuffer.AsSpan(0, packetLength).ToArray(), client.Client.RemoteEndPoint!, ct).ConfigureAwait(false);
+
+                    if (response != null)
+                    {
+                        var responseLengthBuffer = new byte[2];
+                        BinaryPrimitives.WriteUInt16BigEndian(responseLengthBuffer, (ushort)response.Length);
+
+                        await stream.WriteAsync(responseLengthBuffer, ct).ConfigureAwait(false);
+                        await stream.WriteAsync(response, ct).ConfigureAwait(false);
+                        await stream.FlushAsync(ct).ConfigureAwait(false);
+                    }
+                }
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(packetBuffer);
+                }
+            }
+        }
+    }
+
+    private static async Task<int> ReadExactAsync(Stream stream, byte[] buffer, int offset, int count, CancellationToken ct)
+    {
+        int totalRead = 0;
+        while (totalRead < count)
+        {
+            int read = await stream.ReadAsync(buffer.AsMemory(offset + totalRead, count - totalRead), ct).ConfigureAwait(false);
+            if (read == 0) break;
+            totalRead += read;
+        }
+        return totalRead;
+    }
+
+    private async Task ProcessUdpPacketQueueAsync(CancellationToken ct)
+    {
+        var reader = _incomingUdpChannel.Reader;
         while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
         {
             while (reader.TryRead(out var item))
             {
-                await ProcessSinglePacketAsync(item.Buffer, item.RemoteEndPoint, item.ServerSocket, ct).ConfigureAwait(false);
+                byte[]? responseBytes = await ProcessRequestAsync(item.Buffer, item.RemoteEndPoint, ct).ConfigureAwait(false);
+                if (responseBytes != null)
+                {
+                    await item.ServerSocket.SendToAsync(responseBytes, SocketFlags.None, item.RemoteEndPoint, ct).ConfigureAwait(false);
+                }
             }
         }
     }
 
-    private async Task ProcessSinglePacketAsync(byte[] rawPacket, EndPoint clientEndpoint, Socket socket, CancellationToken ct)
+    private async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request == null)
         {
-            return;
+            return null;
         }
 
         byte[]? responseBytes = null;
@@ -124,21 +217,21 @@ public sealed class DnsEngine : BackgroundService
             {
                 responseBytes = cachedPayload;
                 resolutionSource = "CACHE";
-                return;
+                return responseBytes;
             }
 
             // 2. Blocklist / Allowlist Filter Evaluation
             if (!_domainFilter.IsAllowed(request.QuestionName) && _domainFilter.IsBlocked(request.QuestionName, out var reason))
             {
-                var ede = new ExtendedDnsError
+                var filterEde = new ExtendedDnsError
                 {
                     InfoCode = ExtendedDnsErrorCode.Filtered,
                     ExtraText = reason ?? "Blocked by policy filter"
                 };
 
-                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: ede);
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
                 resolutionSource = "BLOCKED_EDE";
-                return;
+                return responseBytes;
             }
 
             // 3. Hosts File Resolution (A / AAAA)
@@ -155,7 +248,7 @@ public sealed class DnsEngine : BackgroundService
 
                 responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
                 resolutionSource = "HOSTS_FILE";
-                return;
+                return responseBytes;
             }
 
             // 4. Reverse PTR Lookup Resolution
@@ -178,83 +271,55 @@ public sealed class DnsEngine : BackgroundService
 
                     responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, new[] { record });
                     resolutionSource = "LOCAL_PTR";
-                    return;
+                    return responseBytes;
                 }
 
-                // 4b. Conditional PTR Subnet Forwarding (Forward local subnet queries to router)
+                // 4b. Conditional PTR Subnet Forwarding
                 if (_ptrResolver is PtrResolver concreteResolver &&
                     concreteResolver.TryGetConditionalForwarder(request.QuestionName, out var targetResolverIp) &&
                     targetResolverIp != null)
                 {
-                    responseBytes = await ExecuteTargetedQueryAsync(targetResolverIp, rawPacket, ct).ConfigureAwait(false);
-                    resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
+                    var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(targetResolverIp.ToString(), rawPacket, ct).ConfigureAwait(false);
 
-                    if (responseBytes != null)
+                    if (upstreamMessage != null)
                     {
+                        responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
+                        resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
                         _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
-                        return;
+                        return responseBytes;
                     }
                 }
             }
 
             // 5. Default Upstream Forwarding
-            responseBytes = await ExecuteDefaultUpstreamQueryAsync(rawPacket, ct).ConfigureAwait(false);
-            resolutionSource = "UPSTREAM";
+            var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
+            if (upstreams.Count > 0)
+            {
+                var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(upstreams[0], rawPacket, ct).ConfigureAwait(false);
 
-            if (responseBytes != null)
-            {
-                _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
-            }
-            else
-            {
-                var ede = new ExtendedDnsError
+                if (upstreamMessage != null)
                 {
-                    InfoCode = ExtendedDnsErrorCode.NoReachableAuthority,
-                    ExtraText = "Upstream resolvers unreachable"
-                };
-
-                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: ede);
-                resolutionSource = "UPSTREAM_SERVFAIL_EDE";
+                    responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
+                    resolutionSource = "UPSTREAM";
+                    _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
+                    return responseBytes;
+                }
             }
+
+            var servfailEde = new ExtendedDnsError
+            {
+                InfoCode = ExtendedDnsErrorCode.NoReachableAuthority,
+                ExtraText = "Upstream resolvers unreachable"
+            };
+
+            responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: servfailEde);
+            resolutionSource = "UPSTREAM_SERVFAIL_EDE";
+            return responseBytes;
         }
         finally
         {
-            if (responseBytes != null)
-            {
-                await socket.SendToAsync(responseBytes, SocketFlags.None, clientEndpoint, ct).ConfigureAwait(false);
-            }
-
             _logger.LogInformation("Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {Elapsed:F2}ms",
                 request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
         }
-    }
-
-    private async Task<byte[]?> ExecuteTargetedQueryAsync(IPAddress targetServer, byte[] rawRequest, CancellationToken ct)
-    {
-        var upstreamEp = new IPEndPoint(targetServer, 53);
-        using var upstreamSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        upstreamSocket.ReceiveTimeout = 2000;
-
-        try
-        {
-            await upstreamSocket.SendToAsync(rawRequest, SocketFlags.None, upstreamEp, ct).ConfigureAwait(false);
-            var buffer = new byte[4096];
-            var result = await upstreamSocket.ReceiveFromAsync(buffer, SocketFlags.None, upstreamEp, ct).ConfigureAwait(false);
-            return buffer.AsSpan(0, result.ReceivedBytes).ToArray();
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private async Task<byte[]?> ExecuteDefaultUpstreamQueryAsync(byte[] rawRequest, CancellationToken ct)
-    {
-        var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
-        if (upstreams.Count == 0) return null;
-
-        if (!IPAddress.TryParse(upstreams[0], out var upstreamIp)) return null;
-
-        return await ExecuteTargetedQueryAsync(upstreamIp, rawRequest, ct).ConfigureAwait(false);
     }
 }
