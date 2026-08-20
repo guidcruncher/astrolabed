@@ -5,7 +5,6 @@ using System.IO;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
-
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
@@ -26,7 +25,7 @@ public sealed class AdGuardListLoader : IListLoader
         _logger = logger;
     }
 
-    public async Task LoadAndApplyListAsync(string uriOrPath, CancellationToken ct = default)
+    public async Task<(List<string> AllowRules, List<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uriOrPath);
 
@@ -51,8 +50,12 @@ public sealed class AdGuardListLoader : IListLoader
             content = await File.ReadAllTextAsync(uriOrPath, ct).ConfigureAwait(false);
         }
 
-        var (allowRules, blockRules) = ParseAdGuardRules(content);
+        return ParseAdGuardRules(content);
+    }
 
+    public async Task LoadAndApplyListAsync(string uriOrPath, CancellationToken ct = default)
+    {
+        var (allowRules, blockRules) = await LoadRulesAsync(uriOrPath, ct).ConfigureAwait(false);
         _ruleStore.UpdateRules(allowRules, blockRules);
 
         _logger.LogInformation("Successfully updated IDomainFilterRuleStore with rules loaded from {Source}.", uriOrPath);
@@ -70,13 +73,11 @@ public sealed class AdGuardListLoader : IListLoader
         {
             var rule = line.Trim();
 
-            // Skip empty lines and AdGuard / Hostfile comments
             if (string.IsNullOrWhiteSpace(rule) || rule.StartsWith('!') || rule.StartsWith('#'))
             {
                 continue;
             }
 
-            // Ignore element hiding or CSS injection rules (containing #$#, ##, #?#)
             if (rule.Contains("##") || rule.Contains("#$#") || rule.Contains("#?#"))
             {
                 continue;
@@ -84,14 +85,12 @@ public sealed class AdGuardListLoader : IListLoader
 
             bool isAllow = false;
 
-            // Handle AdGuard exception rule syntax @@
             if (rule.StartsWith("@@"))
             {
                 isAllow = true;
                 rule = rule[2..];
             }
 
-            // Strip AdGuard options ($important, $dnstype, etc.)
             int modifierIndex = rule.IndexOf('$');
             if (modifierIndex >= 0)
             {
@@ -103,13 +102,11 @@ public sealed class AdGuardListLoader : IListLoader
 
             string? parsedDomain = null;
 
-            // AdGuard Domain Anchor syntax: ||example.com^
             if (rule.StartsWith("||"))
             {
                 int endIdx = rule.IndexOf('^');
                 parsedDomain = endIdx >= 0 ? rule[2..endIdx] : rule[2..];
             }
-            // Standard Hosts file format line (e.g., 0.0.0.0 example.com or 127.0.0.1 example.com)
             else if (rule.StartsWith("0.0.0.0 ") || rule.StartsWith("127.0.0.1 "))
             {
                 var parts = rule.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -118,7 +115,6 @@ public sealed class AdGuardListLoader : IListLoader
                     parsedDomain = parts[1];
                 }
             }
-            // Plain domain or wildcard/regex pattern
             else if (!rule.StartsWith('/') && !rule.StartsWith('|'))
             {
                 parsedDomain = rule.TrimEnd('^');
