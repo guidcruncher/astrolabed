@@ -1,10 +1,14 @@
 // File: src/Astrolabed.Dns/Program.cs
 using System.Threading.Tasks;
 
+using Astrolabed.Dns.Events;
+using Astrolabed.Dns.Events.Listeners;
 using Astrolabed.Dns.Extensions;
+using Astrolabed.EventBus;
 using Astrolabed.EventBus.Extensions;
 
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -14,7 +18,16 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
-        var builder = Host.CreateDefaultBuilder(args)
+        using var rootHost = Host.CreateDefaultBuilder(args)
+            .ConfigureServices((context, services) =>
+            {
+                services.AddRootEventBroker(context.Configuration);
+            })
+            .Build();
+
+        var centralBroker = rootHost.Services.GetRequiredService<IInProcEventBroker>();
+
+        using var dnsHost = Host.CreateDefaultBuilder(args)
             .ConfigureAppConfiguration((hostingContext, config) =>
             {
                 config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
@@ -27,10 +40,19 @@ public static class Program
             })
             .ConfigureServices((hostContext, services) =>
             {
-                // Clean Dependency Injection Binding
-                services.AddAstrolabedDnsEngine(hostContext.Configuration);
-            });
+                // Event Bus
+                services.AddSubHostEventBus(centralBroker);
+                services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
-        await builder.Build().RunAsync().ConfigureAwait(false);
+                // DNS Services
+                services.AddAstrolabedDnsEngine(hostContext.Configuration);
+            }).Build();
+
+        await rootHost.StartAsync();
+        await dnsHost.RunAsync().ConfigureAwait(false);
+
+        await dnsHost.StopAsync();
+        await rootHost.StopAsync();
+
     }
 }

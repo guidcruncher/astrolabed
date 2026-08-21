@@ -1,6 +1,6 @@
+using Astrolabed.EventBus.Extensions;
 using Astrolabed.EventBus.Options;
 
-using Astrolabed.EventBus.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;

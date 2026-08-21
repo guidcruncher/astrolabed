@@ -6,12 +6,14 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Dns.Cache;
+using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
 using Astrolabed.Dns.Upstream;
+using Astrolabed.EventBus;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -27,6 +29,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
     private readonly IPtrResolver _ptrResolver;
     private readonly IUpstreamClientFactory _upstreamClientFactory;
     private readonly ILogger<DnsQueryProcessor> _logger;
+    private readonly InProcEventBroker _eventBus;
 
     public DnsQueryProcessor(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -35,6 +38,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         IHostRecordResolver hostResolver,
         IPtrResolver ptrResolver,
         IUpstreamClientFactory upstreamClientFactory,
+    InProcEventBroker eventBus,
         ILogger<DnsQueryProcessor> logger)
     {
         _optionsMonitor = optionsMonitor;
@@ -43,12 +47,13 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         _hostResolver = hostResolver;
         _ptrResolver = ptrResolver;
         _upstreamClientFactory = upstreamClientFactory;
+        _eventBus = eventBus;
         _logger = logger;
     }
 
     public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
-	DnsContext context = new DnsContext(clientEndpoint.GetIPAddress());
+        DnsContext context = new DnsContext(clientEndpoint.GetIPAddress());
 
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
@@ -245,6 +250,17 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         {
             _logger.LogInformation("Context [{Context}] Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {Elapsed:F2}ms",
                 context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
+
+            var dnsEvent = new DnsResponseEvent(
+            context.Id.ToString(),
+            request.QuestionName,
+            request.QuestionType,
+            clientEndpoint,
+            resolutionSource,
+            (DateTimeOffset.UtcNow - startTime).TotalMilliseconds
+            );
+
+            await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
         }
     }
 }

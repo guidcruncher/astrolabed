@@ -1,9 +1,9 @@
 namespace Astrolabed.EventBus;
 
-using Astrolabed.EventBus.Options;
-
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
+
+using Astrolabed.EventBus.Options;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
