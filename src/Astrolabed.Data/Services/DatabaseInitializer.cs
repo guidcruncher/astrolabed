@@ -96,7 +96,7 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
     private async Task EnsurePostgreSqlDatabaseExistsAsync(CancellationToken cancellationToken)
     {
         var builder = new NpgsqlConnectionStringBuilder(_options.ConnectionString);
-        string targetDatabaseName = builder.Database;
+        string? targetDatabaseName = builder.Database;
 
         if (string.IsNullOrWhiteSpace(targetDatabaseName))
         {
@@ -135,4 +135,3 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         }
     }
 }
-
