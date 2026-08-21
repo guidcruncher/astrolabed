@@ -6,6 +6,7 @@ using Astrolabed.Dns.Models;
 namespace Astrolabed.Dns.Events;
 
 public sealed record DnsResponseEvent(
+DateTimeOffset StartTimeUTC,
 string ContextId,
 string QuestionName,
 DnsType QuestionType,

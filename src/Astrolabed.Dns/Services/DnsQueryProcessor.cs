@@ -252,6 +252,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
 
             var dnsEvent = new DnsResponseEvent(
+	    startTime,
             context.Id.ToString(),
             request.QuestionName,
             request.QuestionType,
