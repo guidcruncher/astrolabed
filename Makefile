@@ -1,7 +1,7 @@
 # File: Makefile
 
-SOLUTION = Astrolabed.Dns.sln
-PROJECT = src/Astrolabed.Dns/Astrolabed.Dns.csproj
+SOLUTION = Astrolabed.sln
+PROJECT = src/Astrolabed.Core/Astrolabed.Core.csproj
 CONFIG ?= Release
 IMAGE_NAME = guidcruncher/astrolabed
 
@@ -46,6 +46,7 @@ publish:
 clean:
 	dotnet clean $(SOLUTION)
 	rm -rf ./publish
+	rm -rf src/Astrolabed.Core/bin src/Astrolabed.Core/obj
 	rm -rf src/Astrolabed.Dns/bin src/Astrolabed.Dns/obj
 	rm -rf src/Astrolabed.EventBus/bin src/Astrolabed.EventBus/obj
 

@@ -41,4 +41,4 @@ RUN rm /app/publish/appsettings*.* -rf
 # Run as non-root app user
 # USER $APP_UID
 
-ENTRYPOINT ["dotnet", "Astrolabed.Dns.dll"]
+ENTRYPOINT ["dotnet", "Astrolabed.Core.dll"]

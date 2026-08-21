@@ -1,6 +1,7 @@
-// File: src/Astrolabed.Dns/Program.cs
+// File: src/Astrolabed.Core/Program.cs
 using System.Threading.Tasks;
 
+using Astrolabed.Dns;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Events.Listeners;
 using Astrolabed.Dns.Extensions;
@@ -12,7 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Astrolabed.Dns;
+namespace Astrolabed.Core;
 
 public static class Program
 {
