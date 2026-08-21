@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using Astrolabed.Dns.Cache;
-using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
@@ -14,6 +13,7 @@ using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
 using Astrolabed.Dns.Upstream;
 using Astrolabed.EventBus;
+using Astrolabed.EventBus.Events;
 using Astrolabed.Network;
 
 using Microsoft.Extensions.Logging;
@@ -267,7 +267,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 startTime,
                 context.Id.ToString(),
                 request.QuestionName,
-                request.QuestionType,
+                request.QuestionType.ToString().ToUpperInvariant(),
                 clientEndpoint,
                 clientName,
                 resolutionSource,

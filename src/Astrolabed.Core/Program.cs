@@ -4,9 +4,9 @@ using System.Threading.Tasks;
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dns;
 using Astrolabed.Dns.Events;
-using Astrolabed.Dns.Events.Listeners;
 using Astrolabed.Dns.Extensions;
 using Astrolabed.EventBus;
+using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
 
 using Microsoft.Extensions.Configuration;
@@ -43,7 +43,7 @@ public static class Program
             .ConfigureServices((hostContext, services) =>
             {
                 // Data Layer
-                service.AddDatabasePersistenceServices(hostContext.Configuration);
+                services.AddDatabasePersistenceServices(hostContext.Configuration);
 
                 // Event Bus
                 services.AddSubHostEventBus(centralBroker);
