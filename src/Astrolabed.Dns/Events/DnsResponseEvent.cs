@@ -11,6 +11,7 @@ string ContextId,
 string QuestionName,
 DnsType QuestionType,
 EndPoint ClientEndpoint,
+string ClientName,
 string ResolutionSource,
 double DurationMs
 );

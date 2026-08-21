@@ -14,6 +14,7 @@ using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
 using Astrolabed.Dns.Upstream;
 using Astrolabed.EventBus;
+using Astrolabed.Network;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -53,9 +54,23 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
 
     public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
-        DnsContext context = new DnsContext(clientEndpoint.GetIPAddress());
-
+        var address = clientEndpoint.GetIPAddress();
+        DnsContext context = new DnsContext(address);
+        string clientName = "localhost";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
+
+        if (!IPAddress.IsLoopback(address))
+        {
+            var ptrQuery = address.ToPtrFormat();
+            clientName = "";
+            if (ptrQuery != null)
+            {
+                if (!_ptrResolver.TryResolvePtr(ptrQuery, out clientName))
+                {
+                    clientName = "";
+                }
+            }
+        }
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
         {
@@ -252,11 +267,12 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
 
             var dnsEvent = new DnsResponseEvent(
-	    startTime,
+        startTime,
             context.Id.ToString(),
             request.QuestionName,
             request.QuestionType,
             clientEndpoint,
+        clientName,
             resolutionSource,
             (DateTimeOffset.UtcNow - startTime).TotalMilliseconds
             );
