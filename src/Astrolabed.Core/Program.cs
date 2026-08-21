@@ -1,6 +1,7 @@
 // File: src/Astrolabed.Core/Program.cs
 using System.Threading.Tasks;
 
+using Astrolabed.Data.Extensions;
 using Astrolabed.Dns;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Events.Listeners;
@@ -41,6 +42,9 @@ public static class Program
             })
             .ConfigureServices((hostContext, services) =>
             {
+                // Data Layer
+                service.AddDatabasePersistenceServices(hostContext.Configuration);
+
                 // Event Bus
                 services.AddSubHostEventBus(centralBroker);
                 services.AddEventListener<DnsResponseEvent, DnsResponseListener>();

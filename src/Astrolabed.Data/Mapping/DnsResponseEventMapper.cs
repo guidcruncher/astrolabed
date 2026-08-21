@@ -1,6 +1,7 @@
 using System.Net;
 
 using Astrolabed.Data.Models;
+using Astrolabed.Dns.Events;
 
 namespace Astrolabed.Data.Mappers;
 
