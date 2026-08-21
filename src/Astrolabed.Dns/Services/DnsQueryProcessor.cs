@@ -52,6 +52,10 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         _logger = logger;
     }
 
+    private async Task<string> ResolveClientName(string question, CancellationToken ct) {
+return "";
+}
+
     public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
         var address = clientEndpoint.GetIPAddress();
@@ -59,15 +63,14 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         string clientName = "localhost";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
-        if (!IPAddress.IsLoopback(address))
-        {
+        //if (!IPAddress.IsLoopback(address))
+        //{
             clientName = "";
             var ptrQuery = address.ToPtrFormat();
-            if (ptrQuery != null && _ptrResolver.TryResolvePtr(ptrQuery, out var resolvedName) && resolvedName != null)
-            {
-                clientName = resolvedName;
-            }
-        }
+	    _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
+                clientName = await ResolveClientName(ptrQuery, ct);
+	    _logger.LogInformation("ClientName is {ClientName}", clientName);
+        //}
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
         {
