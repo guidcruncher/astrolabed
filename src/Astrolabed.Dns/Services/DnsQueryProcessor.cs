@@ -31,6 +31,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
     private readonly IUpstreamClientFactory _upstreamClientFactory;
     private readonly ILogger<DnsQueryProcessor> _logger;
     private readonly IInProcEventBroker _eventBus;
+    private readonly IClientNameResolver _clientResolver;
 
     public DnsQueryProcessor(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -40,6 +41,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         IPtrResolver ptrResolver,
         IUpstreamClientFactory upstreamClientFactory,
         IInProcEventBroker eventBus,
+    IClientNameResolver clientResolver,
         ILogger<DnsQueryProcessor> logger)
     {
         _optionsMonitor = optionsMonitor;
@@ -47,14 +49,11 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         _domainFilter = domainFilter;
         _hostResolver = hostResolver;
         _ptrResolver = ptrResolver;
+        _clientResolver = clientResolver;
         _upstreamClientFactory = upstreamClientFactory;
         _eventBus = eventBus;
         _logger = logger;
     }
-
-    private async Task<string> ResolveClientName(string question, CancellationToken ct) {
-return "";
-}
 
     public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
@@ -65,11 +64,11 @@ return "";
 
         //if (!IPAddress.IsLoopback(address))
         //{
-            clientName = "";
-            var ptrQuery = address.ToPtrFormat();
-	    _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
-                clientName = await ResolveClientName(ptrQuery, ct);
-	    _logger.LogInformation("ClientName is {ClientName}", clientName);
+        clientName = "";
+        var ptrQuery = address.ToPtrFormat();
+        _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
+        clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery, ct);
+        _logger.LogInformation("ClientName is {ClientName}", clientName);
         //}
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
