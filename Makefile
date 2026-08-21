@@ -1,11 +1,11 @@
 # File: Makefile
-
 SOLUTION = Astrolabed.sln
 PROJECT = src/Astrolabed.Core/Astrolabed.Core.csproj
 CONFIG ?= Release
 IMAGE_NAME = guidcruncher/astrolabed
 
-.PHONY: all build run clean restore test publish format dev dns dhcp benchmark
+.PHONY: all build run clean restore test publish format dev dns ntp dhcp benchmark \
+        docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release
 
 all: build
 
@@ -23,6 +23,7 @@ dev:
 
 benchmark:
 	@python3 ./scripts/benchmark_dns.py --ip 127.0.0.1 --port 1053
+
 dns:
 	@dig @127.0.0.1 -p 1053 bbc.com A
 	@dig @127.0.0.1 -p 1053 +tcp google.com A
@@ -31,7 +32,7 @@ dns:
 	@dig @127.0.0.1 -p 1053 -x 192.168.1.1
 
 ntp:
-	@python3 ././scripts/test_ntp.py
+	@python3 ./scripts/test_ntp.py
 
 dhcp:
 	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68
@@ -46,9 +47,7 @@ publish:
 clean:
 	dotnet clean $(SOLUTION)
 	rm -rf ./publish
-	rm -rf src/Astrolabed.Core/bin src/Astrolabed.Core/obj
-	rm -rf src/Astrolabed.Dns/bin src/Astrolabed.Dns/obj
-	rm -rf src/Astrolabed.EventBus/bin src/Astrolabed.EventBus/obj
+	find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
 
 format:
 	dotnet format $(SOLUTION)
@@ -79,17 +78,26 @@ docker-stop:
 	docker compose -f ./docker-compose.yml down
 
 docker-publish:
-	docker buildx build \
+	docker buildx create --name astrolabed-builder --use --bootstrap
+	-docker buildx build \
+		--platform linux/arm64 \
+		--builder astrolabed-builder \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):dev \
 		--progress=plain \
 		--push \
 		.
+	docker buildx rm -f astrolabed-builder
+
 docker-release:
-	docker buildx build \
+	docker buildx create --name astrolabed-builder --use --bootstrap
+	-docker buildx build \
+		--builder astrolabed-builder \
+		--platform linux/amd64,linux/arm64 \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
-		--tag docker.io/${IMAGE_NAME}:dev \
+		--tag docker.io/$(IMAGE_NAME):dev \
 		--progress=plain \
 		--push \
 		.
+	docker buildx rm -f astrolabed-builder

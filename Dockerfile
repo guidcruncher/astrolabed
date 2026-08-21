@@ -1,28 +1,33 @@
 # Multi-stage Dockerfile for Astrolabed DNS Engine (.NET 10)
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# Force SDK stage to run natively on the build host platform to cross-compile fast
+FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+ARG TARGETARCH
 WORKDIR /src
 
+# Copy project files
 COPY ["src/Astrolabed.EventBus/Astrolabed.EventBus.csproj", "Astrolabed.EventBus/"]
-RUN dotnet restore "Astrolabed.EventBus/Astrolabed.EventBus.csproj"
 COPY ["src/Astrolabed.Data/Astrolabed.Data.csproj", "Astrolabed.Data/"]
-RUN dotnet restore "Astrolabed.Data/Astrolabed.Data.csproj"
 COPY ["src/Astrolabed.Dns/Astrolabed.Dns.csproj", "Astrolabed.Dns/"]
-RUN dotnet restore "Astrolabed.Dns/Astrolabed.Dns.csproj"
-
 COPY ["src/Astrolabed.Core/Astrolabed.Core.csproj", "Astrolabed.Core/"]
-RUN dotnet restore "Astrolabed.Core/Astrolabed.Core.csproj"
 
 COPY src/ .
 WORKDIR "/src/Astrolabed.Core"
 
-# Build with ReadyToRun (RTR) to reduce startup JIT delay & enable dynamic PGO
-RUN dotnet publish "Astrolabed.Core.csproj" \
-    -c Release \
-    -o /app/publish \
-    /p:UseAppHost=false \
-    /p:PublishReadyToRun=true
+# Cross-compile for the targeted platform (x64 or arm64) using native host SDK
+# ReadyToRun (RTR) generates platform-specific machine code during publish
+RUN case "${TARGETARCH}" in \
+        "amd64") DOTNET_ARCH="x64" ;; \
+        "arm64") DOTNET_ARCH="arm64" ;; \
+        *) DOTNET_ARCH="${TARGETARCH}" ;; \
+    esac && \
+    dotnet publish "Astrolabed.Core.csproj" \
+        -c Release \
+        -a "${DOTNET_ARCH}" \
+        -o /app/publish \
+        /p:UseAppHost=false \
+        /p:PublishReadyToRun=true
 
-# Runtime Stage
+# Runtime Stage automatically pulls the platform matching TARGETPLATFORM
 FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
 WORKDIR /app
 
@@ -37,15 +42,11 @@ ENV DOCKER=true \
     DOTNET_ENVIRONMENT=Production \
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=true \
     LC_ALL=en_US.UTF-8 \
-    # GC & Thread Optimizations for UDP Processing
     DOTNET_gcServer=1 \
     DOTNET_GCDynamicAdaptationForMinMem=0 \
     DOTNET_SYSTEM_NET_SOCKETS_PERTHREAD_COMPLETION_PORT=1
 
 COPY --from=build /app/publish .
 RUN rm /app/publish/appsettings*.* -rf
-
-# Run as non-root app user
-# USER $APP_UID
 
 ENTRYPOINT ["dotnet", "Astrolabed.Core.dll"]
