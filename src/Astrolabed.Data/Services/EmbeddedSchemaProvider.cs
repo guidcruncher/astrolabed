@@ -7,7 +7,7 @@ namespace Astrolabed.Data.Services;
 
 public sealed class EmbeddedSchemaProvider : ISchemaProvider
 {
-    private readonly string _resourceName = "DatabaseSchema";
+    private readonly string _resourceName = "Astrolabed.Data.Resources.DatabaseSchema.sql";
 
     private readonly ILogger<EmbeddedSchemaProvider> _logger;
 

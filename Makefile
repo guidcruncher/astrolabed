@@ -19,7 +19,7 @@ run: build
 	dotnet run --project $(PROJECT) -c $(CONFIG) --no-build
 
 dev:
-	dotnet run --project $(PROJECT) -c Development --environment Development
+	dotnet run --project $(PROJECT) -c Development -- --environment Development
 
 benchmark:
 	@python3 ./scripts/benchmark_dns.py --ip 127.0.0.1 --port 1053

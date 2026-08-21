@@ -21,9 +21,12 @@ public static class Program
     public static async Task Main(string[] args)
     {
         using var rootHost = Host.CreateDefaultBuilder(args)
-            .ConfigureServices((context, services) =>
+            .ConfigureServices(async (context, services) =>
             {
+                services.AddDatabasePersistenceServices(context.Configuration);
+                services.AddDatabaseInitializer();
                 services.AddRootEventBroker(context.Configuration);
+                await services.InitializeDatabase();
             })
             .Build();
 
