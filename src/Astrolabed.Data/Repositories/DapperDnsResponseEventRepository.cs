@@ -1,6 +1,6 @@
 using System.Data;
 
-using Astrolab.Data.Models;
+using Astrolabed.Data.Models;
 
 using Astrolabed.Data.Options;
 using Astrolabed.Data.Pagination;
@@ -10,7 +10,7 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace DnsEvents.Persistence.Repositories;
+namespace Astrolabed.Data.Repositories;
 
 /// <summary>
 /// Dapper implementation supporting cross-database (PostgreSQL and SQLite) parameterized queries.
@@ -19,23 +19,19 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
 {
     private readonly IDbConnectionFactory _connectionFactory;
     private readonly DatabaseOptions _databaseOptions;
-    private readonly PaginationOptions _paginationOptions;
     private readonly ILogger<DapperDnsResponseEventRepository> _logger;
 
     public DapperDnsResponseEventRepository(
         IDbConnectionFactory connectionFactory,
         IOptions<DatabaseOptions> databaseOptions,
-        IOptions<PaginationOptions> paginationOptions,
         ILogger<DapperDnsResponseEventRepository> logger)
     {
         ArgumentNullException.ThrowIfNull(connectionFactory);
         ArgumentNullException.ThrowIfNull(databaseOptions);
-        ArgumentNullException.ThrowIfNull(paginationOptions);
         ArgumentNullException.ThrowIfNull(logger);
 
         _connectionFactory = connectionFactory;
         _databaseOptions = databaseOptions.Value;
-        _paginationOptions = paginationOptions.Value;
         _logger = logger;
     }
 
@@ -99,8 +95,8 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
     {
         int targetPage = pageNumber < 1 ? 1 : pageNumber;
         int targetSize = pageSize < 1
-            ? _paginationOptions.DefaultPageSize
-            : Math.Min(pageSize, _paginationOptions.MaxPageSize);
+            ? 10
+            : Math.Min(pageSize, 100);
 
         int offset = (targetPage - 1) * targetSize;
 

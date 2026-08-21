@@ -27,6 +27,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Astrolabed.EventBus\Astrolabed.EventBus.csproj" />
+    <ProjectReference Include="..\Astrolabed.Data\Astrolabed.Data.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,7 +1,7 @@
 using System.Net;
 
 using Astrolabed.Data.Models;
-using Astrolabed.Dns.Events;
+using Astrolabed.EventBus.Events;
 
 namespace Astrolabed.Data.Mappers;
 
@@ -10,7 +10,7 @@ namespace Astrolabed.Data.Mappers;
 /// </summary>
 public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
 {
-    public DnsResponseEventEntity ToEntity(CreateDnsResponseEventDto dto)
+    public DnsResponseEventEntity ToEntity(DnsResponseEventDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
 
@@ -38,7 +38,7 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             StartTimeUtc = domainEvent.StartTimeUTC.ToUnixTimeMilliseconds(),
             ContextId = domainEvent.ContextId,
             QuestionName = domainEvent.QuestionName,
-            QuestionType = domainEvent.QuestionType.ToString(),
+            QuestionType = domainEvent.QuestionType,
             ClientEndpoint = domainEvent.ClientEndpoint.ToString() ?? string.Empty,
             ClientName = domainEvent.ClientName,
             ResolutionSource = domainEvent.ResolutionSource,

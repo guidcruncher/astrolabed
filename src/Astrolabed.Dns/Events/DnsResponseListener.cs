@@ -1,9 +1,9 @@
-namespace Astrolabed.Dns.Events.Listeners;
+namespace Astrolabed.Dns.Events;
 
-using Astrolabed.Data.Mapping;
+using Astrolabed.Data.Mappers;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
-using Astrolabed.Dns.Events;
+using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus;
 
 using Microsoft.Extensions.Logging;

@@ -1,4 +1,5 @@
 using Astrolabed.Data.Models;
+using Astrolabed.EventBus.Events;
 
 namespace Astrolabed.Data.Mappers;
 
@@ -7,7 +8,7 @@ namespace Astrolabed.Data.Mappers;
 /// </summary>
 public interface IDnsResponseEventMapper
 {
-    DnsResponseEventEntity ToEntity(CreateDnsResponseEventDto dto);
+    DnsResponseEventEntity ToEntity(DnsResponseEventDto dto);
 
     DnsResponseEventEntity ToEntity(DnsResponseEvent domainEvent);
 

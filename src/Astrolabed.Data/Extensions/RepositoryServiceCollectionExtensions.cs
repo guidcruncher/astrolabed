@@ -23,9 +23,6 @@ public static class RepositoryServiceCollectionExtensions
         services.Configure<DatabaseOptions>(
             configuration.GetSection(DatabaseOptions.SectionName));
 
-        services.Configure<PaginationOptions>(
-            configuration.GetSection(PaginationOptions.SectionName));
-
         services.AddSingleton<IDnsResponseEventMapper, DnsResponseEventMapper>();
         services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
         services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
