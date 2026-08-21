@@ -9,9 +9,10 @@ COPY ["src/Astrolabed.EventBus/Astrolabed.EventBus.csproj", "Astrolabed.EventBus
 COPY ["src/Astrolabed.Data/Astrolabed.Data.csproj", "Astrolabed.Data/"]
 COPY ["src/Astrolabed.Dns/Astrolabed.Dns.csproj", "Astrolabed.Dns/"]
 COPY ["src/Astrolabed.Core/Astrolabed.Core.csproj", "Astrolabed.Core/"]
+COPY ["src/Astrolabed.Main/Astrolabed.Main.csproj", "Astrolabed.Main/"]
 
 COPY src/ .
-WORKDIR "/src/Astrolabed.Core"
+WORKDIR "/src/Astrolabed.Main
 
 # Cross-compile for the targeted platform (x64 or arm64) using native host SDK
 # ReadyToRun (RTR) generates platform-specific machine code during publish
@@ -20,7 +21,7 @@ RUN case "${TARGETARCH}" in \
         "arm64") DOTNET_ARCH="arm64" ;; \
         *) DOTNET_ARCH="${TARGETARCH}" ;; \
     esac && \
-    dotnet publish "Astrolabed.Core.csproj" \
+    dotnet publish "Astrolabed.Main.csproj" \
         -c Release \
         -a "${DOTNET_ARCH}" \
         -o /app/publish \
@@ -49,4 +50,4 @@ ENV DOCKER=true \
 COPY --from=build /app/publish .
 RUN rm /app/publish/appsettings*.* -rf
 
-ENTRYPOINT ["dotnet", "Astrolabed.Core.dll"]
+ENTRYPOINT ["dotnet", "Astrolabed.Main.dll"]

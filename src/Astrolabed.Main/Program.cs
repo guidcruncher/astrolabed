@@ -1,4 +1,4 @@
-// File: src/Astrolabed.Core/Program.cs
+// File: src/Astrolabed.Main/Program.cs
 using System.Threading.Tasks;
 
 using Astrolabed.Data.Extensions;
@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace Astrolabed.Core;
+namespace Astrolabed.Main;
 
 public static class Program
 {

@@ -1,6 +1,6 @@
 # File: Makefile
 SOLUTION = Astrolabed.sln
-PROJECT = src/Astrolabed.Core/Astrolabed.Core.csproj
+PROJECT = src/Astrolabed.Main/Astrolabed.Main.csproj
 CONFIG ?= Release
 IMAGE_NAME = guidcruncher/astrolabed
 
