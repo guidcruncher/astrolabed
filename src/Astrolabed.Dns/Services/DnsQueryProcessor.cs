@@ -61,14 +61,11 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
 
         if (!IPAddress.IsLoopback(address))
         {
-            var ptrQuery = address.ToPtrFormat();
             clientName = "";
-            if (ptrQuery != null)
+            var ptrQuery = address.ToPtrFormat();
+            if (ptrQuery != null && _ptrResolver.TryResolvePtr(ptrQuery, out var resolvedName) && resolvedName != null)
             {
-                if (!_ptrResolver.TryResolvePtr(ptrQuery, out clientName))
-                {
-                    clientName = "";
-                }
+                clientName = resolvedName;
             }
         }
 
@@ -267,14 +264,14 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
 
             var dnsEvent = new DnsResponseEvent(
-        startTime,
-            context.Id.ToString(),
-            request.QuestionName,
-            request.QuestionType,
-            clientEndpoint,
-        clientName,
-            resolutionSource,
-            (DateTimeOffset.UtcNow - startTime).TotalMilliseconds
+                startTime,
+                context.Id.ToString(),
+                request.QuestionName,
+                request.QuestionType,
+                clientEndpoint,
+                clientName,
+                resolutionSource,
+                (DateTimeOffset.UtcNow - startTime).TotalMilliseconds
             );
 
             await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
