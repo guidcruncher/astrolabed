@@ -2,8 +2,10 @@
 using System;
 using System.Collections.Generic;
 
+using Astrolabed.Core.Scheduler;
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
+using Astrolabed.Dns.Jobs;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
@@ -22,6 +24,9 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.Configure<NetworkScannerOptions>(
+            configuration.GetSection(NetworkScannerOptions.SectionName));
+
         services.Configure<DnsEngineOptions>(
             configuration.GetSection(DnsEngineOptions.SectionName));
 
@@ -80,12 +85,18 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
         // Client name resolver
+        services.AddTransient<NetworkScannerService, NetworkScannerService>();
+
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
 
         // Core Query Processing & Network Listeners Pattern
         services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();
         services.AddSingleton<IDnsListener, DnsUdpListener>();
         services.AddSingleton<IDnsListener, DnsTcpListener>();
+
+        // Scheduled jobs
+        services.AddJobScheduler();
+        services.AddScheduledJob<NetworkScanJob>();
 
         services.AddHostedService<DnsEngine>();
 
