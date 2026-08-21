@@ -1,3 +1,5 @@
+using Astrolabed.Core.Scheduler;
+using Astrolabed.Data.Jobs;
 using Astrolabed.Data.Mappers;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
@@ -26,6 +28,10 @@ public static class RepositoryServiceCollectionExtensions
         services.AddSingleton<IDnsResponseEventMapper, DnsResponseEventMapper>();
         services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
         services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
+
+        // Scheduled Data jobs
+        services.AddJobScheduler();
+        services.AddScheduledJob<CleanUpDnsActivityJob>();
 
         return services;
     }

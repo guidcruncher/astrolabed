@@ -18,4 +18,6 @@ public interface IDnsResponseEventRepository
         CancellationToken cancellationToken = default);
 
     Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default);
+
+    Task CleanOldData(CancellationToken cancellationToken = default);
 }

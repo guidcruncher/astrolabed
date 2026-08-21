@@ -167,4 +167,30 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
 
         return deleted;
     }
+
+    public async Task CleanOldData(CancellationToken cancellationToken = default)
+    {
+        var cutoff = TimeProvider.System.GetUtcNow().AddDays(-7).ToUnixTimeSeconds();
+        const string sql = "DELETE FROM dns_response_events WHERE start_time_utc < @Cutoff;";
+
+        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        _logger.LogDebug("Deleting old DNS Response records before {Cutoff}", cutoff);
+
+        var command = new CommandDefinition(
+            sql,
+            new { Cutoff = cutoff },
+            commandTimeout: _databaseOptions.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+        int rowsAffected = await connection.ExecuteAsync(command);
+
+        if (rowsAffected > 0)
+        {
+            _logger.LogInformation("Successfully deleted {RowsAffected} DNS response event records", rowsAffected);
+        }
+        else
+        {
+            _logger.LogWarning("Could not find any old DNS response event records before {Cutoff}", cutoff);
+        }
+    }
 }
