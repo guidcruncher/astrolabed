@@ -62,14 +62,14 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         string clientName = "localhost";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
-        //if (!IPAddress.IsLoopback(address))
-        //{
-        clientName = "";
-        var ptrQuery = address.ToPtrFormat();
-        _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
-        clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery, ct);
-        _logger.LogInformation("ClientName is {ClientName}", clientName);
-        //}
+        if (!IPAddress.IsLoopback(address))
+        {
+            clientName = "";
+            var ptrQuery = address.ToPtrFormat();
+            _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
+            clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery);
+            _logger.LogInformation("ClientName is {ClientName}", clientName);
+        }
 
         if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
         {
