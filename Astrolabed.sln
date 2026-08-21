@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabed.Core", "src/Astrolabed.Core/Astrolabed.Core.csproj", "{C90E2DFA-4F62-4C11-9A3E-7281D5F4A9A2}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabed.Data", "src/Astrolabed.Data/Astrolabed.Data.csproj", "{C90E2DFA-4F62-4C11-9A3E-7281D5F4A9A2}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabed.Dns", "src/Astrolabed.Dns/Astrolabed.Dns.csproj", "{8A42D159-45B0-410E-9273-030D1A105D1D}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Astrolabed.EventBus", "src/Astrolabed.EventBus/Astrolabed.EventBus.csproj", "{C90E2DFA-4F62-4C11-9A3E-7281D5F4A9A2}"
