@@ -4,7 +4,7 @@ namespace Astrolabed.Core.Scheduler;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddJobScheduler()
+    public static IServiceCollection AddJobScheduler(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
         return services;
