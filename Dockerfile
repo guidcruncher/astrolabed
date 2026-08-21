@@ -12,7 +12,7 @@ COPY ["src/Astrolabed.Core/Astrolabed.Core.csproj", "Astrolabed.Core/"]
 COPY ["src/Astrolabed.Main/Astrolabed.Main.csproj", "Astrolabed.Main/"]
 
 COPY src/ .
-WORKDIR "/src/Astrolabed.Main
+WORKDIR "/src/Astrolabed.Main"
 
 # Cross-compile for the targeted platform (x64 or arm64) using native host SDK
 # ReadyToRun (RTR) generates platform-specific machine code during publish
