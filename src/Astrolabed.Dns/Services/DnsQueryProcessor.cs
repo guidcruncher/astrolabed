@@ -29,7 +29,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
     private readonly IPtrResolver _ptrResolver;
     private readonly IUpstreamClientFactory _upstreamClientFactory;
     private readonly ILogger<DnsQueryProcessor> _logger;
-    private readonly InProcEventBroker _eventBus;
+    private readonly IInProcEventBroker _eventBus;
 
     public DnsQueryProcessor(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -38,7 +38,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         IHostRecordResolver hostResolver,
         IPtrResolver ptrResolver,
         IUpstreamClientFactory upstreamClientFactory,
-    InProcEventBroker eventBus,
+        IInProcEventBroker eventBus,
         ILogger<DnsQueryProcessor> logger)
     {
         _optionsMonitor = optionsMonitor;
