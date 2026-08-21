@@ -2,14 +2,21 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
+COPY ["src/Astrolabed.EventBus/Astrolabed.EventBus.csproj", "Astrolabed.EventBus/"]
+RUN dotnet restore "Astrolabed.EventBus/Astrolabed.EventBus.csproj"
+COPY ["src/Astrolabed.Data/Astrolabed.Data.csproj", "Astrolabed.Data/"]
+RUN dotnet restore "Astrolabed.Data/Astrolabed.Data.csproj"
 COPY ["src/Astrolabed.Dns/Astrolabed.Dns.csproj", "Astrolabed.Dns/"]
 RUN dotnet restore "Astrolabed.Dns/Astrolabed.Dns.csproj"
 
+COPY ["src/Astrolabed.Core/Astrolabed.Core.csproj", "Astrolabed.Core/"]
+RUN dotnet restore "Astrolabed.Core/Astrolabed.Core.csproj"
+
 COPY src/ .
-WORKDIR "/src/Astrolabed.Dns"
+WORKDIR "/src/Astrolabed.Core"
 
 # Build with ReadyToRun (RTR) to reduce startup JIT delay & enable dynamic PGO
-RUN dotnet publish "Astrolabed.Dns.csproj" \
+RUN dotnet publish "Astrolabed.Core.csproj" \
     -c Release \
     -o /app/publish \
     /p:UseAppHost=false \
@@ -21,8 +28,8 @@ WORKDIR /app
 
 # Ensure directories exist for hosts and blocklist volumes
 USER root
-RUN mkdir -p /etc/astrolabed/dns-hosts /etc/astrolabed/dns-lists && \
-    chown -R $APP_UID:$APP_UID /etc/astrolabed
+RUN mkdir -p /etc/astrolabed/dns-hosts /etc/astrolabed/dns-lists /var/lib/astrolabed && \
+    chown -R $APP_UID:$APP_UID /etc/astrolabed && chown -R $APP_UID:$APP_UID /var/lib/astrolabed
 
 # High-Performance .NET DNS Environment Configuration
 ENV DOCKER=true \
