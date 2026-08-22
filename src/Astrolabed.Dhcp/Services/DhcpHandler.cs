@@ -3,6 +3,7 @@ namespace Astrolabed.Dhcp.Services;
 using System.Net;
 using System.Text;
 
+using Astrolabed.Data.Repositories;
 using Astrolabed.Dhcp.Options;
 using Astrolabed.Dhcp.Protocol;
 

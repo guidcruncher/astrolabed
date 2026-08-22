@@ -1,7 +1,5 @@
 namespace Astrolabed.Dhcp.Protocol;
 
-namespace Astrolabed.Dhcp.Protocol;
-
 public enum DhcpOptionCode : byte
 {
     Pad = 0,

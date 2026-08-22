@@ -32,8 +32,8 @@ public class DhcpEngine : BackgroundService
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var config = _options.CurrentValue;
-        int bindPort = config.TestMode ? config.TestPort : config.Port;
-        var bindIp = IPAddress.Parse(config.ListenAddress);
+        int bindPort = config.TestMode ? config.TestPort : config.ListenAddress.Port;
+        var bindIp = IPAddress.Parse(config.ListenAddress.Address);
 
         using var udpClient = new UdpClient();
         if (!config.TestMode)

@@ -1,14 +1,15 @@
 using System.Buffers.Binary;
 using System.Net;
 
+using Astrolabed.Core.Options;
+
 namespace Astrolabed.Dhcp.Options;
 
 public class DhcpServerOptions
 {
     public const string Position = "DhcpServer";
 
-    public string ListenAddress { get; set; } = "0.0.0.0";
-    public int Port { get; set; } = 67;
+    public AddressOptions ListenAddress { get; set; } = new();
     public bool TestMode { get; set; } = false;
     public int TestPort { get; set; } = 6767;
     public string ServerIp { get; set; } = "192.168.1.1";
