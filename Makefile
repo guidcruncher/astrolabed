@@ -39,8 +39,8 @@ ntp:
 	@python3 ./scripts/test_ntp.py --ip 127.0.0.1 --port 1123
 
 dhcp:
-	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68
-	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
+	@sudo python3 ./scripts/test_dhcp.py --server-port 1167 --client-port 68
+	@sudo python3 ./scripts/test_dhcp.py --server-port 1167 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
 
 test:
 	dotnet test $(SOLUTION) -c $(CONFIG)
