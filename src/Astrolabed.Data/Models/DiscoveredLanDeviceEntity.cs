@@ -1,5 +1,7 @@
 using System.Net;
 
+using Astrolabed.Core.Network;
+
 namespace Astrolabed.Data.Models;
 
 /// <summary>
@@ -10,6 +12,7 @@ namespace Astrolabed.Data.Models;
 public sealed class DiscoveredLanDeviceEntity
 {
     public required string IpAddress { get; set; }
+    public required string PtrAddress { get; set; }
     public required string MacAddress { get; set; }
     public string? HostName { get; set; }
     public required long LastSeen { get; set; }
@@ -25,10 +28,11 @@ public sealed class DiscoveredLanDeviceEntity
         return new DiscoveredLanDeviceEntity
         {
             IpAddress = domain.IpAddress.ToString(),
+            PtrAddress = domain.IpAddress.ToPtrFormat(),
             MacAddress = domain.MacAddress,
             HostName = domain.HostName,
             LastSeen = domain.LastSeen.ToUnixTimeSeconds(),
-	    FirstSeen = domain.FirstSeen.ToUnixTimeSeconds()
+            FirstSeen = domain.FirstSeen.ToUnixTimeSeconds()
         };
     }
 
@@ -42,7 +46,7 @@ public sealed class DiscoveredLanDeviceEntity
             MacAddress,
             HostName,
             DateTimeOffset.FromUnixTimeSeconds(LastSeen),
-	    DateTimeOffset.FromUnixTimeSeconds(FirstSeen)
+        DateTimeOffset.FromUnixTimeSeconds(FirstSeen)
         );
     }
 }

@@ -63,7 +63,7 @@ public class NetworkScannerService : INetworkScannerService
                     // Host responded to ARP but reverse DNS lookup was unresolvable
                 }
 
-		var now = DateTimeOffset.UtcNow;
+                var now = DateTimeOffset.UtcNow;
                 var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now);
                 results.Add(device);
 

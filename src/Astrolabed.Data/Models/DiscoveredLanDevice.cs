@@ -7,5 +7,5 @@ public record DiscoveredLanDevice(
         string MacAddress,
         string? HostName,
         DateTimeOffset LastSeen,
-	DateTimeOffset FirstSeen
+    DateTimeOffset FirstSeen
 );

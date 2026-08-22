@@ -42,12 +42,13 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, host_name, last_seen, first_seen
+                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen
             ) VALUES (
-                @MacAddress, @IpAddress, @HostName, @LastSeen, @FirstSeen
+                @MacAddress, @IpAddress, @ptrAddress, @HostName, @LastSeen, @FirstSeen
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
+                ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
                 last_seen = EXCLUDED.last_seen;
             """;
@@ -61,10 +62,11 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         var command = new CommandDefinition(
             sql,
-            new 
+            new
             {
                 entity.MacAddress,
                 entity.IpAddress,
+                entity.PtrAddress,
                 entity.HostName,
                 entity.LastSeen,
                 FirstSeen = firstSeenEpoch
@@ -90,6 +92,7 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             {
                 entity.MacAddress,
                 entity.IpAddress,
+                entity.PtrAddress,
                 entity.HostName,
                 entity.LastSeen,
                 FirstSeen = firstSeenEpoch
@@ -104,12 +107,13 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, host_name, last_seen, first_seen
+                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen
             ) VALUES (
-                @MacAddress, @IpAddress, @HostName, @LastSeen, @FirstSeen
+                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
+                ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
                 last_seen = EXCLUDED.last_seen;
             """;
@@ -130,6 +134,35 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             "Successfully completed bulk upsert for {RequestedCount} devices ({RowsAffected} rows modified)",
             parameters.Count,
             rowsAffected);
+    }
+
+    public async Task<DiscoveredLanDevice?> GetByPtrAddressAsync(string ptrAddress, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ptrAddress);
+
+        const string sql = """
+            SELECT ip_address AS IpAddress,
+                   mac_address AS MacAddress,
+                   host_name AS HostName,
+                   last_seen AS LastSeen,
+                   first_seen AS FirstSeen
+            FROM discovered_lan_devices
+            WHERE ptr_address = @PtrAddress;
+            """;
+
+        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        _logger.LogDebug("Fetching LAN device record for PTR {PrrAddress}", ptrAddress);
+
+        var command = new CommandDefinition(
+            sql,
+            new { PtrAddress = ptrAddress },
+            commandTimeout: _databaseOptions.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+
+        return entity?.ToDomain();
     }
 
     public async Task<DiscoveredLanDevice?> GetByMacAddressAsync(string macAddress, CancellationToken cancellationToken = default)

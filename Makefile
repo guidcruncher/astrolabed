@@ -5,9 +5,13 @@ CONFIG ?= Release
 IMAGE_NAME = guidcruncher/astrolabed
 
 .PHONY: all build run clean restore test publish format dev dns ntp dhcp benchmark \
-        docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release
+        docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release \
+	db
 
 all: build
+
+db:
+	sqlite3 ../netdns-runtime/astrolabed.db
 
 restore:
 	dotnet restore $(SOLUTION)

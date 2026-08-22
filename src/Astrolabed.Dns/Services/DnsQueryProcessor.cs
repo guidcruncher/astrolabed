@@ -2,6 +2,7 @@
 using System.Buffers.Binary;
 using System.Net;
 
+using Astrolabed.Core.Network;
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Models;
@@ -11,7 +12,6 @@ using Astrolabed.Dns.Serialization;
 using Astrolabed.Dns.Upstream;
 using Astrolabed.EventBus;
 using Astrolabed.EventBus.Events;
-using Astrolabed.Network;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

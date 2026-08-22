@@ -1,6 +1,7 @@
 // File: src/Astrolabed.Dns/Services/ClientNameResolver.cs
 using System.Text;
 
+using Astrolabed.Data.Repositories;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Serialization;
@@ -15,13 +16,16 @@ public sealed class ClientNameResolver : IClientNameResolver
     private readonly IPtrResolver _ptrResolver;
     private readonly IUpstreamClientFactory _upstreamClientFactory;
     private readonly ILogger<ClientNameResolver> _logger;
+    private readonly IDiscoveredLanDeviceRepository _repository;
 
     public ClientNameResolver(
         IPtrResolver ptrResolver,
         IUpstreamClientFactory upstreamClientFactory,
+    IDiscoveredLanDeviceRepository repository,
         ILogger<ClientNameResolver> logger)
     {
         _ptrResolver = ptrResolver;
+        _repository = repository;
         _upstreamClientFactory = upstreamClientFactory;
         _logger = logger;
     }
@@ -39,7 +43,17 @@ public sealed class ClientNameResolver : IClientNameResolver
             return staticDomain;
         }
 
-        // 2. Conditional PTR Subnet Forwarding Match
+        // 3. ARP scan
+        var device = await _repository.GetByPtrAddressAsync(question, ct);
+        if (device != null)
+        {
+            if (!string.IsNullOrEmpty(device.HostName))
+            {
+                return device.HostName;
+            }
+        }
+
+        // 3. Conditional PTR Subnet Forwarding Match
         if (_ptrResolver is PtrResolver concreteResolver &&
             concreteResolver.TryGetConditionalForwarder(question, out var targetResolverIp) &&
             targetResolverIp is not null)

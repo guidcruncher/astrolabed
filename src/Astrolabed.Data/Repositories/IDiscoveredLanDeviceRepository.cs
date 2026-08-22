@@ -31,6 +31,11 @@ public interface IDiscoveredLanDeviceRepository
     Task<DiscoveredLanDevice?> GetByIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Retrieves a discovered LAN device record by PTR address.
+    /// </summary>
+    Task<DiscoveredLanDevice?> GetByPtrAddressAsync(string ptrAddress, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Retrieves a paged list of all discovered LAN devices.
     /// </summary>
     Task<PagedResult<DiscoveredLanDevice>> GetPagedAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default);

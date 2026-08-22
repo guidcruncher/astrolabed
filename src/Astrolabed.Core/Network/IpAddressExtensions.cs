@@ -1,4 +1,4 @@
-namespace Astrolabed.Network;
+namespace Astrolabed.Core.Network;
 
 using System;
 using System.Net;
