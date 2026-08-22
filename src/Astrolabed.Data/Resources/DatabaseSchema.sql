@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS discovered_lan_devices (
     mac_address VARCHAR(17) NOT NULL,
     ip_address  VARCHAR(45) NOT NULL,
     host_name   VARCHAR(255) NULL,
+    first_seen  BIGINT NOT NULL,
     last_seen   BIGINT NOT NULL,
 
     CONSTRAINT pk_discovered_lan_devices PRIMARY KEY (mac_address)

@@ -13,6 +13,7 @@ public sealed class DiscoveredLanDeviceEntity
     public required string MacAddress { get; set; }
     public string? HostName { get; set; }
     public required long LastSeen { get; set; }
+    public required long FirstSeen { get; set; }
 
     /// <summary>
     /// Creates a persistence entity instance from a domain record.
@@ -26,7 +27,8 @@ public sealed class DiscoveredLanDeviceEntity
             IpAddress = domain.IpAddress.ToString(),
             MacAddress = domain.MacAddress,
             HostName = domain.HostName,
-            LastSeen = domain.LastSeen.ToUnixTimeSeconds()
+            LastSeen = domain.LastSeen.ToUnixTimeSeconds(),
+	    FirstSeen = domain.FirstSeen.ToUnixTimeSeconds()
         };
     }
 
@@ -39,7 +41,8 @@ public sealed class DiscoveredLanDeviceEntity
             IPAddress.Parse(IpAddress),
             MacAddress,
             HostName,
-            DateTimeOffset.FromUnixTimeSeconds(LastSeen)
+            DateTimeOffset.FromUnixTimeSeconds(LastSeen),
+	    DateTimeOffset.FromUnixTimeSeconds(FirstSeen)
         );
     }
 }

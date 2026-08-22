@@ -6,5 +6,6 @@ public record DiscoveredLanDevice(
         IPAddress IpAddress,
         string MacAddress,
         string? HostName,
-        DateTimeOffset LastSeen
+        DateTimeOffset LastSeen,
+	DateTimeOffset FirstSeen
 );

@@ -42,9 +42,9 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, host_name, last_seen
+                mac_address, ip_address, host_name, last_seen, first_seen
             ) VALUES (
-                @MacAddress, @IpAddress, @HostName, @LastSeen
+                @MacAddress, @IpAddress, @HostName, @LastSeen, @FirstSeen
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
@@ -52,6 +52,7 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
                 last_seen = EXCLUDED.last_seen;
             """;
 
+        long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
 
         using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
@@ -60,7 +61,14 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         var command = new CommandDefinition(
             sql,
-            entity,
+            new 
+            {
+                entity.MacAddress,
+                entity.IpAddress,
+                entity.HostName,
+                entity.LastSeen,
+                FirstSeen = firstSeenEpoch
+            },
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -73,11 +81,22 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
     {
         ArgumentNullException.ThrowIfNull(devices);
 
-        List<DiscoveredLanDeviceEntity> entities = devices
-            .Select(DiscoveredLanDeviceEntity.FromDomain)
-            .ToList();
+        long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        if (entities.Count == 0)
+        var parameters = devices.Select(device =>
+        {
+            DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
+            return new
+            {
+                entity.MacAddress,
+                entity.IpAddress,
+                entity.HostName,
+                entity.LastSeen,
+                FirstSeen = firstSeenEpoch
+            };
+        }).ToList();
+
+        if (parameters.Count == 0)
         {
             _logger.LogDebug("Bulk upsert skipped as the provided collection contains no items");
             return;
@@ -85,9 +104,9 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, host_name, last_seen
+                mac_address, ip_address, host_name, last_seen, first_seen
             ) VALUES (
-                @MacAddress, @IpAddress, @HostName, @LastSeen
+                @MacAddress, @IpAddress, @HostName, @LastSeen, @FirstSeen
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
@@ -97,11 +116,11 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Executing bulk upsert for {Count} LAN device records", entities.Count);
+        _logger.LogDebug("Executing bulk upsert for {Count} LAN device records", parameters.Count);
 
         var command = new CommandDefinition(
             sql,
-            entities,
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -109,7 +128,7 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
 
         _logger.LogInformation(
             "Successfully completed bulk upsert for {RequestedCount} devices ({RowsAffected} rows modified)",
-            entities.Count,
+            parameters.Count,
             rowsAffected);
     }
 
@@ -121,7 +140,8 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             SELECT ip_address AS IpAddress,
                    mac_address AS MacAddress,
                    host_name AS HostName,
-                   last_seen AS LastSeen
+                   last_seen AS LastSeen,
+                   first_seen AS FirstSeen
             FROM discovered_lan_devices
             WHERE mac_address = @MacAddress;
             """;
@@ -149,7 +169,8 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             SELECT ip_address AS IpAddress,
                    mac_address AS MacAddress,
                    host_name AS HostName,
-                   last_seen AS LastSeen
+                   last_seen AS LastSeen,
+                   first_seen AS FirstSeen
             FROM discovered_lan_devices
             WHERE ip_address = @IpAddress;
             """;
@@ -185,7 +206,8 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             SELECT ip_address AS IpAddress,
                    mac_address AS MacAddress,
                    host_name AS HostName,
-                   last_seen AS LastSeen
+                   last_seen AS LastSeen,
+                   first_seen AS FirstSeen
             FROM discovered_lan_devices
             ORDER BY last_seen DESC
             LIMIT @PageSize OFFSET @Offset;
