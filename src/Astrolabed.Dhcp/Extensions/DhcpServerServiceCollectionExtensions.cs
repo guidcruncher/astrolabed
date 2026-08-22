@@ -13,7 +13,7 @@ public static class DhcpServerServiceCollectionExtensions
     {
         services.Configure<DhcpServerOptions>(configuration.GetSection(DhcpServerOptions.Position));
 
-        services.AddSingleton<IDhcpLeaseRepository, InMemoryDhcpLeaseRepository>();
+        services.AddSingleton<IDhcpLeaseRepository, DapperDhcpLeaseRepository>();
         services.AddScoped<IDhcpHandler, DhcpHandler>();
         services.AddHostedService<DhcpEngine>();
 
