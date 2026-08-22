@@ -1,14 +1,14 @@
-<!-- File: src/Astrolabed.Core/Astrolabed.Core.csproj -->
+<!-- File: src/Astrolabed.Ntp/Astrolabed.Ntp.csproj -->
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>latest</LangVersion>
+    <RootNamespace>Astrolabed.Ntp</RootNamespace>
+    <AssemblyName>Astrolabed.Ntp</AssemblyName>
+    <Version>1.0.0</Version>
     <Authors>Guidcruncher</Authors>
-     <Description>Astrolabed Main entrypoint.</Description>
+    <Description>Astrolabed Ntp Host</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -26,11 +26,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Astrolabed.Data\Astrolabed.Data.csproj" />
-    <ProjectReference Include="..\Astrolabed.Dns\Astrolabed.Dns.csproj" />
-    <ProjectReference Include="..\Astrolabed.Dhcp\Astrolabed.Dhcp.csproj" />
-    <ProjectReference Include="..\Astrolabed.Ntp\Astrolabed.Ntp.csproj" />
     <ProjectReference Include="..\Astrolabed.EventBus\Astrolabed.EventBus.csproj" />
+    <ProjectReference Include="..\Astrolabed.Data\Astrolabed.Data.csproj" />
+    <ProjectReference Include="..\Astrolabed.Core\Astrolabed.Core.csproj" />
   </ItemGroup>
 
 </Project>

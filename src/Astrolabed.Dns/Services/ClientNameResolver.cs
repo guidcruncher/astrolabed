@@ -43,7 +43,9 @@ public sealed class ClientNameResolver : IClientNameResolver
             return staticDomain;
         }
 
-        // 3. ARP scan
+	// 2. Built-in DHCP lease Match
+
+        // 3. ARP scan match
         var device = await _repository.GetByPtrAddressAsync(question, ct);
         if (device != null)
         {
