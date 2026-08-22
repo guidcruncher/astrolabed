@@ -1,0 +1,36 @@
+<!-- File: src/Astrolabed.Core/Astrolabed.Core.csproj -->
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <Authors>Guidcruncher</Authors>
+     <Description>Astrolabed Main entrypoint.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="11.0.0-preview.7.26381.103" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="11.0.0-preview.7.26381.103" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Astrolabed.Data\Astrolabed.Data.csproj" />
+    <ProjectReference Include="..\Astrolabed.Dns\Astrolabed.Dns.csproj" />
+    <ProjectReference Include="..\Astrolabed.Dhcp\Astrolabed.Dhcp.csproj" />
+    <ProjectReference Include="..\Astrolabed.Ntp\Astrolabed.Ntp.csproj" />
+    <ProjectReference Include="..\Astrolabed.EventBus\Astrolabed.EventBus.csproj" />
+  </ItemGroup>
+
+</Project>

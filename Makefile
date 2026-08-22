@@ -1,83 +1,65 @@
+# File: Makefile
 SOLUTION = Astrolabed.sln
-PROJECT = src/Astrolabed/Astrolabed.csproj
-BUILD_DIR = bin/
-RUNTIME = linux-x64
-IMAGE_NAME ?= guidcruncher/astrolabed
+PROJECT = src/Astrolabed.Main/Astrolabed.Main.csproj
+CONFIG ?= Release
+IMAGE_NAME = guidcruncher/astrolabed
 
-.PHONY: api all build clean run dev test restore publish metrics benchmark format format-json dns docs mkdocs-install ntp dhcp docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish db
+.PHONY: all build run clean restore test publish format dev dns ntp dhcp benchmark \
+        docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release \
+	db
 
-all: restore build
+all: build
 
 db:
-	@sqlite3 ../netdns-runtime/astrolabed.db
-api:
-	@curl -s -X GET "http://127.0.0.1:1081/api/v1/leases" | jq
-
-dns:
-	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 bbc.com A
-	@python3 tests/scripts/test_dns.py -s 127.0.0.1 -p 1053 --tcp google.com A
-
-ntp:
-	@python3 ./tests/scripts/test_ntp.py
-
-dhcp:
-	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68
-	@sudo python3 ./tests/scripts/test_dhcp.py --server-port 1067 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
-
-mkdocs-install:
-	pip install --break-system-packages mkdocs mkdocs-material mkdocs-mermaid2-plugin
-
-docs:
-	mkdocs serve --dev-addr 0.0.0.0:8000 --config-file ./mkdocs.yml --watch ./docs
-
-metrics:
-	curl -v http://127.0.0.1:1080/metrics
+	sqlite3 ../netdns-runtime/astrolabed.db
 
 restore:
-	cd ./src/ClientUI && npm install
 	dotnet restore $(SOLUTION)
 
-build:
-	cd ./src/ClientUI && npm run build
-	dotnet build $(SOLUTION) -c Release
+build: restore
+	dotnet build $(SOLUTION) -c $(CONFIG) --no-restore
+
+run: build
+	dotnet run --project $(PROJECT) -c $(CONFIG) --no-build
+
+dev:
+	dotnet run --project $(PROJECT) -c Development -- --environment Development
+
+benchmark:
+	@python3 ./scripts/benchmark_dns.py --ip 127.0.0.1 --port 1053
+
+dns:
+	@dig @127.0.0.1 -p 1053 bbc.com A
+	@dig @127.0.0.1 -p 1053 +tcp google.com A
+	@dig @127.0.0.1 -p 1053 webtop.lan A
+	@dig @127.0.0.1 -p 1053 example.com A
+	@dig @127.0.0.1 -p 1053 -x 192.168.1.1
+
+ntp:
+	@python3 ./scripts/test_ntp.py --ip 127.0.0.1 --port 1123
+
+dhcp:
+	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68
+	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68 --mac "11:22:33:44:55:66" --hostname "voip-phone-01" --vendor-class "Cisco IP Phone 7940" --timeout 3.0
+
+test:
+	dotnet test $(SOLUTION) -c $(CONFIG)
+
+publish:
+	dotnet publish $(PROJECT) -c $(CONFIG) -o ./publish
+
+clean:
+	dotnet clean $(SOLUTION)
+	rm -rf ./publish
+	find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
 
 format:
-	cd ./src/ClientUI && npm run format
-	dotnet format $(SOLUTION)
-
-format-json:
-	@for f in ./src/Astrolabed/*.json; do \
+	@for f in *.json; do \
 		[ -f "$$f" ] || continue; \
 		echo "$$f"; \
 		tmp=$$(mktemp) && { jq '.' "$$f" > "$$tmp" && mv "$$tmp" "$$f" || rm -f "$$tmp"; }; \
 	done
-
-run:
-	cd ./src/ClientUI && npm run build
-	ASPNETCORE_ENVIRONMENT=Production \
-	DOTNET_ENVIRONMENT=Production \
-	dotnet run --project $(PROJECT) -c Release -- --config appsettings.json
-
-dev:
-	cd ./src/ClientUI && npm run dev-build
-	ASPNETCORE_ENVIRONMENT=Development \
-	DOTNET_ENVIRONMENT=Development \
-	dotnet run --project $(PROJECT) -c Debug -- --config appsettings.Development.json
-
-benchmark:
-	dotnet run -c Release --project tests/Astrolabed.Benchmarks/Astrolabed.Benchmarks.csproj
-
-test:
-	dotnet test $(SOLUTION) -c Release
-
-clean:
-	cd ./src/ClientUI && npm run clean
-	dotnet clean $(SOLUTION)
-	rm -rf $(BUILD_DIR) publish/ BenchmarkDotNet.Artifacts
-	find . -type d \( -name "bin" -o -name "obj" \) -exec rm -rf {} +
-
-publish:
-	dotnet publish $(PROJECT) -c Release -r $(RUNTIME) --self-contained false -o publish/
+	dotnet format $(SOLUTION)
 
 docker-build:
 	docker buildx build \
@@ -96,18 +78,35 @@ docker-shell:
 	docker compose exec -it astrolabed bash
 
 docker-run-dev:
-	docker compose -f ./docker-compose-dev.yml down -v
-	docker compose -f ./docker-compose-dev.yml build --no-cache
-	docker compose -f ./docker-compose-dev.yml up -d
-	docker compose -f ./docker-compose-dev.yml logs -f
+	docker compose -f ./docker-compose.dev.yml down -v
+	docker compose -f ./docker-compose.dev.yml build --no-cache
+	docker compose -f ./docker-compose.dev.yml up -d
+	docker compose -f ./docker-compose.dev.yml logs -f
 
 docker-stop:
 	docker compose -f ./docker-compose.yml down
 
 docker-publish:
-	docker buildx build \
+	docker buildx create --name astrolabed-builder --use --bootstrap
+	-docker buildx build \
+		--platform linux/arm64 \
+		--builder astrolabed-builder \
 		--file ./Dockerfile \
-		--tag docker.io/$(IMAGE_NAME):latest \
+		--tag docker.io/$(IMAGE_NAME):dev \
 		--progress=plain \
 		--push \
 		.
+	docker buildx rm -f astrolabed-builder
+
+docker-release:
+	docker buildx create --name astrolabed-builder --use --bootstrap
+	-docker buildx build \
+		--builder astrolabed-builder \
+		--platform linux/amd64,linux/arm64 \
+		--file ./Dockerfile \
+		--tag docker.io/$(IMAGE_NAME):latest \
+		--tag docker.io/$(IMAGE_NAME):dev \
+		--progress=plain \
+		--push \
+		.
+	docker buildx rm -f astrolabed-builder

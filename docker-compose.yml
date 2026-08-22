@@ -1,35 +1,30 @@
 services:
-  astrolabed:
-    container_name: astrolabed
-    hostname: astrolabed
-    build:
-      context: .
-      dockerfile: Dockerfile
+  astrolabed-dns:
+    image: docker.io/guidcruncher/astrolabed:latest
+    container_name: astrolabed-dns-engine
+    hostnamee: astrolabed-dns
     restart: unless-stopped
 
-    # DNS uses UDP port 53
-    ports:
-      - "53:53/tcp"
-      - "53:53/udp"
-      - "67:67/udp"
-      - "68:68"
-      - "123:123/udp"
-      - "1080:1080"
-      - "1081:1081"
-
-    # Mount config so you can edit without rebuilding
-    volumes:
-      - ./src/Astrolabed/appsettings.Docker.json:/app/appsettings.json:ro
-      - ../netdns-runtime/dns-hosts:/dns-hosts:ro
-      - ../netdns-runtime/dns-lists:/dns-lists:ro
-
-    cap_add:
-      - CHOWN
-      - NET_BIND_SERVICE
-      - NET_RAW
-      - NET_ADMIN
-      - SYS_TIME
-      - SYS_NICE
-
-    # Optional: run with host networking for maximum performance
+    # Bypasses Docker user-land proxy for minimal UDP latency
+    # Note: When network_mode is host, ports section is ignored
     network_mode: host
+
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    environment:
+      - Logging__LogLevel__Default=Information
+      - DnsEngine__ListenAddress__Address=0.0.0.0
+      - DnsEngine__ListenAddress__Port=53
+      - DnsEngine__ProcessingThreads=4
+
+    volumes:
+      - ./appsettings.json:/app/appsettings.json:ro
+      - ./settings/:/etc/astrolabed:ro
+
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE

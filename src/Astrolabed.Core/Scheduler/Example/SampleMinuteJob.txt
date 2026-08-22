@@ -1,0 +1,21 @@
+using Microsoft.Extensions.Logging;
+
+namespace Astrolabed.Core.Scheduler;
+
+public class SampleMinuteJob : IScheduledJob
+{
+    private readonly ILogger<SampleMinuteJob> _logger;
+
+    public JobSchedule Schedule => JobSchedule.EveryMinute();
+
+    public SampleMinuteJob(ILogger<SampleMinuteJob> logger)
+    {
+        _logger = logger;
+    }
+
+    public Task ExecuteAsync(CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Minute job executed successfully at: {Time}", DateTimeOffset.UtcNow);
+        return Task.CompletedTask;
+    }
+}

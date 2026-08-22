@@ -1,0 +1,32 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace Astrolabed.Core.Scheduler;
+
+public class Program
+{
+    public static async Task Main(string[] args)
+    {
+        HostApplicationBuilder builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings
+        {
+            Args = args
+        });
+
+        builder.Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
+
+        builder.Services.AddLogging(loggingBuilder =>
+        {
+            loggingBuilder.AddConfiguration(builder.Configuration.GetSection("Logging"));
+            loggingBuilder.AddConsole();
+        });
+
+        builder.Services.AddSingleton(TimeProvider.System);
+
+        builder.Services.AddScheduledJob<SampleMinuteJob>();
+
+        IHost host = builder.Build();
+        await host.RunAsync();
+    }
+}

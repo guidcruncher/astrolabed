@@ -1,0 +1,55 @@
+// File: src/Astrolabed.Dns/Resolvers/HostRecordResolver.cs
+using System.Net;
+using System.Net.Sockets;
+
+using Astrolabed.Dns.Models;
+
+using Microsoft.Extensions.Logging;
+
+namespace Astrolabed.Dns.Resolvers;
+
+public class HostRecordResolver : IHostRecordResolver
+{
+    private readonly IReadOnlyList<HostsEntry> _hostsEntries;
+    private readonly ILogger<HostRecordResolver> _logger;
+
+    public HostRecordResolver(IReadOnlyList<HostsEntry> hostsEntries, ILogger<HostRecordResolver> logger)
+    {
+        _hostsEntries = hostsEntries;
+        _logger = logger;
+    }
+
+    public bool TryResolveHost(string domain, DnsType recordType, out IPAddress? address)
+    {
+        address = null;
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return false;
+        }
+
+        // Normalize string: Trim whitespace and trailing DNS root dot '.'
+        string normalizedDomain = domain.Trim().TrimEnd('.');
+
+        _logger.LogInformation($"Looking in hosts for {normalizedDomain}");
+
+        // Perform case-insensitive match against loaded entries
+        var match = _hostsEntries.FirstOrDefault(e =>
+            string.Equals(e.Hostname.TrimEnd('.'), normalizedDomain, StringComparison.OrdinalIgnoreCase));
+
+        if (match == null || match.Addresses == null || match.Addresses.Count == 0)
+        {
+            _logger.LogWarning($"Domain {normalizedDomain} not found in Hosts");
+            return false;
+        }
+
+        // Match IP family against requested query record type
+        address = recordType switch
+        {
+            DnsType.A => match.Addresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetwork),
+            DnsType.AAAA => match.Addresses.FirstOrDefault(ip => ip.AddressFamily == AddressFamily.InterNetworkV6),
+            _ => null
+        };
+
+        return address != null;
+    }
+}

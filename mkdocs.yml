@@ -35,20 +35,6 @@ markdown_extensions:
 nav:
   - Home: index.md
   - Usage: usage.md
-  - Technical: technical.md
-  - Examples: examples.md
-  - Configuration examples: configurations.md
-  - Configuration documentation: configurationdocs.md
-  - Architecture: architecture.md
-  - Diagrams:
-      - Diagrams index: diagrams/README.md
-      - Component diagram: diagrams/architect.md
-      - DNS sequence: diagrams/dns.md
-      - DHCP sequence: diagrams/dhcp.md
-      - NTP sequence: diagrams/ntp.md
-  - Public DNS: public-dns.json
-  - Docker Compose: docker-compose.md
-  - Prometheus config: prometheus.md
 
 extra_css:
   - assets/custom.css
