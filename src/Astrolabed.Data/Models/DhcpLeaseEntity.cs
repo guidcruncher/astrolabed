@@ -1,10 +1,12 @@
+using Astrolabed.Core.Network;
 using System.Net;
 
 namespace Astrolabed.Data.Models;
 
 /// <summary>
 /// Represents the database entity for a DHCP lease, mapping exact SQL column representations
-/// where timestamps are stored as Unix epoch seconds (bigint) and booleans as integers (0 or 1).
+/// where timestamps are stored as Unix epoch seconds (bigint), booleans as integers (0 or 1),
+/// and MAC addresses are formatted in colon-separated notation (11:22:33:44:55:66).
 /// </summary>
 public sealed class DhcpLeaseEntity
 {
@@ -22,7 +24,7 @@ public sealed class DhcpLeaseEntity
         {
             ClientId = ClientId,
             ClientName = ClientName,
-            MacAddress = MacAddress,
+            MacAddress = MacAddressFormatter.Format(MacAddress),
             IpAddress = IPAddress.Parse(IpAddress),
             LeaseStartTime = DateTimeOffset.FromUnixTimeSeconds(LeaseStartTime).UtcDateTime,
             LeaseEndTime = DateTimeOffset.FromUnixTimeSeconds(LeaseEndTime).UtcDateTime,
@@ -41,7 +43,7 @@ public sealed class DhcpLeaseEntity
         {
             ClientId = lease.ClientId,
             ClientName = lease.ClientName,
-            MacAddress = lease.MacAddress,
+            MacAddress = MacAddressFormatter.Format(lease.MacAddress),
             IpAddress = lease.IpAddress.ToString(),
             LeaseStartTime = startTimeEpoch,
             LeaseEndTime = endTimeEpoch,

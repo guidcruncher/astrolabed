@@ -3,6 +3,7 @@ using System.Net;
 
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
+using Astrolabed.Core.Network;
 
 using Dapper;
 
@@ -13,7 +14,8 @@ namespace Astrolabed.Data.Repositories;
 
 /// <summary>
 /// Dapper implementation for managing <see cref="DhcpLease"/> persistence, 
-/// mapping queries through <see cref="DhcpLeaseEntity"/> to maintain exact SQL representations.
+/// mapping queries through <see cref="DhcpLeaseEntity"/> to maintain exact SQL representations
+/// and enforcing colon-separated MAC address formatting.
 /// </summary>
 public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 {
@@ -43,6 +45,8 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
         ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
 
+        string formattedMac = MacAddressFormatter.Format(macAddress);
+
         const string sql = """
             SELECT client_id AS ClientId,
                    client_name AS ClientName,
@@ -59,11 +63,11 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 
         using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Fetching DHCP lease for ClientID {ClientId} or MAC {MacAddress}", clientId, macAddress);
+        _logger.LogDebug("Fetching DHCP lease for ClientID {ClientId} or MAC {MacAddress}", clientId, formattedMac);
 
         var command = new CommandDefinition(
             sql,
-            new { ClientId = clientId, MacAddress = macAddress },
+            new { ClientId = clientId, MacAddress = formattedMac },
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -154,6 +158,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
         ArgumentNullException.ThrowIfNull(requestedIp);
 
+        string formattedMac = MacAddressFormatter.Format(macAddress);
         DateTime now = DateTime.UtcNow;
         DateTime leaseEndTime = now.Add(duration);
 
@@ -161,7 +166,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         {
             ClientId = clientId,
             ClientName = clientName,
-            MacAddress = macAddress,
+            MacAddress = formattedMac,
             IpAddress = requestedIp,
             LeaseStartTime = now,
             LeaseEndTime = leaseEndTime,
@@ -187,7 +192,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 
         using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Allocating or updating lease for ClientID {ClientId}, MAC {MacAddress}, IP {IpAddress}", clientId, macAddress, entity.IpAddress);
+        _logger.LogDebug("Allocating or updating lease for ClientID {ClientId}, MAC {MacAddress}, IP {IpAddress}", clientId, formattedMac, entity.IpAddress);
 
         var command = new CommandDefinition(
             sql,
@@ -219,6 +224,8 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
         ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
 
+        string formattedMac = MacAddressFormatter.Format(macAddress);
+
         const string sql = """
             UPDATE dhcp_leases
             SET is_active = 0
@@ -227,11 +234,11 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 
         using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Releasing lease for ClientID {ClientId} or MAC {MacAddress}", clientId, macAddress);
+        _logger.LogDebug("Releasing lease for ClientID {ClientId} or MAC {MacAddress}", clientId, formattedMac);
 
         var command = new CommandDefinition(
             sql,
-            new { ClientId = clientId, MacAddress = macAddress },
+            new { ClientId = clientId, MacAddress = formattedMac },
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -239,11 +246,12 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 
         if (rowsAffected > 0)
         {
-            _logger.LogInformation("Successfully released {RowsAffected} lease record(s) for ClientID {ClientId} / MAC {MacAddress}", rowsAffected, clientId, macAddress);
+            _logger.LogInformation("Successfully released {RowsAffected} lease record(s) for ClientID {ClientId} / MAC {MacAddress}", rowsAffected, clientId, formattedMac);
         }
         else
         {
-            _logger.LogWarning("No active lease found to release for ClientID {ClientId} / MAC {MacAddress}", clientId, macAddress);
+            _logger.LogWarning("No active lease found to release for ClientID {ClientId} / MAC {MacAddress}", clientId, formattedMac);
         }
     }
 }
+
