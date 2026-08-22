@@ -85,7 +85,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
         // Client name resolver
-        services.AddTransient<NetworkScannerService, NetworkScannerService>();
+        services.AddTransient<INetworkScannerService, NetworkScannerService>();
 
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
 
