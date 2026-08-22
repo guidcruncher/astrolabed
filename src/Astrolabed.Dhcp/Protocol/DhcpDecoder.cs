@@ -31,39 +31,68 @@ public class DhcpDecoder
 
         buffer.Slice(28, 16).CopyTo(message.ClientHardwareAddress);
 
+        byte overloadFlags = 0;
         int offset = 236;
+
         if (buffer.Length >= offset + 4 && buffer.Slice(offset, 4).SequenceEqual(MagicCookie))
         {
             offset += 4;
-            while (offset < buffer.Length)
-            {
-                byte code = buffer[offset++];
-                if (code == (byte)DhcpOptionCode.Pad)
-                {
-                    continue;
-                }
-                if (code == (byte)DhcpOptionCode.End)
-                {
-                    break;
-                }
+            overloadFlags = ReadOptionsFromSpan(buffer.Slice(offset), message.Options);
+        }
 
-                if (offset >= buffer.Length)
-                {
-                    break;
-                }
+        if ((overloadFlags & 1) != 0 && buffer.Length >= 236)
+        {
+            ReadOptionsFromSpan(buffer.Slice(108, 128), message.Options);
+        }
 
-                byte length = buffer[offset++];
-                if (offset + length > buffer.Length)
-                {
-                    break;
-                }
-
-                byte[] data = buffer.Slice(offset, length).ToArray();
-                message.Options.Add(new DhcpOption((DhcpOptionCode)code, data));
-                offset += length;
-            }
+        if ((overloadFlags & 2) != 0 && buffer.Length >= 108)
+        {
+            ReadOptionsFromSpan(buffer.Slice(44, 64), message.Options);
         }
 
         return message;
+    }
+
+    private static byte ReadOptionsFromSpan(ReadOnlySpan<byte> optionBuffer, List<DhcpOption> options)
+    {
+        byte overloadValue = 0;
+        int offset = 0;
+
+        while (offset < optionBuffer.Length)
+        {
+            byte code = optionBuffer[offset++];
+            if (code == (byte)DhcpOptionCode.Pad)
+            {
+                continue;
+            }
+            if (code == (byte)DhcpOptionCode.End)
+            {
+                break;
+            }
+
+            if (offset >= optionBuffer.Length)
+            {
+                break;
+            }
+
+            byte length = optionBuffer[offset++];
+            if (offset + length > optionBuffer.Length)
+            {
+                break;
+            }
+
+            byte[] data = optionBuffer.Slice(offset, length).ToArray();
+            var optionCode = (DhcpOptionCode)code;
+
+            if (optionCode == DhcpOptionCode.OptionOverload && data.Length > 0)
+            {
+                overloadValue = data[0];
+            }
+
+            options.Add(new DhcpOption(optionCode, data));
+            offset += length;
+        }
+
+        return overloadValue;
     }
 }

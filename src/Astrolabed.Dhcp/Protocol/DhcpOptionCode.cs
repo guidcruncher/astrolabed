@@ -1,5 +1,7 @@
 namespace Astrolabed.Dhcp.Protocol;
 
+namespace Astrolabed.Dhcp.Protocol;
+
 public enum DhcpOptionCode : byte
 {
     Pad = 0,
@@ -8,6 +10,7 @@ public enum DhcpOptionCode : byte
     DnsServer = 6,
     HostName = 12,
     DomainName = 15,
+    NtpServer = 42,
     RequestedIpAddress = 50,
     AddressLeaseTime = 51,
     OptionOverload = 52,
