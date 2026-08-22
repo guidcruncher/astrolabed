@@ -54,6 +54,11 @@ clean:
 	find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
 
 format:
+	@for f in *.json; do \
+		[ -f "$$f" ] || continue; \
+		echo "$$f"; \
+		tmp=$$(mktemp) && { jq '.' "$$f" > "$$tmp" && mv "$$tmp" "$$f" || rm -f "$$tmp"; }; \
+	done
 	dotnet format $(SOLUTION)
 
 docker-build:

@@ -1,5 +1,5 @@
 // File: src/Astrolabed.Dns/Options/AddressOptions.cs
-namespace Astrolabed.Dns.Options;
+namespace Astrolabed.Core.Options;
 
 public sealed class AddressOptions
 {

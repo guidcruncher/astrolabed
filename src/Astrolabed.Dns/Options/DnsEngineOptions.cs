@@ -1,6 +1,8 @@
 // File: src/Astrolabed.Dns/Options/DnsEngineOptions.cs
 namespace Astrolabed.Dns.Options;
 
+using Astrolabed.Core.Options;
+
 public sealed class DnsEngineOptions
 {
     public const string SectionName = "DnsEngine";

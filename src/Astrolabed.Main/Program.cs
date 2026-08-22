@@ -5,6 +5,7 @@ using Astrolabed.Dns.Extensions;
 using Astrolabed.EventBus;
 using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
+using Astrolabed.Ntp.Extensions;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -48,6 +49,9 @@ public static class Program
                 // Event Bus
                 services.AddSubHostEventBus(centralBroker);
                 services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
+
+                // NTP Services
+                services.AddNtpServer(hostContext.Configuration);
 
                 // DNS Services
                 services.AddAstrolabedDnsEngine(hostContext.Configuration);
