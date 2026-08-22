@@ -1,3 +1,4 @@
+// ScheduledJobWorker.cs
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -24,6 +25,8 @@ public class ScheduledJobWorker<TJob> : BackgroundService where TJob : ISchedule
     {
         _logger.LogInformation("Scheduled background worker for {JobType} started.", typeof(TJob).Name);
 
+        bool isFirstRun = true;
+
         while (!stoppingToken.IsCancellationRequested)
         {
             JobSchedule schedule;
@@ -31,6 +34,20 @@ public class ScheduledJobWorker<TJob> : BackgroundService where TJob : ISchedule
             {
                 TJob job = scope.ServiceProvider.GetRequiredService<TJob>();
                 schedule = job.Schedule;
+            }
+
+            if (isFirstRun && schedule.RunOnStartup)
+            {
+                isFirstRun = false;
+                await RunJobScopeAsync(stoppingToken);
+                if (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+            else
+            {
+                isFirstRun = false;
             }
 
             TimeSpan delay = CalculateNextDelay(schedule);

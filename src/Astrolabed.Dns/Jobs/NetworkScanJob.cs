@@ -12,7 +12,8 @@ public class NetworkScanJob : IScheduledJob
     private readonly INetworkScannerService _scanner;
     private readonly IDiscoveredLanDeviceRepository _repository;
 
-    public JobSchedule Schedule => JobSchedule.EverySunday(new TimeSpan(3, 0, 0));
+    // Runs every 15 minutes and executes immediately on startup
+    public JobSchedule Schedule => JobSchedule.FromInterval(TimeSpan.FromMinutes(15), runOnStartup: true);
 
     public NetworkScanJob(
     INetworkScannerService scanner,

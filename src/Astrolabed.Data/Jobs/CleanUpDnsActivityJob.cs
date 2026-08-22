@@ -10,7 +10,7 @@ public class CleanUpDnsActivityJob : IScheduledJob
     private readonly ILogger<CleanUpDnsActivityJob> _logger;
     private readonly IDnsResponseEventRepository _repository;
 
-    public JobSchedule Schedule => JobSchedule.EverySunday(new TimeSpan(3, 0, 0));
+    public JobSchedule Schedule => JobSchedule.EverySunday(new TimeSpan(3, 0, 0), runOnStartup: true);
 
     public CleanUpDnsActivityJob(
         IDnsResponseEventRepository repository,
