@@ -25,6 +25,10 @@ public static class PtrConverter
 
         if (TryParse(ptrAddress.AsSpan(), out IPAddress? address))
         {
+            if (address == null)
+            {
+                throw new FormatException($"The provided string '{ptrAddress}' is not a valid PTR address.");
+            }
             return address;
         }
 

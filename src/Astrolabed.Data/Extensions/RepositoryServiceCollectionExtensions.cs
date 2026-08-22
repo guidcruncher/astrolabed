@@ -27,8 +27,8 @@ public static class RepositoryServiceCollectionExtensions
         services.AddSingleton<IDnsResponseEventMapper, DnsResponseEventMapper>();
         services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
 
-        services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
-        services.AddScoped<IDiscoveredLanDeviceRepository, DapperDiscoveredLanDeviceRepository>();
+        services.AddSingleton<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
+        services.AddSingleton<IDiscoveredLanDeviceRepository, DapperDiscoveredLanDeviceRepository>();
 
         // Scheduled Data jobs
         services.AddJobScheduler();
