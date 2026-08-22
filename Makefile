@@ -36,7 +36,7 @@ dns:
 	@dig @127.0.0.1 -p 1053 -x 192.168.1.1
 
 ntp:
-	@python3 ./scripts/test_ntp.py
+	@python3 ./scripts/test_ntp.py python3 --ip 127.0.0.1 --port 1123
 
 dhcp:
 	@sudo python3 ./scripts/test_dhcp.py --server-port 1067 --client-port 68
