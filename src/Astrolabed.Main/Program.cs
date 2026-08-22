@@ -1,5 +1,6 @@
 // File: src/Astrolabed.Main/Program.cs
 using Astrolabed.Data.Extensions;
+using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Extensions;
 using Astrolabed.EventBus;
@@ -52,6 +53,9 @@ public static class Program
 
                 // NTP Services
                 services.AddNtpServer(hostContext.Configuration);
+
+                // DHCP Services
+                services.AddDhcpServer(hostContext.Configuration);
 
                 // DNS Services
                 services.AddAstrolabedDnsEngine(hostContext.Configuration);
