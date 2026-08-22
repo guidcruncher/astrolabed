@@ -1,8 +1,4 @@
 // File: src/Astrolabed.Dns/Filtering/IListListLoader.cs
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 namespace Astrolabed.Dns.Filtering;
 
 public interface IListLoader

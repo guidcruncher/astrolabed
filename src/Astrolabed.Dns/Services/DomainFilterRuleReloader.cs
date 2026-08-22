@@ -1,9 +1,4 @@
 // File: src/Astrolabed.Dns/Services/DomainFilterRuleReloader.cs
-using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Options;
 

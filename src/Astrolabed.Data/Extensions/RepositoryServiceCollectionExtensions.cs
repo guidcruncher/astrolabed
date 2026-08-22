@@ -1,7 +1,6 @@
 using Astrolabed.Core.Scheduler;
 using Astrolabed.Data.Jobs;
 using Astrolabed.Data.Mappers;
-using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
 using Astrolabed.Data.Repositories;
 

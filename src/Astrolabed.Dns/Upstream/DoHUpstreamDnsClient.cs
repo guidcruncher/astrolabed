@@ -1,11 +1,6 @@
 // File: src/Astrolabed.Dns/Upstream/DoHUpstreamDnsClient.cs
-using System;
-using System.IO;
 using System.Net;
-using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Serialization;

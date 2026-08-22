@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/Options/DomainFilterRuleOptions.cs
-using System.Collections.Generic;
-
 namespace Astrolabed.Dns.Options;
 
 public sealed class DomainFilterRuleOptions

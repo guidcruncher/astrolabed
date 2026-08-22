@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/CacheIDnsCache.cs
-using System;
-
 namespace Astrolabed.Dns.Cache;
 
 public interface IDnsCache

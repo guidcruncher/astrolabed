@@ -1,5 +1,4 @@
 // File: src/Astrolabed.Dns/Filtering/IDomainFilterRuleStore.cs
-using System.Collections.Generic;
 using System.Text.RegularExpressions;
 
 namespace Astrolabed.Dns.Filtering;

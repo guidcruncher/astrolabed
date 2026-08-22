@@ -1,7 +1,5 @@
 // File: src/Astrolabed.Dns/Services/IDnsQueryProcessor.cs
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Astrolabed.Dns.Services;
 

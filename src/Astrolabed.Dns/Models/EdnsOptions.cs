@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/Models/EdnsOptions.cs
-using System.Collections.Generic;
-
 namespace Astrolabed.Dns.Models;
 
 public sealed class EdnsOptions

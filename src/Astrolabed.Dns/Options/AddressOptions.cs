@@ -1,8 +1,4 @@
 // File: src/Astrolabed.Dns/Options/AddressOptions.cs
-using System;
-using System.Collections.Generic;
-using System.Net;
-
 namespace Astrolabed.Dns.Options;
 
 public sealed class AddressOptions

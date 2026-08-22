@@ -1,8 +1,4 @@
 // File: src/Astrolabed.Dns/Resolvers/IHostsManager.cs
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Resolvers;

@@ -1,7 +1,5 @@
 // File: src/Astrolabed.Dns/Serialization/QuestionBuilder.cs
-using System;
 using System.Buffers.Binary;
-using System.Collections.Generic;
 
 using Astrolabed.Dns.Models;
 

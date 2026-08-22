@@ -1,9 +1,6 @@
 // File: src/Astrolabed.Dns/Upstream/UdpUpstreamDnsClient.cs
-using System;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Serialization;

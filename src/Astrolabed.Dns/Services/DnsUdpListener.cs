@@ -1,11 +1,8 @@
 // File: src/Astrolabed.Dns/Services/DnsUdpListener.cs
-using System;
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;

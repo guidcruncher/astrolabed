@@ -1,6 +1,5 @@
 // File: src/Astrolabed.Dns/Resolvers/HostsEntryListWrapper.cs
 using System.Collections;
-using System.Collections.Generic;
 
 using Astrolabed.Dns.Models;
 

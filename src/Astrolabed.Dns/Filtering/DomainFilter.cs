@@ -1,7 +1,4 @@
 // File: src/Astrolabed.Dns/Filtering/DomainFilter.cs
-using System;
-using System.Text.RegularExpressions;
-
 namespace Astrolabed.Dns.Filtering;
 
 public sealed class DomainFilter : IDomainFilter

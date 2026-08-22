@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/Models/DnsWireMessage.cs
-using System.Collections.Generic;
-
 namespace Astrolabed.Dns.Models;
 
 /// <summary>

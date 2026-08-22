@@ -1,9 +1,6 @@
 // File: src/Astrolabed.Dns/Services/DnsQueryProcessor.cs
-using System;
 using System.Buffers.Binary;
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;

@@ -1,5 +1,4 @@
 // File: src/Astrolabed.Dns/Models/DnsResourceRecord.cs
-using System;
 using System.Net;
 
 namespace Astrolabed.Dns.Models;

@@ -1,5 +1,4 @@
 // File: src/Astrolabed.Dns/Models/HostsEntry.cs
-using System.Collections.Generic;
 using System.Net;
 
 namespace Astrolabed.Dns.Models;

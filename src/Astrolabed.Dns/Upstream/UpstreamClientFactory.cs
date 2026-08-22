@@ -1,8 +1,5 @@
 // File: src/Astrolabed.Dns/Upstream/UpstreamClientFactory.cs
-using System;
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Models;
 

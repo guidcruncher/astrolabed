@@ -1,8 +1,5 @@
 // File: src/Astrolabed.Main/Program.cs
-using System.Threading.Tasks;
-
 using Astrolabed.Data.Extensions;
-using Astrolabed.Dns;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Extensions;
 using Astrolabed.EventBus;

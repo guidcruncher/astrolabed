@@ -1,15 +1,4 @@
-using System.Collections.Concurrent;
-using System.Diagnostics;
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
-using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
-
 using Astrolabed.Data.Models;
-
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 

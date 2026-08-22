@@ -1,5 +1,4 @@
 // File: src/Astrolabed.Dns/Cache/DnsCache.cs
-using System;
 using System.Collections.Concurrent;
 
 using Astrolabed.Dns.Options;

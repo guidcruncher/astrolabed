@@ -1,7 +1,6 @@
 using System.Reflection;
 
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Data.Services;
 

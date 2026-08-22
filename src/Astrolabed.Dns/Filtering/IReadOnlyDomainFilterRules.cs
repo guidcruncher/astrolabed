@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/Filtering/IReadOnlyDomainFilterRules.cs
-using System.Collections.Generic;
-
 namespace Astrolabed.Dns.Filtering;
 
 public interface IReadOnlyDomainFilterRules

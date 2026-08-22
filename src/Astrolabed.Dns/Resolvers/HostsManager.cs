@@ -1,10 +1,5 @@
 // File: src/Astrolabed.Dns/Resolvers/HostsManager.cs
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
-using System.Threading;
-using System.Threading.Tasks;
 
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
