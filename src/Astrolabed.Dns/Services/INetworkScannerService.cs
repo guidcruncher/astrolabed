@@ -6,12 +6,12 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
+using Astrolabed.Data.Models;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
-
-public record DiscoveredLanDevice(IPAddress IpAddress, string MacAddress, string? HostName);
 
 public class NetworkScannerOptions
 {

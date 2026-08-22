@@ -6,6 +6,8 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
+using Astrolabed.Data.Models;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -26,6 +28,7 @@ public class NetworkScannerService : INetworkScannerService
 
     public async Task<IReadOnlyCollection<DiscoveredLanDevice>> ScanLanAsync(CancellationToken cancellationToken = default)
     {
+
         var localInterface = GetActiveIPv4Interface();
         if (localInterface is null)
         {
@@ -60,7 +63,7 @@ public class NetworkScannerService : INetworkScannerService
                     // Host responded to ARP but reverse DNS lookup was unresolvable
                 }
 
-                var device = new DiscoveredLanDevice(targetIp, macAddress, hostName);
+                var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, DateTimeOffset.UtcNow);
                 results.Add(device);
 
                 _logger.LogInformation("Discovered LAN Host: {IP} [{MAC}] ({HostName})", targetIp, macAddress, hostName ?? "Unknown");
@@ -160,6 +163,7 @@ public class NetworkScannerService : INetworkScannerService
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
+
             Arguments = arguments,
             RedirectStandardOutput = true,
             UseShellExecute = false,
