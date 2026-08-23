@@ -1,11 +1,10 @@
+// File: src/Astrolabed.EventBus/EventMessage.cs
 namespace Astrolabed.EventBus;
 
 /// <summary>
 /// Immutable generic container representing an event message envelope paired with a UTC dispatch timestamp.
 /// </summary>
 /// <typeparam name="T">The type of the event payload.</typeparam>
-/// <param name="Payload">The message payload instance.</param>
-/// <param name="Timestamp">The UTC timestamp indicating when the message was created or dispatched.</param>
 public sealed record EventMessage<T>
 {
     /// <summary>
@@ -23,7 +22,7 @@ public sealed record EventMessage<T>
     /// </summary>
     /// <param name="payload">The message payload instance.</param>
     /// <param name="timestamp">The UTC timestamp associated with the event dispatch.</param>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is null for reference types.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is <c>null</c>.</exception>
     public EventMessage(T payload, DateTimeOffset timestamp)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -38,7 +37,7 @@ public sealed record EventMessage<T>
     /// <param name="payload">The message payload instance.</param>
     /// <param name="timeProvider">Optional <see cref="TimeProvider"/> instance for obtaining current UTC timestamp.</param>
     /// <returns>A new <see cref="EventMessage{T}"/> instance wrapping the payload and dispatch timestamp.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is null for reference types.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="payload"/> is <c>null</c>.</exception>
     public static EventMessage<T> Create(T payload, TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(payload);
@@ -47,4 +46,3 @@ public sealed record EventMessage<T>
         return new EventMessage<T>(payload, provider.GetUtcNow());
     }
 }
-
