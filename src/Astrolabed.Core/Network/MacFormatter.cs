@@ -1,7 +1,19 @@
 namespace Astrolabed.Core.Network;
 
+/// <summary>
+/// Provides utility methods for parsing and formatting MAC address strings into standardized colon-delimited formats.
+/// </summary>
 public static class MacAddressFormatter
 {
+    /// <summary>
+    /// Normalizes and formats a raw MAC address string into standard colon-separated uppercase hex pairs (e.g., "AA:BB:CC:DD:EE:FF").
+    /// </summary>
+    /// <param name="macAddress">The raw MAC address string to format.</param>
+    /// <returns>
+    /// A formatted colon-delimited MAC address string if valid; 
+    /// an empty string if <paramref name="macAddress"/> is <c>null</c> or whitespace; 
+    /// or a trimmed, uppercase fallback string if the input does not contain exactly 12 hexadecimal characters.
+    /// </returns>
     public static string Format(string? macAddress)
     {
         if (string.IsNullOrWhiteSpace(macAddress))

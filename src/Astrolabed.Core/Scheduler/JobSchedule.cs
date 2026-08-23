@@ -4,10 +4,6 @@ namespace Astrolabed.Core.Scheduler;
 /// Defines immutable timing rules, interval constraints, and time-of-day preferences 
 /// for background job execution.
 /// </summary>
-/// <param name="Interval">The periodic execution interval between job runs.</param>
-/// <param name="PreferredTimeOfDay">An optional preferred target time of day for job execution.</param>
-/// <param name="TargetDayOfWeek">An optional specific day of the week on which the job should execute.</param>
-/// <param name="RunOnStartup">Indicates whether the job should execute immediately upon application startup.</param>
 public sealed record JobSchedule
 {
     /// <summary>
