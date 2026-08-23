@@ -48,7 +48,7 @@ public static class Program
             .Build();
 
         // Perform explicit database initialization after DI container build and before engine execution
-        await host.Services.InitializeDatabase().ConfigureAwait(false);
+        await host.Services.InitializeDatabaseAsync().ConfigureAwait(false);
 
         // Run application host asynchronously until process termination request
         await host.RunAsync().ConfigureAwait(false);

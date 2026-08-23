@@ -1,24 +1,26 @@
+// File: src/Astrolabed.Dns/Resolvers/IPtrResolver.cs
+using System.Net;
+
 namespace Astrolabed.Dns.Resolvers;
 
 /// <summary>
-/// Defines reverse DNS lookup operations for resolving pointer (PTR) record queries.
+/// Defines contracts for reverse DNS pointer (PTR) record resolution and conditional forwarding.
 /// </summary>
 public interface IPtrResolver
 {
     /// <summary>
-    /// Attempts to resolve a reverse DNS PTR query string (e.g., "1.0.0.127.in-addr.arpa") to its associated domain name.
+    /// Attempts to resolve a static reverse PTR record override for a PTR query domain.
     /// </summary>
-    /// <param name="ptrQuery">The reverse lookup domain query string.</param>
-    /// <param name="domainName">Outputs the matched domain name if resolved; otherwise, <c>null</c>.</param>
-    /// <returns><c>true</c> if a matching domain name was found; otherwise, <c>false</c>.</returns>
+    /// <param name="ptrQuery">The PTR query string to check.</param>
+    /// <param name="domainName">Outputs the matched host domain name if found.</param>
+    /// <returns><c>true</c> if a PTR record match exists; otherwise <c>false</c>.</returns>
     bool TryResolvePtr(string ptrQuery, out string? domainName);
 
     /// <summary>
-    /// Attempts to resolve a reverse DNS PTR query span (e.g., "1.0.0.127.in-addr.arpa") to its associated domain name.
+    /// Attempts to resolve a conditional forwarder target address for a reverse DNS PTR query.
     /// </summary>
-    /// <param name="ptrQuery">The reverse lookup domain query character span.</param>
-    /// <param name="domainName">Outputs the matched domain name if resolved; otherwise, <c>null</c>.</param>
-    /// <returns><c>true</c> if a matching domain name was found; otherwise, <c>false</c>.</returns>
-    bool TryResolvePtr(ReadOnlySpan<char> ptrQuery, out string? domainName) =>
-        TryResolvePtr(ptrQuery.ToString(), out domainName);
+    /// <param name="ptrQuery">The PTR query string to inspect.</param>
+    /// <param name="targetResolver">Outputs the designated forwarder IP address if matched; otherwise <c>null</c>.</param>
+    /// <returns><c>true</c> if a matching subnet rule was found; otherwise <c>false</c>.</returns>
+    bool TryGetConditionalForwarder(string ptrQuery, out IPAddress? targetResolver);
 }

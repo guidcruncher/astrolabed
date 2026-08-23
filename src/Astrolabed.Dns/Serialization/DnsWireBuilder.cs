@@ -87,7 +87,7 @@ public static class DnsWireBuilder
     }
 
     /// <summary>
-    /// Encodes a domain name into a pre-allocated buffer at a specific offset.
+    /// Encodes a domain name into a pre-allocated byte array buffer at a specific offset.
     /// </summary>
     /// <param name="buffer">Target buffer array.</param>
     /// <param name="offset">Current buffer offset, updated upon completion.</param>
@@ -95,13 +95,23 @@ public static class DnsWireBuilder
     public static void EncodeDomainName(byte[] buffer, ref int offset, string domain)
     {
         ArgumentNullException.ThrowIfNull(buffer);
+        EncodeDomainName(buffer.AsSpan(), ref offset, domain);
+    }
 
+    /// <summary>
+    /// Encodes a domain name into a span buffer at a specific offset.
+    /// </summary>
+    /// <param name="buffer">Target span buffer.</param>
+    /// <param name="offset">Current buffer offset, updated upon completion.</param>
+    /// <param name="domain">Domain name string to encode.</param>
+    public static void EncodeDomainName(Span<byte> buffer, ref int offset, string domain)
+    {
         var writer = new ArrayBufferWriter<byte>(128);
         var dummyMap = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
         WriteDomainName(writer, domain, dummyMap);
 
         ReadOnlySpan<byte> written = writer.WrittenSpan;
-        written.CopyTo(buffer.AsSpan(offset));
+        written.CopyTo(buffer[offset..]);
         offset += written.Length;
     }
 
