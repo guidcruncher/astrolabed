@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Upstream/TcpUpstreamDnsClient.cs
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
@@ -43,10 +44,17 @@ public sealed partial class TcpUpstreamDnsClient(
             await socket.ConnectAsync(upstreamEp, cts.Token).ConfigureAwait(false);
             await using var stream = new NetworkStream(socket, ownsSocket: false);
 
-            Span<byte> lengthBuffer = stackalloc byte[2];
-            BinaryPrimitives.WriteUInt16BigEndian(lengthBuffer, (ushort)rawRequest.Length);
+            byte[] lengthPrefix = ArrayPool<byte>.Shared.Rent(2);
+            try
+            {
+                BinaryPrimitives.WriteUInt16BigEndian(lengthPrefix.AsSpan(0, 2), (ushort)rawRequest.Length);
+                await stream.WriteAsync(lengthPrefix.AsMemory(0, 2), cts.Token).ConfigureAwait(false);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(lengthPrefix);
+            }
 
-            await stream.WriteAsync(lengthBuffer.ToArray(), cts.Token).ConfigureAwait(false);
             await stream.WriteAsync(rawRequest, cts.Token).ConfigureAwait(false);
             await stream.FlushAsync(cts.Token).ConfigureAwait(false);
 

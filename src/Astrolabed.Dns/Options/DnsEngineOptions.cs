@@ -14,7 +14,7 @@ public sealed class DnsEngineOptions
     public List<string> UpstreamResolvers { get; set; } = new() { "1.1.1.1", "8.8.8.8" };
     public List<string> Hosts { get; set; } = new();
     public Dictionary<string, string> PtrRecords { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-    public List<ConditionalPtrRule> ConditionalPtrRules { get; set; } = new();
+    public List<PtrConditionalRule> ConditionalPtrRules { get; set; } = new();
     public BlockedResponseMode BlockedResponseMode { get; set; } = BlockedResponseMode.Refused;
     public string CustomBlockedIp { get; set; } = "0.0.0.0";
 }

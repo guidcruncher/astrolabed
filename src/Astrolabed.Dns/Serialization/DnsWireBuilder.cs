@@ -1,5 +1,7 @@
+// File: src/Astrolabed.Dns/Serialization/DnsWireBuilder.cs
 using System.Buffers;
 using System.Buffers.Binary;
+using System.Runtime.InteropServices;
 using System.Text;
 
 using Astrolabed.Dns.Models;
@@ -199,7 +201,6 @@ public static class DnsWireBuilder
         // Encode RDATA Payload
         if (rr.ParsedIp is not null)
         {
-            Span<byte> ipSpan = writer.GetSpan(rr.ParsedIp.IPAddressToString().Length);
             bool success = rr.ParsedIp.TryWriteBytes(writer.GetSpan(16), out int bytesWritten);
             if (success)
             {
@@ -227,12 +228,13 @@ public static class DnsWireBuilder
         if (writer is ArrayBufferWriter<byte> arrayWriter)
         {
             int rdataLength = arrayWriter.WrittenCount - rdataStartOffset;
-            Span<byte> writtenMemory = arrayWriter.WrittenSpan.Slice(rdataStartOffset - 2, 2);
-            BinaryPrimitives.WriteUInt16BigEndian(MemoryMarshalSpan(writtenMemory), (ushort)rdataLength);
+            Span<byte> writtenSpan = MemoryMarshal.CreateSpan(
+                ref MemoryMarshal.GetReference(arrayWriter.WrittenSpan),
+                arrayWriter.WrittenCount);
+
+            BinaryPrimitives.WriteUInt16BigEndian(writtenSpan.Slice(rdataStartOffset - 2, 2), (ushort)rdataLength);
         }
     }
-
-    private static Span<byte> MemoryMarshalSpan(Span<byte> span) => span;
 
     private static bool IsDomainTargetRecord(DnsType type) =>
         type is DnsType.CNAME or DnsType.NS or DnsType.PTR or DnsType.DNAME;

@@ -65,7 +65,7 @@ public sealed partial class ClientNameResolver(
 
                 if (upstreamMessage?.Answers is { Count: > 0 })
                 {
-                    foreach (DnsAnswer answer in upstreamMessage.Answers)
+                    foreach (DnsResourceRecord answer in upstreamMessage.Answers)
                     {
                         if (answer.Type == DnsType.PTR && answer.Data is { Length: > 0 })
                         {

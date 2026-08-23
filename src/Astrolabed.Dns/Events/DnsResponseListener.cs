@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging;
 
 public sealed class DnsResponseListener : IEventListener<DnsResponseEvent>
 {
+
+    /// <inheritdoc />
+    public Type MessageType => typeof(DnsResponseEvent);
+
     private readonly ILogger<DnsResponseListener> _logger;
     private readonly IDnsResponseEventRepository _repository;
     private readonly IDnsResponseEventMapper _mapper;

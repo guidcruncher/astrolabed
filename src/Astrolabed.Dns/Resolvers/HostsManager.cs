@@ -90,9 +90,9 @@ public sealed partial class HostsManager : IHostsManager, IHostedService, IDispo
                 try
                 {
                     LogLoadingSource(_logger, source);
-                    IReadOnlyDictionary<string, List<IPAddress>> fileEntries = await _hostsFileReader.ReadHostsAsync(source, ct).ConfigureAwait(false);
+IReadOnlyDictionary<string, IReadOnlyList<IPAddress>> fileEntries = await _hostsFileReader.ReadHostsAsync(source, ct).ConfigureAwait(false);
 
-                    foreach ((string hostname, List<IPAddress> addresses) in fileEntries)
+                    foreach ((string hostname, IReadOnlyList<IPAddress> addresses) in fileEntries)
                     {
                         if (!aggregatedMap.TryGetValue(hostname, out HashSet<IPAddress>? addressSet))
                         {

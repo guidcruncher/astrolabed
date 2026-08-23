@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Upstream/DoHUpstreamDnsClient.cs
 using System.Buffers;
 using System.Net;
 using System.Net.Http.Headers;
@@ -25,10 +26,9 @@ public sealed partial class DoHUpstreamDnsClient(
     private readonly ILogger<DoHUpstreamDnsClient> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task<DnsWireMessage?> QueryAsync(IPAddress targetServer, byte[] rawRequest, CancellationToken ct)
+    public async Task<DnsWireMessage?> QueryAsync(IPAddress targetServer, ReadOnlyMemory<byte> rawRequest, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(targetServer);
-        ArgumentNullException.ThrowIfNull(rawRequest);
 
         try
         {

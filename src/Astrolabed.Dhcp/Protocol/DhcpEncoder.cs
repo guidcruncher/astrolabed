@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dhcp/Protocol/DhcpEncoder.cs
 using System.Buffers.Binary;
 
 namespace Astrolabed.Dhcp.Protocol;
@@ -8,6 +9,7 @@ namespace Astrolabed.Dhcp.Protocol;
 public static class DhcpEncoder
 {
     private const int MinimumHeaderSize = 236;
+    private const int MagicCookieSize = 4;
     private const int StandardHeaderSizeWithOptions = 240;
     private const int DefaultMaxMessageSize = 576;
     private const int SNameOffset = 44;

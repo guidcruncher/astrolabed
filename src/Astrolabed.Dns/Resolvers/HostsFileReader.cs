@@ -1,5 +1,5 @@
+// File: src/Astrolabed.Dns/Resolvers/HostsFileReader.cs
 using System.Net;
-using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Logging;
 
@@ -17,11 +17,8 @@ public sealed partial class HostsFileReader(
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly ILogger<HostsFileReader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    [GeneratedRegex(@"^(?=.{1,255}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)$", RegexOptions.Compiled)]
-    private static partial Regex HostnameRegex();
-
     /// <inheritdoc />
-    public async Task<IReadOnlyDictionary<string, List<IPAddress>>> ReadHostsAsync(string sourceLocation, CancellationToken ct = default)
+    public async Task<IReadOnlyDictionary<string, IReadOnlyList<IPAddress>>> ReadHostsAsync(string sourceLocation, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceLocation);
 
@@ -62,7 +59,7 @@ public sealed partial class HostsFileReader(
         return Path.GetFullPath(rawPath);
     }
 
-    private async Task<IReadOnlyDictionary<string, List<IPAddress>>> ParseHostsContentAsync(TextReader reader, CancellationToken ct)
+    private async Task<IReadOnlyDictionary<string, IReadOnlyList<IPAddress>>> ParseHostsContentAsync(TextReader reader, CancellationToken ct)
     {
         var map = new Dictionary<string, List<IPAddress>>(StringComparer.OrdinalIgnoreCase);
 
@@ -121,17 +118,19 @@ public sealed partial class HostsFileReader(
                     continue;
                 }
 
-                string hostname = hostnameSpan.TrimEnd('.').ToString();
+                hostnameSpan = hostnameSpan.TrimEnd('.');
 
-                if (!IsValidHostname(hostname))
+                if (!IsValidHostname(hostnameSpan))
                 {
-                    LogSkippingInvalidHostname(_logger, hostname);
+                    LogSkippingInvalidHostname(_logger, hostnameSpan.ToString());
                     continue;
                 }
 
+                string hostname = hostnameSpan.ToString();
+
                 if (!map.TryGetValue(hostname, out List<IPAddress>? ipList))
                 {
-                    ipList = new List<IPAddress>();
+                    ipList = [];
                     map[hostname] = ipList;
                 }
 
@@ -142,17 +141,44 @@ public sealed partial class HostsFileReader(
             }
         }
 
-        return map;
+        return map.ToDictionary(
+            kvp => kvp.Key,
+            kvp => (IReadOnlyList<IPAddress>)kvp.Value,
+            StringComparer.OrdinalIgnoreCase);
     }
 
-    private static bool IsValidHostname(string hostname)
+    private static bool IsValidHostname(ReadOnlySpan<char> hostname)
     {
-        if (string.IsNullOrWhiteSpace(hostname) || hostname.Length > 255)
+        if (hostname.IsEmpty || hostname.Length > 255)
         {
             return false;
         }
 
-        return HostnameRegex().IsMatch(hostname);
+        int labelLength = 0;
+        for (int i = 0; i < hostname.Length; i++)
+        {
+            char c = hostname[i];
+
+            if (c == '.')
+            {
+                if (labelLength is 0 or > 63)
+                {
+                    return false;
+                }
+                labelLength = 0;
+                continue;
+            }
+
+            bool isValidChar = char.IsAsciiLetterOrDigit(c) || c == '-';
+            if (!isValidChar)
+            {
+                return false;
+            }
+
+            labelLength++;
+        }
+
+        return labelLength is > 0 and <= 63;
     }
 
     [LoggerMessage(

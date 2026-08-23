@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Services/DnsQueryProcessor.cs
 using System.Buffers.Binary;
 using System.Net;
 
@@ -51,7 +52,7 @@ public sealed partial class DnsQueryProcessor(
     private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
+    public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
         IPAddress address = clientEndpoint.GetIPAddress();
         var context = new DnsContext(address);
@@ -66,7 +67,7 @@ public sealed partial class DnsQueryProcessor(
             LogClientNameResolved(_logger, clientName);
         }
 
-        if (!DnsWireParser.TryParse(rawPacket, out DnsMessage? request) || request is null)
+        if (!DnsWireParser.TryParse(rawPacket.Span, out DnsWireMessage? request) || request is null)
         {
             return null;
         }
@@ -203,7 +204,7 @@ public sealed partial class DnsQueryProcessor(
                 if (_ptrResolver.TryGetConditionalForwarder(request.QuestionName, out IPAddress? targetResolverIp) &&
                     targetResolverIp is not null)
                 {
-                    DnsMessage? upstreamMessage = await _upstreamClientFactory
+                    DnsWireMessage? upstreamMessage = await _upstreamClientFactory
                         .ExecuteQueryAsync(targetResolverIp.ToString(), rawPacket, ct)
                         .ConfigureAwait(false);
 
@@ -226,7 +227,7 @@ public sealed partial class DnsQueryProcessor(
                 {
                     try
                     {
-                        DnsMessage? upstreamMessage = await _upstreamClientFactory
+                        DnsWireMessage? upstreamMessage = await _upstreamClientFactory
                             .ExecuteQueryAsync(upstream, rawPacket, ct)
                             .ConfigureAwait(false);
 

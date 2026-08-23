@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Resolvers/PtrResolver.cs
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Globalization;
@@ -24,7 +25,7 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
     private readonly IDisposable? _optionsChangeListener;
 
     private FrozenDictionary<IPAddress, string> _ipToPtrMap = FrozenDictionary<IPAddress, string>.Empty;
-    private ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> _conditionalRules = ImmutableArray<(IPNetwork, IPAddress)>.Empty;
+    private ConditionalRulesHolder _conditionalRules = ConditionalRulesHolder.Empty;
 
     public PtrResolver(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -77,7 +78,8 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
             return false;
         }
 
-        ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> rules = Volatile.Read(ref _conditionalRules);
+        ConditionalRulesHolder holder = Volatile.Read(ref _conditionalRules);
+        ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> rules = holder.Rules;
         for (int i = 0; i < rules.Length; i++)
         {
             var (network, server) = rules[i];
@@ -269,7 +271,7 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
         }
 
         Volatile.Write(ref _ipToPtrMap, newMap.ToFrozenDictionary());
-        Volatile.Write(ref _conditionalRules, newRules.ToImmutable());
+        Volatile.Write(ref _conditionalRules, new ConditionalRulesHolder(newRules.ToImmutable()));
 
         LogPtrTableUpdated(_logger, newMap.Count, newRules.Count);
     }
@@ -278,6 +280,13 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
     public void Dispose()
     {
         _optionsChangeListener?.Dispose();
+    }
+
+    private sealed class ConditionalRulesHolder(ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> rules)
+    {
+        public static readonly ConditionalRulesHolder Empty = new(ImmutableArray<(IPNetwork, IPAddress)>.Empty);
+
+        public ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> Rules { get; } = rules;
     }
 
     [LoggerMessage(

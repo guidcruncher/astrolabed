@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
@@ -18,7 +19,7 @@ public sealed partial class AdGuardListLoader(
     private readonly ILogger<AdGuardListLoader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task<(List<string> AllowRules, List<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uriOrPath);
 
@@ -68,7 +69,7 @@ public sealed partial class AdGuardListLoader(
         return Path.GetFullPath(rawPath);
     }
 
-    private async Task<(List<string> AllowRules, List<string> BlockRules)> ParseAdGuardRulesAsync(TextReader reader, CancellationToken ct)
+    private async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> ParseAdGuardRulesAsync(TextReader reader, CancellationToken ct)
     {
         var allowRules = new List<string>(1000);
         var blockRules = new List<string>(10000);
@@ -174,4 +175,3 @@ public sealed partial class AdGuardListLoader(
         Message = "Successfully updated IDomainFilterRuleStore with {AllowCount} allow and {BlockCount} block rules loaded from {Source}.")]
     private static partial void LogUpdatedRuleStore(ILogger logger, string source, int allowCount, int blockCount);
 }
-
