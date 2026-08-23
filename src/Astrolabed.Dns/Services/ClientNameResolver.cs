@@ -36,18 +36,23 @@ public sealed partial class ClientNameResolver : IClientNameResolver
     /// <inheritdoc />
     public async Task<string> ResolveClientNameAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(ipAddress) || !IPAddress.TryParse(ipAddress, out IPAddress? parsedIp))
+        {
+            return string.Empty;
+        }
+
         using IServiceScope scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IDiscoveredLanDeviceRepository>();
 
         LogResolvingClientName(_logger, ipAddress);
 
-        var device = await repository.GetByIpAddressAsync(IPAddress.Parse(ipAddress), cancellationToken).ConfigureAwait(false);
-        if (device != null) {
-	  if (!string.IsNullOrEmpty(device?.HostName)) {
-	    return device?.HostName;
-	  }
-	}
-	return "";
+        var device = await repository.GetByIpAddressAsync(parsedIp, cancellationToken).ConfigureAwait(false);
+        if (device != null && !string.IsNullOrWhiteSpace(device.HostName))
+        {
+            return device.HostName;
+        }
+
+        return string.Empty;
     }
 
     [LoggerMessage(
