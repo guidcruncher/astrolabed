@@ -22,6 +22,14 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
     private readonly DatabaseOptions _options;
     private readonly ILogger<DatabaseInitializer> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DatabaseInitializer"/> class.
+    /// </summary>
+    /// <param name="connectionFactory">Factory used to create database connections.</param>
+    /// <param name="schemaProvider">Provider for fetching target database creation SQL scripts.</param>
+    /// <param name="options">Monitored or fixed database configuration options.</param>
+    /// <param name="logger">Structured logging instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any required parameter is <c>null</c>.</exception>
     public DatabaseInitializer(
         IDbConnectionFactory connectionFactory,
         ISchemaProvider schemaProvider,
@@ -39,6 +47,11 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         _logger = logger;
     }
 
+    /// <summary>
+    /// Executes database setup asynchronously, ensuring physical target store initialization and schema migration deployment.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to signal operation cancellation.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous initialization operation.</returns>
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting database initialization for provider: {Provider}", _options.Provider);
@@ -74,6 +87,9 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         _logger.LogInformation("Successfully initialized database schema for provider: {Provider}", _options.Provider);
     }
 
+    /// <summary>
+    /// Verifies the presence of directory structures required for SQLite local file database persistence and creates missing directories.
+    /// </summary>
     private void EnsureSqliteDirectoryExists()
     {
         var builder = new SqliteConnectionStringBuilder(_options.ConnectionString);
@@ -93,6 +109,11 @@ public sealed class DatabaseInitializer : IDatabaseInitializer
         }
     }
 
+    /// <summary>
+    /// Connects to PostgreSQL server administrative database ('postgres') and verifies target database existence, creating it if missing.
+    /// </summary>
+    /// <param name="cancellationToken">Cancellation token to signal operation cancellation.</param>
+    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
     private async Task EnsurePostgreSqlDatabaseExistsAsync(CancellationToken cancellationToken)
     {
         var builder = new NpgsqlConnectionStringBuilder(_options.ConnectionString);

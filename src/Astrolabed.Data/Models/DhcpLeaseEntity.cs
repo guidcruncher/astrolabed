@@ -11,14 +11,45 @@ namespace Astrolabed.Data.Models;
 /// </summary>
 public sealed class DhcpLeaseEntity
 {
+    /// <summary>
+    /// Gets or sets the primary client identifier string column.
+    /// </summary>
     public required string ClientId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resolved client hostname column.
+    /// </summary>
     public required string ClientName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the formatted physical MAC address string column.
+    /// </summary>
     public required string MacAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the IP address string representation column.
+    /// </summary>
     public required string IpAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC lease assignment start timestamp represented in Unix epoch seconds.
+    /// </summary>
     public required long LeaseStartTime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the UTC lease expiration timestamp represented in Unix epoch seconds.
+    /// </summary>
     public required long LeaseEndTime { get; set; }
+
+    /// <summary>
+    /// Gets or sets the active status flag column (<c>1</c> for true, <c>0</c> for false).
+    /// </summary>
     public required int IsActive { get; set; }
 
+    /// <summary>
+    /// Maps this persistence entity instance into a strongly-typed <see cref="DhcpLease"/> domain model.
+    /// </summary>
+    /// <returns>A new <see cref="DhcpLease"/> domain instance populated with parsed field values.</returns>
     public DhcpLease ToDomain()
     {
         return new DhcpLease
@@ -33,6 +64,12 @@ public sealed class DhcpLeaseEntity
         };
     }
 
+    /// <summary>
+    /// Converts a <see cref="DhcpLease"/> domain object into a serializable <see cref="DhcpLeaseEntity"/> relational database record.
+    /// </summary>
+    /// <param name="lease">The domain model instance to convert.</param>
+    /// <returns>A mapped <see cref="DhcpLeaseEntity"/> database entity instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="lease"/> is <c>null</c>.</exception>
     public static DhcpLeaseEntity FromDomain(DhcpLease lease)
     {
         ArgumentNullException.ThrowIfNull(lease);
