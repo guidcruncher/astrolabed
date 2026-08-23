@@ -11,13 +11,24 @@ namespace Astrolabed.Dns.Resolvers;
 /// <summary>
 /// Resolves hostnames against loaded local hosts file records using zero-allocation lookups.
 /// </summary>
-/// <param name="hostsEntries">Read-only collection of loaded hosts file entries.</param>
-/// <param name="logger">Structured logger instance.</param>
 public sealed partial class HostRecordResolver : IHostRecordResolver
 {
+    /// <summary>
+    /// An immutable, highly optimized lookup dictionary mapping normalized hostnames to their hosts file entries.
+    /// </summary>
     private readonly FrozenDictionary<string, HostsEntry> _hostsLookup;
+
+    /// <summary>
+    /// The logger instance used for diagnostics and tracing lookup operations.
+    /// </summary>
     private readonly ILogger<HostRecordResolver> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HostRecordResolver"/> class with the provided hosts file entries and logger.
+    /// </summary>
+    /// <param name="hostsEntries">Read-only collection of loaded hosts file entries.</param>
+    /// <param name="logger">Structured logger instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="hostsEntries"/> or <paramref name="logger"/> is <c>null</c>.</exception>
     public HostRecordResolver(IReadOnlyList<HostsEntry> hostsEntries, ILogger<HostRecordResolver> logger)
     {
         ArgumentNullException.ThrowIfNull(hostsEntries);
@@ -80,4 +91,3 @@ public sealed partial class HostRecordResolver : IHostRecordResolver
         Message = "Domain {NormalizedDomain} not found in Hosts")]
     private static partial void LogHostNotFound(ILogger logger, string normalizedDomain);
 }
-

@@ -14,19 +14,44 @@ namespace Astrolabed.Dns.Resolvers;
 /// <summary>
 /// Resolves reverse DNS pointer (PTR) record queries and conditional subnets using zero-allocation span parsing.
 /// </summary>
-/// <param name="optionsMonitor">Options monitor tracking DNS engine settings.</param>
-/// <param name="logger">Structured logger instance.</param>
 public sealed partial class PtrResolver : IPtrResolver, IDisposable
 {
+    /// <summary>
+    /// Static Internationalized Domain Name (IDN) mapping helper for canonical domain serialization.
+    /// </summary>
     private static readonly IdnMapping IdnMapping = new();
 
+    /// <summary>
+    /// Monitor instance tracking dynamic updates to <see cref="DnsEngineOptions"/>.
+    /// </summary>
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
+
+    /// <summary>
+    /// Structured logger instance for diagnostic events and errors.
+    /// </summary>
     private readonly ILogger<PtrResolver> _logger;
+
+    /// <summary>
+    /// Subscription token for change notifications on options updates.
+    /// </summary>
     private readonly IDisposable? _optionsChangeListener;
 
+    /// <summary>
+    /// Frozen, highly optimized lookup map binding resolved IP addresses to canonical domain names.
+    /// </summary>
     private FrozenDictionary<IPAddress, string> _ipToPtrMap = FrozenDictionary<IPAddress, string>.Empty;
+
+    /// <summary>
+    /// Holder object containing the active snapshot of conditional PTR forwarding subnet rules.
+    /// </summary>
     private ConditionalRulesHolder _conditionalRules = ConditionalRulesHolder.Empty;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="PtrResolver"/> class with options monitoring and logger dependencies.
+    /// </summary>
+    /// <param name="optionsMonitor">Options monitor tracking DNS engine settings.</param>
+    /// <param name="logger">Structured logger instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="optionsMonitor"/> or <paramref name="logger"/> is <c>null</c>.</exception>
     public PtrResolver(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
         ILogger<PtrResolver> logger)
@@ -122,6 +147,12 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
         return false;
     }
 
+    /// <summary>
+    /// Parses an IPv4 reverse lookup query domain label span into an <see cref="IPAddress"/>.
+    /// </summary>
+    /// <param name="query">The query label span without the trailing suffix.</param>
+    /// <param name="ipAddress">Outputs the constructed IPv4 address if parsing succeeds.</param>
+    /// <returns><c>true</c> if valid IPv4 reverse format; otherwise <c>false</c>.</returns>
     private static bool TryParseIPv4Ptr(ReadOnlySpan<char> query, out IPAddress? ipAddress)
     {
         ipAddress = null;
@@ -166,6 +197,12 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Parses an IPv6 reverse lookup query domain label span into an <see cref="IPAddress"/>.
+    /// </summary>
+    /// <param name="query">The query label span without the trailing suffix.</param>
+    /// <param name="ipAddress">Outputs the constructed IPv6 address if parsing succeeds.</param>
+    /// <returns><c>true</c> if valid IPv6 reverse format; otherwise <c>false</c>.</returns>
     private static bool TryParseIPv6Ptr(ReadOnlySpan<char> query, out IPAddress? ipAddress)
     {
         ipAddress = null;
@@ -225,6 +262,10 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
         return true;
     }
 
+    /// <summary>
+    /// Rebuilds lookup tables and conditional forwarding rules when configuration updates occur.
+    /// </summary>
+    /// <param name="options">The latest updated DNS engine options instance.</param>
     private void RebuildTables(DnsEngineOptions options)
     {
         var newMap = new Dictionary<IPAddress, string>();
@@ -282,10 +323,20 @@ public sealed partial class PtrResolver : IPtrResolver, IDisposable
         _optionsChangeListener?.Dispose();
     }
 
+    /// <summary>
+    /// Internal immutable wrapper holding active conditional PTR forwarding rules.
+    /// </summary>
+    /// <param name="rules">The array of network subnet to target server pairs.</param>
     private sealed class ConditionalRulesHolder(ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> rules)
     {
+        /// <summary>
+        /// Gets an empty instance of <see cref="ConditionalRulesHolder"/>.
+        /// </summary>
         public static readonly ConditionalRulesHolder Empty = new(ImmutableArray<(IPNetwork, IPAddress)>.Empty);
 
+        /// <summary>
+        /// Gets the immutable collection of network subnet to target server pairings.
+        /// </summary>
         public ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> Rules { get; } = rules;
     }
 

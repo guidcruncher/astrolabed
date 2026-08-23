@@ -12,19 +12,45 @@ namespace Astrolabed.Dns.Resolvers;
 /// <summary>
 /// Manages asynchronous loading, dynamic configuration reloading, and merging of local hosts file entries.
 /// </summary>
-/// <param name="hostsFileReader">Reader service for parsing hosts file sources.</param>
-/// <param name="optionsMonitor">Options monitor for tracking dynamic configuration updates.</param>
-/// <param name="logger">Structured logger instance.</param>
 public sealed partial class HostsManager : IHostsManager, IHostedService, IDisposable
 {
+    /// <summary>
+    /// Service responsible for reading and parsing raw hosts files from local disk or network sources.
+    /// </summary>
     private readonly IHostsFileReader _hostsFileReader;
+
+    /// <summary>
+    /// Monitor instance tracking dynamic updates to <see cref="HostsFileCollectionOptions"/>.
+    /// </summary>
     private readonly IOptionsMonitor<HostsFileCollectionOptions> _optionsMonitor;
+
+    /// <summary>
+    /// Structured logger instance for diagnostic events and errors.
+    /// </summary>
     private readonly ILogger<HostsManager> _logger;
+
+    /// <summary>
+    /// Subscription token for change notifications on options updates.
+    /// </summary>
     private readonly IDisposable? _optionsChangeListener;
+
+    /// <summary>
+    /// Synchronization primitive ensuring thread-safe, mutually exclusive reloads.
+    /// </summary>
     private readonly SemaphoreSlim _lock = new(1, 1);
 
+    /// <summary>
+    /// Volatile backing store holding the current thread-safe snapshot of loaded hosts entries.
+    /// </summary>
     private IReadOnlyList<HostsEntry> _entries = Array.Empty<HostsEntry>();
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="HostsManager"/> class with required dependencies and options change tracking.
+    /// </summary>
+    /// <param name="hostsFileReader">Reader service for parsing hosts file sources.</param>
+    /// <param name="optionsMonitor">Options monitor for tracking dynamic configuration updates.</param>
+    /// <param name="logger">Structured logger instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any required parameter is <c>null</c>.</exception>
     public HostsManager(
         IHostsFileReader hostsFileReader,
         IOptionsMonitor<HostsFileCollectionOptions> optionsMonitor,

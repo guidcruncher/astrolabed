@@ -10,11 +10,19 @@ namespace Astrolabed.Dns.Resolvers;
 /// </summary>
 /// <param name="httpClient">HttpClient instance for downloading remote hosts files.</param>
 /// <param name="logger">Structured logger instance.</param>
+/// <exception cref="ArgumentNullException">Thrown when <paramref name="httpClient"/> or <paramref name="logger"/> is <c>null</c>.</exception>
 public sealed partial class HostsFileReader(
     HttpClient httpClient,
     ILogger<HostsFileReader> logger) : IHostsFileReader
 {
+    /// <summary>
+    /// The HTTP client used for retrieving hosts file data from remote Web URLs.
+    /// </summary>
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+
+    /// <summary>
+    /// The logger instance used for diagnostics and tracing operation progress.
+    /// </summary>
     private readonly ILogger<HostsFileReader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
@@ -43,6 +51,11 @@ public sealed partial class HostsFileReader(
         return await ParseHostsContentAsync(fileReader, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Normalizes and resolves URI or local file system path formats into an absolute file system path.
+    /// </summary>
+    /// <param name="sourceLocation">The source location path or URI string.</param>
+    /// <returns>An absolute file path string.</returns>
     private static string ResolveFilePath(string sourceLocation)
     {
         if (Uri.TryCreate(sourceLocation, UriKind.Absolute, out Uri? uri) && uri.IsFile)
@@ -59,6 +72,12 @@ public sealed partial class HostsFileReader(
         return Path.GetFullPath(rawPath);
     }
 
+    /// <summary>
+    /// Parses hosts content line by line from a text reader stream without intermediate string allocations.
+    /// </summary>
+    /// <param name="reader">The text reader stream containing hosts data.</param>
+    /// <param name="ct">The cancellation token.</param>
+    /// <returns>A read-only dictionary mapping normalized hostnames to their configured IP address lists.</returns>
     private async Task<IReadOnlyDictionary<string, IReadOnlyList<IPAddress>>> ParseHostsContentAsync(TextReader reader, CancellationToken ct)
     {
         var map = new Dictionary<string, List<IPAddress>>(StringComparer.OrdinalIgnoreCase);
@@ -147,6 +166,11 @@ public sealed partial class HostsFileReader(
             StringComparer.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// Validates whether a character span adheres to RFC hostname syntax specifications.
+    /// </summary>
+    /// <param name="hostname">The character span containing the candidate hostname.</param>
+    /// <returns><c>true</c> if the hostname span is valid; otherwise, <c>false</c>.</returns>
     private static bool IsValidHostname(ReadOnlySpan<char> hostname)
     {
         if (hostname.IsEmpty || hostname.Length > 255)

@@ -8,8 +8,12 @@ namespace Astrolabed.Dns.Resolvers;
 /// Provides a read-only list wrapper over <see cref="IHostsManager.Entries"/> to allow dynamic host entry evaluation.
 /// </summary>
 /// <param name="hostsManager">The underlying hosts manager instance providing entries.</param>
+/// <exception cref="ArgumentNullException">Thrown when <paramref name="hostsManager"/> is <c>null</c>.</exception>
 public sealed class HostsEntryListWrapper(IHostsManager hostsManager) : IReadOnlyList<HostsEntry>
 {
+    /// <summary>
+    /// The backing hosts manager instance providing the underlying entries collection.
+    /// </summary>
     private readonly IHostsManager _hostsManager = hostsManager ?? throw new ArgumentNullException(nameof(hostsManager));
 
     /// <inheritdoc />
