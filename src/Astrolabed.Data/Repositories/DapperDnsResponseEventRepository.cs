@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Data/Repositories/DapperDnsResponseEventRepository.cs
 using System.Data.Common;
 
 using Astrolabed.Data.Models;
@@ -46,7 +47,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             );
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogInsertingEventRecord(_logger, entity.Id);
 
@@ -67,7 +68,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await connection.ExecuteAsync(command);
+        await connection.ExecuteAsync(command).ConfigureAwait(false);
 
         LogInsertedEventRecordSuccessfully(_logger, entity.Id);
     }
@@ -84,7 +85,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             WHERE id = @Id;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogFetchingById(_logger, id);
 
@@ -97,7 +98,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        return await connection.QuerySingleOrDefaultAsync<DnsResponseEventEntity>(command);
+        return await connection.QuerySingleOrDefaultAsync<DnsResponseEventEntity>(command).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -120,7 +121,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             LIMIT @PageSize OFFSET @Offset;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogExecutingPagedQuery(_logger, targetPage, targetSize);
 
@@ -134,10 +135,10 @@ public sealed partial class DapperDnsResponseEventRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
+        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command).ConfigureAwait(false);
 
-        long totalCount = await gridReader.ReadSingleAsync<long>();
-        IEnumerable<DnsResponseEventEntity> readItems = await gridReader.ReadAsync<DnsResponseEventEntity>();
+        long totalCount = await gridReader.ReadSingleAsync<long>().ConfigureAwait(false);
+        IEnumerable<DnsResponseEventEntity> readItems = await gridReader.ReadAsync<DnsResponseEventEntity>().ConfigureAwait(false);
         List<DnsResponseEventEntity> items = readItems.ToList();
 
         LogRetrievedPagedResults(_logger, targetPage, items.Count, totalCount);
@@ -152,7 +153,7 @@ public sealed partial class DapperDnsResponseEventRepository(
 
         const string sql = "DELETE FROM dns_response_events WHERE id = @Id;";
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogDeletingRecord(_logger, id);
 
@@ -165,7 +166,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
         bool deleted = rowsAffected > 0;
 
         if (deleted)
@@ -181,12 +182,12 @@ public sealed partial class DapperDnsResponseEventRepository(
     }
 
     /// <inheritdoc />
-    public async Task CleanOldData(CancellationToken cancellationToken = default)
+    public async Task CleanOldDataAsync(CancellationToken cancellationToken = default)
     {
         long cutoff = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
         const string sql = "DELETE FROM dns_response_events WHERE start_time_utc < @Cutoff;";
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogCleaningOldRecords(_logger, cutoff);
 
@@ -199,7 +200,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 
         if (rowsAffected > 0)
         {

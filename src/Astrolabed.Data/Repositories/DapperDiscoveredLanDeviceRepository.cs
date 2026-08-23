@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Data/Repositories/DapperDiscoveredLanDeviceRepository.cs
 using System.Data.Common;
 using System.Net;
 
@@ -53,7 +54,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
         long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogUpsertingLanDevice(_logger, device.MacAddress);
 
@@ -71,35 +72,35 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await connection.ExecuteAsync(command);
+        await connection.ExecuteAsync(command).ConfigureAwait(false);
 
         LogUpsertedLanDeviceSuccessfully(_logger, device.MacAddress);
     }
 
     /// <inheritdoc />
-    public async Task BulkUpsertAsync(IEnumerable<DiscoveredLanDevice> devices, CancellationToken cancellationToken = default)
+    public async Task BulkUpsertAsync(IReadOnlyCollection<DiscoveredLanDevice> devices, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(devices);
 
-        ReadOnlySpan<DiscoveredLanDevice> deviceSpan = devices switch
+        if (devices.Count == 0)
+        {
+            LogBulkUpsertSkippedEmpty(_logger);
+            return;
+        }
+
+        DiscoveredLanDevice[] deviceArray = devices switch
         {
             DiscoveredLanDevice[] array => array,
             List<DiscoveredLanDevice> list => list.ToArray(),
             _ => devices.ToArray()
         };
 
-        if (deviceSpan.IsEmpty)
-        {
-            LogBulkUpsertSkippedEmpty(_logger);
-            return;
-        }
-
         long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        var parameterBatch = new DynamicParameters[deviceSpan.Length];
-        for (int i = 0; i < deviceSpan.Length; i++)
+        var parameterBatch = new DynamicParameters[deviceArray.Length];
+        for (int i = 0; i < deviceArray.Length; i++)
         {
-            DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(deviceSpan[i]);
+            DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(deviceArray[i]);
             var param = new DynamicParameters();
             param.Add("MacAddress", entity.MacAddress);
             param.Add("IpAddress", entity.IpAddress);
@@ -123,9 +124,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                 last_seen = EXCLUDED.last_seen;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        LogExecutingBulkUpsert(_logger, deviceSpan.Length);
+        LogExecutingBulkUpsert(_logger, deviceArray.Length);
 
         var command = new CommandDefinition(
             sql,
@@ -133,9 +134,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 
-        LogBulkUpsertCompletedSuccessfully(_logger, deviceSpan.Length, rowsAffected);
+        LogBulkUpsertCompletedSuccessfully(_logger, deviceArray.Length, rowsAffected);
     }
 
     /// <inheritdoc />
@@ -153,7 +154,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             WHERE ptr_address = @PtrAddress;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogFetchingByPtrAddress(_logger, ptrAddress);
 
@@ -166,7 +167,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
@@ -186,7 +187,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             WHERE mac_address = @MacAddress;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogFetchingByMacAddress(_logger, macAddress);
 
@@ -199,7 +200,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
@@ -219,7 +220,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             WHERE ip_address = @IpAddress;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         string ipString = ipAddress.ToString();
         LogFetchingByIpAddress(_logger, ipString);
@@ -233,7 +234,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
@@ -261,7 +262,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             LIMIT @PageSize OFFSET @Offset;
             """;
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogExecutingPagedSelect(_logger, targetPage, targetSize);
 
@@ -275,10 +276,10 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
+        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command).ConfigureAwait(false);
 
-        long totalCount = await gridReader.ReadSingleAsync<long>();
-        IEnumerable<DiscoveredLanDeviceEntity> entities = await gridReader.ReadAsync<DiscoveredLanDeviceEntity>();
+        long totalCount = await gridReader.ReadSingleAsync<long>().ConfigureAwait(false);
+        IEnumerable<DiscoveredLanDeviceEntity> entities = await gridReader.ReadAsync<DiscoveredLanDeviceEntity>().ConfigureAwait(false);
 
         List<DiscoveredLanDevice> items = entities.Select(e => e.ToDomain()).ToList();
 
@@ -294,7 +295,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
 
         const string sql = "DELETE FROM discovered_lan_devices WHERE mac_address = @MacAddress;";
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogDeletingByMacAddress(_logger, macAddress);
 
@@ -307,7 +308,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
         bool deleted = rowsAffected > 0;
 
         if (deleted)
@@ -328,7 +329,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
         long cutoffEpochSeconds = cutoff.ToUnixTimeSeconds();
         const string sql = "DELETE FROM discovered_lan_devices WHERE last_seen < @Cutoff;";
 
-        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         LogCleaningOldData(_logger, cutoffEpochSeconds);
 
@@ -341,7 +342,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 
         if (rowsAffected > 0)
         {
