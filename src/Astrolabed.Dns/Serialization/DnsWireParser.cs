@@ -1,19 +1,36 @@
-// File: src/Astrolabed.Dns/Serialization/DnsWireParser.cs
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Net;
 using System.Text;
 
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
 
+/// <summary>
+/// Provides zero-allocation, high-performance binary parsing for RFC 1035 wire-format DNS messages.
+/// </summary>
 public static class DnsWireParser
 {
+    private const int HeaderSize = 12;
+    private const int MaxCompressionJumps = 8;
+    private const byte CompressionMask = 0xC0;
+
+    /// <summary>
+    /// Attempts to parse a raw binary DNS wire message.
+    /// </summary>
+    /// <param name="buffer">The binary span containing the raw DNS packet.</param>
+    /// <param name="message">The parsed <see cref="DnsWireMessage"/> instance if successful; otherwise, <c>null</c>.</param>
+    /// <returns><c>true</c> if parsing succeeded; otherwise, <c>false</c>.</returns>
     public static bool TryParse(ReadOnlySpan<byte> buffer, out DnsWireMessage? message)
     {
         message = null;
-        if (buffer.Length < 12) return false;
+        if (buffer.Length < HeaderSize)
+        {
+            return false;
+        }
 
-        ushort id = BinaryPrimitives.ReadUInt16BigEndian(buffer[0..2]);
+        ushort id = BinaryPrimitives.ReadUInt16BigEndian(buffer[..2]);
         ushort flags = BinaryPrimitives.ReadUInt16BigEndian(buffer[2..4]);
 
         ushort qdCount = BinaryPrimitives.ReadUInt16BigEndian(buffer[4..6]);
@@ -33,12 +50,20 @@ public static class DnsWireParser
             ResponseCode = (DnsResponseCode)(flags & 0x000F)
         };
 
-        int offset = 12;
+        int offset = HeaderSize;
 
+        // Parse Question Section
         if (qdCount > 0)
         {
-            if (!TryReadDomainName(buffer, ref offset, out var qName)) return false;
-            if (offset + 4 > buffer.Length) return false;
+            if (!TryReadDomainName(buffer, ref offset, out string qName))
+            {
+                return false;
+            }
+
+            if (offset + 4 > buffer.Length)
+            {
+                return false;
+            }
 
             msg.QuestionName = qName;
             msg.QuestionType = (DnsType)BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset, 2));
@@ -46,23 +71,37 @@ public static class DnsWireParser
             offset += 4;
         }
 
+        // Parse Answer Section
         for (int i = 0; i < anCount; i++)
         {
-            if (!TryReadResourceRecord(buffer, ref offset, out var rr)) return false;
-            msg.Answers.Add(rr!);
+            if (!TryReadResourceRecord(buffer, ref offset, out DnsResourceRecord? rr) || rr is null)
+            {
+                return false;
+            }
+
+            msg.Answers.Add(rr);
         }
 
+        // Parse Authority Section
         for (int i = 0; i < nsCount; i++)
         {
-            if (!TryReadResourceRecord(buffer, ref offset, out var rr)) return false;
-            msg.Authorities.Add(rr!);
+            if (!TryReadResourceRecord(buffer, ref offset, out DnsResourceRecord? rr) || rr is null)
+            {
+                return false;
+            }
+
+            msg.Authorities.Add(rr);
         }
 
+        // Parse Additional Section (including EDNS0 OPT RR)
         for (int i = 0; i < arCount; i++)
         {
-            if (!TryReadResourceRecord(buffer, ref offset, out var rr)) return false;
+            if (!TryReadResourceRecord(buffer, ref offset, out DnsResourceRecord? rr) || rr is null)
+            {
+                return false;
+            }
 
-            if (rr!.Type == DnsType.OPT)
+            if (rr.Type == DnsType.OPT)
             {
                 var edns = new EdnsOptions
                 {
@@ -72,10 +111,15 @@ public static class DnsWireParser
                     DnssecOk = (rr.Ttl & 0x8000) != 0
                 };
 
+                // Combine upper 8 bits from OPT TTL with lower 4 bits from Header RCODE
                 ushort fullRCode = (ushort)(((ushort)edns.ExtendedRCode << 4) | ((ushort)msg.ResponseCode & 0x0F));
                 msg.ResponseCode = (DnsResponseCode)fullRCode;
 
-                ParseEdnsOptionData(rr.Data, edns);
+                if (rr.Data is not null)
+                {
+                    ParseEdnsOptionData(rr.Data, edns);
+                }
+
                 msg.Edns = edns;
             }
             else
@@ -88,65 +132,139 @@ public static class DnsWireParser
         return true;
     }
 
-    private static void ParseEdnsOptionData(ReadOnlySpan<byte> data, EdnsOptions edns)
+    /// <summary>
+    /// Reads and parses an RFC 1035 domain name from a DNS buffer with pointer compression support.
+    /// </summary>
+    /// <param name="buffer">The full DNS message buffer.</param>
+    /// <param name="offset">Current reading offset, advanced past the domain name upon return.</param>
+    /// <param name="domain">The parsed, fully qualified domain name string.</param>
+    /// <returns><c>true</c> if the domain name was read successfully; otherwise, <c>false</c>.</returns>
+    public static bool TryReadDomainName(ReadOnlySpan<byte> buffer, ref int offset, out string domain)
     {
-        int offset = 0;
-        while (offset + 4 <= data.Length)
+        domain = string.Empty;
+        int currentOffset = offset;
+        int jumpsPerformed = 0;
+        int originalOffset = -1;
+
+        var sb = new StringBuilder(64);
+
+        while (currentOffset < buffer.Length)
         {
-            ushort code = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
-            ushort len = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset + 2, 2));
-            offset += 4;
-
-            if (offset + len > data.Length) break;
-
-            edns.Options.Add(new EdnsOptionCode
+            byte length = buffer[currentOffset];
+            if (length == 0)
             {
-                Code = code,
-                Data = data.Slice(offset, len).ToArray()
-            });
+                currentOffset++;
+                break;
+            }
 
-            offset += len;
+            byte labelType = (byte)(length & CompressionMask);
+
+            // Pointer compression handling (11xxxxxx)
+            if (labelType == CompressionMask)
+            {
+                if (currentOffset + 1 >= buffer.Length)
+                {
+                    return false;
+                }
+
+                if (originalOffset == -1)
+                {
+                    originalOffset = currentOffset + 2;
+                }
+
+                ushort pointer = (ushort)(((length & 0x3F) << 8) | buffer[currentOffset + 1]);
+                if (pointer >= buffer.Length)
+                {
+                    return false;
+                }
+
+                currentOffset = pointer;
+
+                if (++jumpsPerformed > MaxCompressionJumps)
+                {
+                    return false; // Circular compression pointer detected
+                }
+
+                continue;
+            }
+
+            // Unrecognized label type
+            if (labelType != 0x00)
+            {
+                return false;
+            }
+
+            currentOffset++;
+            if (currentOffset + length > buffer.Length)
+            {
+                return false;
+            }
+
+            if (sb.Length > 0)
+            {
+                sb.Append('.');
+            }
+
+            sb.Append(Encoding.ASCII.GetString(buffer.Slice(currentOffset, length)));
+            currentOffset += length;
         }
+
+        offset = originalOffset != -1 ? originalOffset : currentOffset;
+        domain = sb.ToString();
+        return true;
     }
 
     private static bool TryReadResourceRecord(ReadOnlySpan<byte> buffer, ref int offset, out DnsResourceRecord? record)
     {
         record = null;
-        if (!TryReadDomainName(buffer, ref offset, out var name)) return false;
-        if (offset + 10 > buffer.Length) return false;
+        if (!TryReadDomainName(buffer, ref offset, out string name))
+        {
+            return false;
+        }
+
+        if (offset + 10 > buffer.Length)
+        {
+            return false;
+        }
 
         var type = (DnsType)BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset, 2));
-        var cls = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset + 2, 2));
-        var ttl = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(offset + 4, 4));
-        var rdLength = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset + 8, 2));
+        ushort cls = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset + 2, 2));
+        uint ttl = BinaryPrimitives.ReadUInt32BigEndian(buffer.Slice(offset + 4, 4));
+        ushort rdLength = BinaryPrimitives.ReadUInt16BigEndian(buffer.Slice(offset + 8, 2));
         offset += 10;
 
-        if (offset + rdLength > buffer.Length) return false;
+        if (offset + rdLength > buffer.Length)
+        {
+            return false;
+        }
 
+        ReadOnlySpan<byte> rdataSpan = buffer.Slice(offset, rdLength);
         byte[] data;
-        System.Net.IPAddress? parsedIp = null;
+        IPAddress? parsedIp = null;
 
         if (type == DnsType.A && rdLength == 4)
         {
-            data = buffer.Slice(offset, rdLength).ToArray();
-            parsedIp = new System.Net.IPAddress(data);
+            data = rdataSpan.ToArray();
+            parsedIp = new IPAddress(rdataSpan);
         }
         else if (type == DnsType.AAAA && rdLength == 16)
         {
-            data = buffer.Slice(offset, rdLength).ToArray();
-            parsedIp = new System.Net.IPAddress(data);
+            data = rdataSpan.ToArray();
+            parsedIp = new IPAddress(rdataSpan);
         }
-        else if (type == DnsType.CNAME || type == DnsType.NS || type == DnsType.PTR || type == DnsType.DNAME)
+        else if (type is DnsType.CNAME or DnsType.NS or DnsType.PTR or DnsType.DNAME)
         {
             int rdataOffset = offset;
-            if (!TryReadDomainName(buffer, ref rdataOffset, out var targetDomain)) return false;
+            if (!TryReadDomainName(buffer, ref rdataOffset, out string targetDomain))
+            {
+                return false;
+            }
 
-            // Normalize and uncompress RDATA target domain into clean wire labels
             data = EncodeUncompressedDomainName(targetDomain);
         }
         else
         {
-            data = buffer.Slice(offset, rdLength).ToArray();
+            data = rdataSpan.ToArray();
         }
 
         offset += rdLength;
@@ -164,76 +282,66 @@ public static class DnsWireParser
         return true;
     }
 
-    public static bool TryReadDomainName(ReadOnlySpan<byte> buffer, ref int offset, out string domain)
+    private static void ParseEdnsOptionData(ReadOnlySpan<byte> data, EdnsOptions edns)
     {
-        domain = string.Empty;
-        int currentOffset = offset;
-        int maxJumps = 10;
-        int jumpsPerformed = 0;
-        int originalOffset = -1;
-
-        var sb = new StringBuilder(64);
-
-        while (currentOffset < buffer.Length)
+        int offset = 0;
+        while (offset + 4 <= data.Length)
         {
-            byte length = buffer[currentOffset];
-            if (length == 0)
+            ushort code = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset, 2));
+            ushort len = BinaryPrimitives.ReadUInt16BigEndian(data.Slice(offset + 2, 2));
+            offset += 4;
+
+            if (offset + len > data.Length)
             {
-                currentOffset++;
                 break;
             }
 
-            byte labelType = (byte)(length & 0xC0);
-
-            // Check for Compression Pointer (11xxxxxx)
-            if (labelType == 0xC0)
+            edns.Options.Add(new EdnsOptionCode
             {
-                if (currentOffset + 1 >= buffer.Length) return false;
-                if (originalOffset == -1) originalOffset = currentOffset + 2;
+                Code = code,
+                Data = data.Slice(offset, len).ToArray()
+            });
 
-                ushort pointer = (ushort)(((length & 0x3F) << 8) | buffer[currentOffset + 1]);
-                if (pointer >= buffer.Length) return false; // Pointer out of bounds
-
-                currentOffset = pointer;
-
-                if (++jumpsPerformed > maxJumps) return false; // Prevent circular loop
-                continue;
-            }
-
-            // Reject invalid label masks (01xxxxxx or 10xxxxxx)
-            if (labelType != 0x00)
-            {
-                return false;
-            }
-
-            // Standard label (00xxxxxx)
-            currentOffset++;
-            if (currentOffset + length > buffer.Length) return false;
-
-            if (sb.Length > 0) sb.Append('.');
-            sb.Append(Encoding.ASCII.GetString(buffer.Slice(currentOffset, length)));
-            currentOffset += length;
+            offset += len;
         }
-
-        offset = originalOffset != -1 ? originalOffset : currentOffset;
-        domain = sb.ToString();
-        return true;
     }
 
     private static byte[] EncodeUncompressedDomainName(string domain)
     {
         if (string.IsNullOrEmpty(domain) || domain == ".")
-            return [0];
-
-        var list = new List<byte>(domain.Length + 2);
-        string[] labels = domain.TrimEnd('.').Split('.');
-        foreach (var label in labels)
         {
-            byte[] labelBytes = Encoding.ASCII.GetBytes(label);
-            list.Add((byte)labelBytes.Length);
-            list.AddRange(labelBytes);
+            return [0];
         }
-        list.Add(0);
-        return list.ToArray();
+
+        ReadOnlySpan<char> span = domain.AsSpan().TrimEnd('.');
+        var writer = new ArrayBufferWriter<byte>(span.Length + 2);
+
+        int currentOffset = 0;
+        while (currentOffset < span.Length)
+        {
+            int nextDot = span[currentOffset..].IndexOf('.');
+            ReadOnlySpan<char> label = nextDot < 0
+                ? span[currentOffset..]
+                : span.Slice(currentOffset, nextDot);
+
+            int byteCount = Encoding.ASCII.GetByteCount(label);
+            Span<byte> labelBuffer = writer.GetSpan(1 + byteCount);
+            labelBuffer[0] = (byte)byteCount;
+            Encoding.ASCII.GetBytes(label, labelBuffer[1..]);
+            writer.Advance(1 + byteCount);
+
+            if (nextDot < 0)
+            {
+                break;
+            }
+
+            currentOffset += nextDot + 1;
+        }
+
+        Span<byte> nullTerminator = writer.GetSpan(1);
+        nullTerminator[0] = 0;
+        writer.Advance(1);
+
+        return writer.WrittenSpan.ToArray();
     }
 }

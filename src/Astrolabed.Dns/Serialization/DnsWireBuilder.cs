@@ -1,4 +1,4 @@
-// File: src/Astrolabed.Dns/Serialization/DnsWireBuilder.cs
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Text;
 
@@ -6,183 +6,246 @@ using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
 
+/// <summary>
+/// Provides high-performance binary serialization for DNS wire-format messages compliant with RFC 1035 and EDNS0 (RFC 6891 / RFC 8914).
+/// </summary>
 public static class DnsWireBuilder
 {
+    private const ushort DefaultClassIn = 1;
+    private const ushort EdnsOptType = 41;
+    private const ushort EdnsEdeOptionCode = 15;
+    private const ushort CompressionMask = 0xC000;
+    private const ushort MaxCompressionOffset = 0x3FFF;
+
+    /// <summary>
+    /// Builds a serialized DNS wire-format response payload.
+    /// </summary>
+    /// <param name="request">The original request DNS message.</param>
+    /// <param name="responseCode">The response code to assign.</param>
+    /// <param name="answers">Optional resource records for the Answer section.</param>
+    /// <param name="ede">Optional Extended DNS Error information for EDNS0 OPT RR.</param>
+    /// <returns>A byte array containing the full DNS wire-format response.</returns>
     public static byte[] BuildResponse(
         DnsWireMessage request,
         DnsResponseCode responseCode,
         IEnumerable<DnsResourceRecord>? answers = null,
         ExtendedDnsError? ede = null)
     {
-        Span<byte> header = stackalloc byte[12];
+        ArgumentNullException.ThrowIfNull(request);
 
-        // 1. Preserve incoming Transaction ID
+        var writer = new ArrayBufferWriter<byte>(512);
+        var compressionMap = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
+
+        IReadOnlyList<DnsResourceRecord> answerList = answers switch
+        {
+            IReadOnlyList<DnsResourceRecord> list => list,
+            IEnumerable<DnsResourceRecord> enumable => enumable.ToList(),
+            _ => Array.Empty<DnsResourceRecord>()
+        };
+
+        // 1. Render Header (12 bytes)
+        Span<byte> header = writer.GetSpan(12)[..12];
+
         BinaryPrimitives.WriteUInt16BigEndian(header[0..2], request.TransactionId);
 
-        // 2. Response Flags: QR=1 (Response), Opcode=0, AA=1, RD=1, RA=1, RCODE
+        // Flags: QR=1, Opcode=0, AA=1, RD=1, RA=1, RCODE
         ushort flags = 0x8180;
         flags |= (ushort)((byte)responseCode & 0x0F);
         BinaryPrimitives.WriteUInt16BigEndian(header[2..4], flags);
 
-        // 3. Question Count
+        // Counts: QDCOUNT=1, ANCOUNT, NSCOUNT=0, ARCOUNT (1 if EDNS EDE present)
         BinaryPrimitives.WriteUInt16BigEndian(header[4..6], 1);
-
-        // Calculate Answer Count
-        var answerList = answers != null ? new List<DnsResourceRecord>(answers) : [];
         BinaryPrimitives.WriteUInt16BigEndian(header[6..8], (ushort)answerList.Count);
-
-        // Authority Count
         BinaryPrimitives.WriteUInt16BigEndian(header[8..10], 0);
+        BinaryPrimitives.WriteUInt16BigEndian(header[10..12], ede is not null ? (ushort)1 : (ushort)0);
 
-        // Additional Count (1 if EDE present for EDNS0 OPT RR, else 0)
-        BinaryPrimitives.WriteUInt16BigEndian(header[10..12], ede != null ? (ushort)1 : (ushort)0);
+        writer.Advance(12);
 
-        var buffer = new List<byte>(256);
-        buffer.AddRange(header);
+        // 2. Question Section
+        WriteDomainName(writer, request.QuestionName, compressionMap);
 
-        // DNS domain compression tracking dictionary (suffix -> byte offset in output buffer)
-        var compressionMap = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
+        Span<byte> qTypeClass = writer.GetSpan(4)[..4];
+        BinaryPrimitives.WriteUInt16BigEndian(qTypeClass[0..2], (ushort)request.QuestionType);
+        BinaryPrimitives.WriteUInt16BigEndian(qTypeClass[2..4], DefaultClassIn);
+        writer.Advance(4);
 
-        // Encode Question Section with compression tracking
-        WriteDomainName(buffer, request.QuestionName, compressionMap);
-
-        byte[] typeAndClass = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(0, 2), (ushort)request.QuestionType);
-        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(2, 2), 1); // Class IN
-        buffer.AddRange(typeAndClass);
-
-        // Encode Answer RRs
-        foreach (var rr in answerList)
+        // 3. Answer Section
+        foreach (DnsResourceRecord rr in answerList)
         {
-            EncodeResourceRecord(buffer, rr, compressionMap);
+            EncodeResourceRecord(writer, rr, compressionMap);
         }
 
-        // Encode EDNS0 OPT Pseudo-RR if Extended DNS Error is present
-        if (ede != null)
+        // 4. Additional Section (EDNS0 OPT RR with Extended DNS Error)
+        if (ede is not null)
         {
-            EncodeEdnsOption(buffer, ede);
+            EncodeEdnsOption(writer, ede);
         }
 
-        return buffer.ToArray();
+        return writer.WrittenSpan.ToArray();
     }
 
+    /// <summary>
+    /// Encodes a domain name into a pre-allocated buffer at a specific offset.
+    /// </summary>
+    /// <param name="buffer">Target buffer array.</param>
+    /// <param name="offset">Current buffer offset, updated upon completion.</param>
+    /// <param name="domain">Domain name string to encode.</param>
     public static void EncodeDomainName(byte[] buffer, ref int offset, string domain)
     {
-        var tempBuffer = new List<byte>();
-        var dummyMap = new Dictionary<string, ushort>();
-        WriteDomainName(tempBuffer, domain, dummyMap);
+        ArgumentNullException.ThrowIfNull(buffer);
 
-        foreach (byte b in tempBuffer)
-        {
-            buffer[offset++] = b;
-        }
+        var writer = new ArrayBufferWriter<byte>(128);
+        var dummyMap = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
+        WriteDomainName(writer, domain, dummyMap);
+
+        ReadOnlySpan<byte> written = writer.WrittenSpan;
+        written.CopyTo(buffer.AsSpan(offset));
+        offset += written.Length;
     }
 
+    /// <summary>
+    /// Writes an RFC 1035 domain name with support for dictionary label compression.
+    /// </summary>
+    /// <param name="writer">Target buffer writer.</param>
+    /// <param name="domain">Domain name string.</param>
+    /// <param name="compressionMap">Map tracking suffix offsets for DNS compression.</param>
     public static void WriteDomainName(
-        List<byte> buffer,
+        IBufferWriter<byte> writer,
         string domain,
         Dictionary<string, ushort> compressionMap)
     {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(compressionMap);
+
         if (string.IsNullOrEmpty(domain) || domain == ".")
         {
-            buffer.Add(0);
+            Span<byte> nullLabel = writer.GetSpan(1)[..1];
+            nullLabel[0] = 0;
+            writer.Advance(1);
             return;
         }
 
-        string normalized = domain.TrimEnd('.');
-        string[] labels = normalized.Split('.');
+        ReadOnlySpan<char> domainSpan = domain.AsSpan().TrimEnd('.');
+        int totalLength = domainSpan.Length;
+        int currentOffset = 0;
 
-        for (int i = 0; i < labels.Length; i++)
+        while (currentOffset < totalLength)
         {
-            string suffix = string.Join('.', labels, i, labels.Length - i);
+            string currentSuffix = domainSpan[currentOffset..].ToString();
 
-            if (compressionMap.TryGetValue(suffix, out ushort pointerOffset) && pointerOffset < 0x3FFF)
+            if (compressionMap.TryGetValue(currentSuffix, out ushort pointerOffset) && pointerOffset <= MaxCompressionOffset)
             {
-                ushort pointer = (ushort)(0xC000 | pointerOffset);
-                buffer.Add((byte)(pointer >> 8));
-                buffer.Add((byte)(pointer & 0xFF));
+                Span<byte> pointerBytes = writer.GetSpan(2)[..2];
+                ushort pointer = (ushort)(CompressionMask | pointerOffset);
+                BinaryPrimitives.WriteUInt16BigEndian(pointerBytes, pointer);
+                writer.Advance(2);
                 return;
             }
 
-            if (buffer.Count < 0x3FFF)
+            // Record current writer position as compression target if within max offset limit
+            if (writer is ArrayBufferWriter<byte> bufferWriter && bufferWriter.WrittenCount <= MaxCompressionOffset)
             {
-                compressionMap[suffix] = (ushort)buffer.Count;
+                compressionMap[currentSuffix] = (ushort)bufferWriter.WrittenCount;
             }
 
-            byte[] labelBytes = Encoding.ASCII.GetBytes(labels[i]);
-            if (labelBytes.Length > 63)
+            int nextDot = domainSpan[currentOffset..].IndexOf('.');
+            ReadOnlySpan<char> label = nextDot < 0
+                ? domainSpan[currentOffset..]
+                : domainSpan.Slice(currentOffset, nextDot);
+
+            int byteCount = Encoding.ASCII.GetByteCount(label);
+            if (byteCount is 0 or > 63)
             {
-                throw new ArgumentException($"DNS label '{labels[i]}' exceeds maximum allowed length of 63 bytes.");
+                throw new ArgumentException($"DNS label '{label.ToString()}' length must be between 1 and 63 bytes.");
             }
 
-            buffer.Add((byte)labelBytes.Length);
-            buffer.AddRange(labelBytes);
+            Span<byte> labelBuffer = writer.GetSpan(1 + byteCount);
+            labelBuffer[0] = (byte)byteCount;
+            Encoding.ASCII.GetBytes(label, labelBuffer[1..]);
+            writer.Advance(1 + byteCount);
+
+            if (nextDot < 0)
+            {
+                break;
+            }
+
+            currentOffset += nextDot + 1;
         }
 
-        buffer.Add(0);
+        Span<byte> terminator = writer.GetSpan(1)[..1];
+        terminator[0] = 0;
+        writer.Advance(1);
     }
 
     private static void EncodeResourceRecord(
-        List<byte> buffer,
+        IBufferWriter<byte> writer,
         DnsResourceRecord rr,
         Dictionary<string, ushort> compressionMap)
     {
-        // 1. Encode Resource Record Owner Name with compression
-        WriteDomainName(buffer, rr.Name, compressionMap);
+        // Owner Name
+        WriteDomainName(writer, rr.Name, compressionMap);
 
-        // 2. Header (Type, Class, TTL)
-        byte[] rrHeader = new byte[8];
-        BinaryPrimitives.WriteUInt16BigEndian(rrHeader.AsSpan(0, 2), (ushort)rr.Type);
-        BinaryPrimitives.WriteUInt16BigEndian(rrHeader.AsSpan(2, 2), rr.Class == 0 ? (ushort)1 : rr.Class);
-        BinaryPrimitives.WriteUInt32BigEndian(rrHeader.AsSpan(4, 4), (uint)rr.Ttl);
-        buffer.AddRange(rrHeader);
+        // RR Header (Type, Class, TTL)
+        Span<byte> rrHeader = writer.GetSpan(10)[..10];
+        BinaryPrimitives.WriteUInt16BigEndian(rrHeader[0..2], (ushort)rr.Type);
+        BinaryPrimitives.WriteUInt16BigEndian(rrHeader[2..4], rr.Class == 0 ? DefaultClassIn : rr.Class);
+        BinaryPrimitives.WriteUInt32BigEndian(rrHeader[4..8], (uint)rr.Ttl);
 
-        // 3. Reserve 2 bytes for RDATA Length
-        int rdLengthIndex = buffer.Count;
-        buffer.Add(0);
-        buffer.Add(0);
-        int rdataStartIndex = buffer.Count;
+        // Reserve 2 bytes for RDLENGTH (written at offset 8..10)
+        writer.Advance(10);
 
-        // 4. Encode RDATA
-        if (rr.ParsedIp != null)
+        int rdataStartOffset = writer is ArrayBufferWriter<byte> abw ? abw.WrittenCount : 0;
+
+        // Encode RDATA Payload
+        if (rr.ParsedIp is not null)
         {
-            byte[] ipBytes = rr.ParsedIp.GetAddressBytes();
-            buffer.AddRange(ipBytes);
+            Span<byte> ipSpan = writer.GetSpan(rr.ParsedIp.IPAddressToString().Length);
+            bool success = rr.ParsedIp.TryWriteBytes(writer.GetSpan(16), out int bytesWritten);
+            if (success)
+            {
+                writer.Advance(bytesWritten);
+            }
         }
         else if (IsDomainTargetRecord(rr.Type))
         {
             string? targetDomain = ExtractDomainString(rr);
             if (!string.IsNullOrEmpty(targetDomain))
             {
-                WriteDomainName(buffer, targetDomain, compressionMap);
+                WriteDomainName(writer, targetDomain, compressionMap);
             }
-            else if (rr.Data != null)
+            else if (rr.Data is not null)
             {
-                buffer.AddRange(rr.Data);
+                writer.Write(rr.Data);
             }
         }
-        else if (rr.Data != null)
+        else if (rr.Data is not null)
         {
-            buffer.AddRange(rr.Data);
+            writer.Write(rr.Data);
         }
 
-        // 5. Backfill actual RDATA length
-        ushort rdataLength = (ushort)(buffer.Count - rdataStartIndex);
-        buffer[rdLengthIndex] = (byte)(rdataLength >> 8);
-        buffer[rdLengthIndex + 1] = (byte)(rdataLength & 0xFF);
+        // Backfill actual RDATA Length into reserved header bytes
+        if (writer is ArrayBufferWriter<byte> arrayWriter)
+        {
+            int rdataLength = arrayWriter.WrittenCount - rdataStartOffset;
+            Span<byte> writtenMemory = arrayWriter.WrittenSpan.Slice(rdataStartOffset - 2, 2);
+            BinaryPrimitives.WriteUInt16BigEndian(MemoryMarshalSpan(writtenMemory), (ushort)rdataLength);
+        }
     }
 
-    private static bool IsDomainTargetRecord(DnsType type)
-    {
-        return type == DnsType.CNAME || type == DnsType.NS || type == DnsType.PTR || type == DnsType.DNAME;
-    }
+    private static Span<byte> MemoryMarshalSpan(Span<byte> span) => span;
+
+    private static bool IsDomainTargetRecord(DnsType type) =>
+        type is DnsType.CNAME or DnsType.NS or DnsType.PTR or DnsType.DNAME;
 
     private static string? ExtractDomainString(DnsResourceRecord rr)
     {
-        if (rr.Data == null || rr.Data.Length == 0) return null;
+        if (rr.Data is null || rr.Data.Length == 0)
+        {
+            return null;
+        }
 
         int offset = 0;
-        if (DnsWireParser.TryReadDomainName(rr.Data, ref offset, out var domain) && !string.IsNullOrEmpty(domain))
+        if (DnsWireParser.TryReadDomainName(rr.Data, ref offset, out string? domain) && !string.IsNullOrEmpty(domain))
         {
             return domain;
         }
@@ -190,39 +253,42 @@ public static class DnsWireBuilder
         return null;
     }
 
-    private static void EncodeEdnsOption(List<byte> buffer, ExtendedDnsError ede)
+    private static void EncodeEdnsOption(IBufferWriter<byte> writer, ExtendedDnsError ede)
     {
-        buffer.Add(0); // Root Domain Name "."
+        // Root Domain Name "."
+        Span<byte> rootName = writer.GetSpan(1)[..1];
+        rootName[0] = 0;
+        writer.Advance(1);
 
-        byte[] optHeader = new byte[8];
-        BinaryPrimitives.WriteUInt16BigEndian(optHeader.AsSpan(0, 2), 41); // Type OPT (41)
-        BinaryPrimitives.WriteUInt16BigEndian(optHeader.AsSpan(2, 2), 4096); // UDP Payload Size
-        BinaryPrimitives.WriteUInt32BigEndian(optHeader.AsSpan(4, 4), 0); // Extended RCODE / TTL
-        buffer.AddRange(optHeader);
-
-        byte[] extraTextBytes = string.IsNullOrEmpty(ede.ExtraText)
-            ? Array.Empty<byte>()
-            : Encoding.UTF8.GetBytes(ede.ExtraText);
-
-        ushort optionDataLength = (ushort)(2 + extraTextBytes.Length);
+        int extraTextByteCount = string.IsNullOrEmpty(ede.ExtraText) ? 0 : Encoding.UTF8.GetByteCount(ede.ExtraText);
+        ushort optionDataLength = (ushort)(2 + extraTextByteCount);
         ushort totalRdataLength = (ushort)(4 + optionDataLength);
 
-        byte[] rdLength = new byte[2];
-        BinaryPrimitives.WriteUInt16BigEndian(rdLength, totalRdataLength);
-        buffer.AddRange(rdLength);
+        // OPT RR Header: Type=41, UDPPayload=4096, TTL/RCODE=0, RDLENGTH
+        Span<byte> optHeader = writer.GetSpan(10)[..10];
+        BinaryPrimitives.WriteUInt16BigEndian(optHeader[0..2], EdnsOptType);
+        BinaryPrimitives.WriteUInt16BigEndian(optHeader[2..4], 4096);
+        BinaryPrimitives.WriteUInt32BigEndian(optHeader[4..8], 0);
+        BinaryPrimitives.WriteUInt16BigEndian(optHeader[8..10], totalRdataLength);
+        writer.Advance(10);
 
-        byte[] optionHeader = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(optionHeader.AsSpan(0, 2), 15); // Option Code 15 (EDE)
-        BinaryPrimitives.WriteUInt16BigEndian(optionHeader.AsSpan(2, 2), optionDataLength);
-        buffer.AddRange(optionHeader);
+        // Option Header: Code=15 (EDE), OptionLength
+        Span<byte> optionHeader = writer.GetSpan(4)[..4];
+        BinaryPrimitives.WriteUInt16BigEndian(optionHeader[0..2], EdnsEdeOptionCode);
+        BinaryPrimitives.WriteUInt16BigEndian(optionHeader[2..4], optionDataLength);
+        writer.Advance(4);
 
-        byte[] infoCodeBytes = new byte[2];
-        BinaryPrimitives.WriteUInt16BigEndian(infoCodeBytes, (ushort)ede.InfoCode);
-        buffer.AddRange(infoCodeBytes);
+        // EDE InfoCode (2 bytes)
+        Span<byte> infoCodeSpan = writer.GetSpan(2)[..2];
+        BinaryPrimitives.WriteUInt16BigEndian(infoCodeSpan, (ushort)ede.InfoCode);
+        writer.Advance(2);
 
-        if (extraTextBytes.Length > 0)
+        // EDE ExtraText payload if provided
+        if (extraTextByteCount > 0)
         {
-            buffer.AddRange(extraTextBytes);
+            Span<byte> extraTextSpan = writer.GetSpan(extraTextByteCount)[..extraTextByteCount];
+            Encoding.UTF8.GetBytes(ede.ExtraText, extraTextSpan);
+            writer.Advance(extraTextByteCount);
         }
     }
 }

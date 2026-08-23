@@ -1,50 +1,75 @@
-// File: src/Astrolabed.Dns/Serialization/QuestionBuilder.cs
+using System.Buffers;
 using System.Buffers.Binary;
+using System.Security.Cryptography;
 
 using Astrolabed.Dns.Models;
 
 namespace Astrolabed.Dns.Serialization;
 
+/// <summary>
+/// Provides zero-allocation, high-performance serialization for building outgoing RFC 1035 DNS queries.
+/// </summary>
 public static class QuestionBuilder
 {
+    private const ushort DefaultClassIn = 1;
+
+    /// <summary>
+    /// Constructs a binary RFC 1035 DNS query payload.
+    /// </summary>
+    /// <param name="domainName">Target domain name to query.</param>
+    /// <param name="type">DNS record type requested.</param>
+    /// <param name="transactionId">Optional explicit transaction ID. If null, a cryptographically secure ID is generated.</param>
+    /// <param name="recursionDesired">Specifies whether the Recursion Desired (RD) flag should be set.</param>
+    /// <returns>A byte array containing the serialized binary DNS query.</returns>
     public static byte[] BuildQuery(
         string domainName,
         DnsType type = DnsType.A,
         ushort? transactionId = null,
         bool recursionDesired = true)
     {
-        Span<byte> header = stackalloc byte[12];
+        ArgumentException.ThrowIfNullOrWhiteSpace(domainName);
 
-        // 1. Transaction ID (generate random ID if not provided)
-        ushort txId = transactionId ?? (ushort)Random.Shared.Next(1, 65535);
+        var writer = new ArrayBufferWriter<byte>(256);
+
+        // 1. Generate or assign Cryptographically Secure Transaction ID
+        ushort txId = transactionId ?? (ushort)RandomNumberGenerator.GetInt32(1, 65536);
+
+        // 2. Build 12-byte Header
+        Span<byte> header = writer.GetSpan(12)[..12];
+
         BinaryPrimitives.WriteUInt16BigEndian(header[0..2], txId);
 
-        // 2. Query Flags: QR=0 (Query), Opcode=0, RD=1 (Recursion Desired) or 0
+        // Query Flags: QR=0 (Query), Opcode=0, RD (Recursion Desired)
         ushort flags = recursionDesired ? (ushort)0x0100 : (ushort)0x0000;
         BinaryPrimitives.WriteUInt16BigEndian(header[2..4], flags);
 
-        // 3. Header Section Counts: QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
+        // Counts: QDCOUNT=1, ANCOUNT=0, NSCOUNT=0, ARCOUNT=0
         BinaryPrimitives.WriteUInt16BigEndian(header[4..6], 1);
         BinaryPrimitives.WriteUInt16BigEndian(header[6..8], 0);
         BinaryPrimitives.WriteUInt16BigEndian(header[8..10], 0);
         BinaryPrimitives.WriteUInt16BigEndian(header[10..12], 0);
 
-        var buffer = new List<byte>(256);
-        buffer.AddRange(header);
+        writer.Advance(12);
 
-        // 4. Encode Question Section Domain Name
+        // 3. Write Question Section Domain Name
         var compressionMap = new Dictionary<string, ushort>(StringComparer.OrdinalIgnoreCase);
-        DnsWireBuilder.WriteDomainName(buffer, domainName, compressionMap);
+        DnsWireBuilder.WriteDomainName(writer, domainName, compressionMap);
 
-        // 5. Encode Question Type and Class (IN = 1)
-        byte[] typeAndClass = new byte[4];
-        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(0, 2), (ushort)type);
-        BinaryPrimitives.WriteUInt16BigEndian(typeAndClass.AsSpan(2, 2), 1); // Class IN
-        buffer.AddRange(typeAndClass);
+        // 4. Write Question Type and Class (IN = 1)
+        Span<byte> qTypeClass = writer.GetSpan(4)[..4];
+        BinaryPrimitives.WriteUInt16BigEndian(qTypeClass[0..2], (ushort)type);
+        BinaryPrimitives.WriteUInt16BigEndian(qTypeClass[2..4], DefaultClassIn);
+        writer.Advance(4);
 
-        return buffer.ToArray();
+        return writer.WrittenSpan.ToArray();
     }
 
+    /// <summary>
+    /// Constructs a PTR reverse lookup query payload.
+    /// </summary>
+    /// <param name="ptrDomain">Target reverse DNS domain (e.g., "1.0.0.127.in-addr.arpa").</param>
+    /// <param name="transactionId">Optional explicit transaction ID.</param>
+    /// <returns>A byte array containing the serialized binary PTR DNS query.</returns>
     public static byte[] BuildPtrQuery(string ptrDomain, ushort? transactionId = null)
     {
         return BuildQuery(ptrDomain, DnsType.PTR, transactionId, recursionDesired: true);
