@@ -9,6 +9,7 @@
     <Version>1.0.0</Version>
     <Authors>Guidcruncher</Authors>
     <Description>Astrolabed Core Host</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

@@ -9,6 +9,7 @@
     <Version>1.0.0</Version>
     <Authors>Guidcruncher</Authors>
     <Description>In-process low-latency event bus for cross-IHost communication.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>
