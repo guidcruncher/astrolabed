@@ -14,20 +14,40 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Astrolabed.Dns.Extensions;
 
+/// <summary>
+/// Extension methods for registering Astrolabed DNS engine services into an <see cref="IServiceCollection"/>.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
+    /// <summary>
+    /// Registers the core Astrolabed DNS engine services, resolvers, cache, network listeners, and background tasks.
+    /// </summary>
+    /// <param name="services">The target service collection.</param>
+    /// <param name="configuration">Application configuration provider.</param>
+    /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+
     public static IServiceCollection AddAstrolabedDnsEngine(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<NetworkScannerOptions>(
-            configuration.GetSection(NetworkScannerOptions.SectionName));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
 
-        services.Configure<DnsEngineOptions>(
-            configuration.GetSection(DnsEngineOptions.SectionName));
+        // Options Binding with Data Annotation Validation & Fast Startup Check
+        services.AddOptions<NetworkScannerOptions>()
+            .Bind(configuration.GetSection(NetworkScannerOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
-        services.Configure<HostsFileCollectionOptions>(
-            configuration.GetSection(HostsFileCollectionOptions.SectionName));
+        services.AddOptions<DnsEngineOptions>()
+            .Bind(configuration.GetSection(DnsEngineOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<HostsFileCollectionOptions>()
+            .Bind(configuration.GetSection(HostsFileCollectionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddHttpClient();
 
@@ -80,17 +100,16 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
-        // Client name resolver
+        // Client name resolver & network scanner
         services.AddTransient<INetworkScannerService, NetworkScannerService>();
-
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
 
-        // Core Query Processing & Network Listeners Pattern
+        // Core Query Processing & Transport Listeners Pattern
         services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();
         services.AddSingleton<IDnsListener, DnsUdpListener>();
         services.AddSingleton<IDnsListener, DnsTcpListener>();
 
-        // Scheduled jobs
+        // Scheduled background jobs
         services.AddJobScheduler();
         services.AddScheduledJob<NetworkScanJob>();
 
@@ -99,12 +118,23 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the domain filter rule loader hosted service and options.
+    /// </summary>
+    /// <param name="services">The target service collection.</param>
+    /// <param name="configuration">Application configuration provider.</param>
+    /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
     public static IServiceCollection AddAstrolabedDomainFilterRuleLoader(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<DomainFilterRuleOptions>(
-            configuration.GetSection(DomainFilterRuleOptions.SectionName));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddOptions<DomainFilterRuleOptions>()
+            .Bind(configuration.GetSection(DomainFilterRuleOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddHostedService<DomainFilterRuleReloader>();
 
