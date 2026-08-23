@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions
     /// <param name="configuration">Application configuration provider.</param>
     /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
 
-    public static IServiceCollection AddAstrolabedDnsEngine(
+    public static IServiceCollection AddDnsServer(
         this IServiceCollection services,
         IConfiguration configuration)
     {
