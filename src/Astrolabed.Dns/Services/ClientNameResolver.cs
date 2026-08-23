@@ -1,9 +1,10 @@
 // File: src/Astrolabed.Dns/Services/ClientNameResolver.cs
+using System.Net;
+
 using Astrolabed.Data.Repositories;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using System.Net;
 
 namespace Astrolabed.Dns.Services;
 
@@ -39,7 +40,7 @@ public sealed partial class ClientNameResolver : IClientNameResolver
         var repository = scope.ServiceProvider.GetRequiredService<IDiscoveredLanDeviceRepository>();
 
         LogResolvingClientName(_logger, ipAddress);
-        
+
         var device = await repository.GetByIpAddressAsync(IPAddress.Parse(ipAddress), cancellationToken).ConfigureAwait(false);
         return device?.HostName;
     }
