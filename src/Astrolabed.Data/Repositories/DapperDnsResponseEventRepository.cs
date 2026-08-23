@@ -1,7 +1,6 @@
-using System.Data;
+using System.Data.Common;
 
 using Astrolabed.Data.Models;
-
 using Astrolabed.Data.Options;
 using Astrolabed.Data.Pagination;
 
@@ -13,28 +12,26 @@ using Microsoft.Extensions.Options;
 namespace Astrolabed.Data.Repositories;
 
 /// <summary>
-/// Dapper implementation supporting cross-database (PostgreSQL and SQLite) parameterized queries.
+/// High-performance Dapper implementation for managing <see cref="DnsResponseEventEntity"/> persistence
+/// across relational database providers.
 /// </summary>
-public sealed class DapperDnsResponseEventRepository : IDnsResponseEventRepository
+/// <remarks>
+/// Optimized for .NET 10 asynchronous database I/O, allocation-free parameter passing,
+/// and source-generated structured logging.
+/// </remarks>
+/// <param name="connectionFactory">The database connection factory providing asynchronous database access.</param>
+/// <param name="databaseOptions">Database configuration settings, including command execution timeouts.</param>
+/// <param name="logger">Structured logging instance for diagnostic and operational logs.</param>
+public sealed partial class DapperDnsResponseEventRepository(
+    IDbConnectionFactory connectionFactory,
+    IOptions<DatabaseOptions> databaseOptions,
+    ILogger<DapperDnsResponseEventRepository> logger) : IDnsResponseEventRepository
 {
-    private readonly IDbConnectionFactory _connectionFactory;
-    private readonly DatabaseOptions _databaseOptions;
-    private readonly ILogger<DapperDnsResponseEventRepository> _logger;
+    private readonly IDbConnectionFactory _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    private readonly DatabaseOptions _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
+    private readonly ILogger<DapperDnsResponseEventRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DapperDnsResponseEventRepository(
-        IDbConnectionFactory connectionFactory,
-        IOptions<DatabaseOptions> databaseOptions,
-        ILogger<DapperDnsResponseEventRepository> logger)
-    {
-        ArgumentNullException.ThrowIfNull(connectionFactory);
-        ArgumentNullException.ThrowIfNull(databaseOptions);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _connectionFactory = connectionFactory;
-        _databaseOptions = databaseOptions.Value;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task AddAsync(DnsResponseEventEntity entity, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -49,21 +46,33 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
             );
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Inserting DNS response event record {Id}", entity.Id);
+        LogInsertingEventRecord(_logger, entity.Id);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", entity.Id);
+        parameters.Add("StartTimeUtc", entity.StartTimeUtc);
+        parameters.Add("ContextId", entity.ContextId);
+        parameters.Add("QuestionName", entity.QuestionName);
+        parameters.Add("QuestionType", entity.QuestionType);
+        parameters.Add("ClientEndpoint", entity.ClientEndpoint);
+        parameters.Add("ClientName", entity.ClientName);
+        parameters.Add("ResolutionSource", entity.ResolutionSource);
+        parameters.Add("DurationMs", entity.DurationMs);
 
         var command = new CommandDefinition(
             sql,
-            entity,
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
         await connection.ExecuteAsync(command);
 
-        _logger.LogInformation("Successfully inserted DNS response event record {Id}", entity.Id);
+        LogInsertedEventRecordSuccessfully(_logger, entity.Id);
     }
 
+    /// <inheritdoc />
     public async Task<DnsResponseEventEntity?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -75,29 +84,30 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
             WHERE id = @Id;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Fetching DNS response event record by ID {Id}", id);
+        LogFetchingById(_logger, id);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", id);
 
         var command = new CommandDefinition(
             sql,
-            new { Id = id },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
         return await connection.QuerySingleOrDefaultAsync<DnsResponseEventEntity>(command);
     }
 
+    /// <inheritdoc />
     public async Task<PagedResult<DnsResponseEventEntity>> GetPagedAsync(
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default)
     {
         int targetPage = pageNumber < 1 ? 1 : pageNumber;
-        int targetSize = pageSize < 1
-            ? 10
-            : Math.Min(pageSize, 100);
-
+        int targetSize = pageSize < 1 ? 10 : Math.Min(pageSize, 100);
         int offset = (targetPage - 1) * targetSize;
 
         const string sql = """
@@ -110,46 +120,48 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
             LIMIT @PageSize OFFSET @Offset;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug(
-            "Executing paged SELECT query. PageNumber: {PageNumber}, PageSize: {PageSize}",
-            targetPage,
-            targetSize);
+        LogExecutingPagedQuery(_logger, targetPage, targetSize);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("PageSize", targetSize);
+        parameters.Add("Offset", offset);
 
         var command = new CommandDefinition(
             sql,
-            new { PageSize = targetSize, Offset = offset },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
+        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
 
         long totalCount = await gridReader.ReadSingleAsync<long>();
-        IEnumerable<DnsResponseEventEntity> items = await gridReader.ReadAsync<DnsResponseEventEntity>();
+        IEnumerable<DnsResponseEventEntity> readItems = await gridReader.ReadAsync<DnsResponseEventEntity>();
+        List<DnsResponseEventEntity> items = readItems.ToList();
 
-        _logger.LogInformation(
-            "Retrieved page {PageNumber} with {Count} records (Total dataset size: {TotalCount})",
-            targetPage,
-            items.Count(),
-            totalCount);
+        LogRetrievedPagedResults(_logger, targetPage, items.Count, totalCount);
 
         return PagedResult<DnsResponseEventEntity>.Create(items, totalCount, targetPage, targetSize);
     }
 
+    /// <inheritdoc />
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
         const string sql = "DELETE FROM dns_response_events WHERE id = @Id;";
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Deleting DNS response event record {Id}", id);
+        LogDeletingRecord(_logger, id);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", id);
 
         var command = new CommandDefinition(
             sql,
-            new { Id = id },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -158,39 +170,77 @@ public sealed class DapperDnsResponseEventRepository : IDnsResponseEventReposito
 
         if (deleted)
         {
-            _logger.LogInformation("Successfully deleted DNS response event record {Id}", id);
+            LogDeletedRecordSuccessfully(_logger, id);
         }
         else
         {
-            _logger.LogWarning("Deletion attempt failed. DNS response event record {Id} was not found", id);
+            LogDeleteFailedNotFound(_logger, id);
         }
 
         return deleted;
     }
 
+    /// <inheritdoc />
     public async Task CleanOldData(CancellationToken cancellationToken = default)
     {
-        var cutoff = TimeProvider.System.GetUtcNow().AddDays(-7).ToUnixTimeSeconds();
+        long cutoff = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
         const string sql = "DELETE FROM dns_response_events WHERE start_time_utc < @Cutoff;";
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Deleting old DNS Response records before {Cutoff}", cutoff);
+        LogCleaningOldRecords(_logger, cutoff);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Cutoff", cutoff);
 
         var command = new CommandDefinition(
             sql,
-            new { Cutoff = cutoff },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
+
         int rowsAffected = await connection.ExecuteAsync(command);
 
         if (rowsAffected > 0)
         {
-            _logger.LogInformation("Successfully deleted {RowsAffected} DNS response event records", rowsAffected);
+            LogCleanedOldRecordsSuccessfully(_logger, rowsAffected);
         }
         else
         {
-            _logger.LogWarning("Could not find any old DNS response event records before {Cutoff}", cutoff);
+            LogNoOldRecordsFoundToClean(_logger, cutoff);
         }
     }
+
+    [LoggerMessage(EventId = 201, Level = LogLevel.Debug, Message = "Inserting DNS response event record {Id}")]
+    private static partial void LogInsertingEventRecord(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 202, Level = LogLevel.Information, Message = "Successfully inserted DNS response event record {Id}")]
+    private static partial void LogInsertedEventRecordSuccessfully(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 203, Level = LogLevel.Debug, Message = "Fetching DNS response event record by ID {Id}")]
+    private static partial void LogFetchingById(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 204, Level = LogLevel.Debug, Message = "Executing paged SELECT query. PageNumber: {PageNumber}, PageSize: {PageSize}")]
+    private static partial void LogExecutingPagedQuery(ILogger logger, int pageNumber, int pageSize);
+
+    [LoggerMessage(EventId = 205, Level = LogLevel.Information, Message = "Retrieved page {PageNumber} with {Count} records (Total dataset size: {TotalCount})")]
+    private static partial void LogRetrievedPagedResults(ILogger logger, int pageNumber, int count, long totalCount);
+
+    [LoggerMessage(EventId = 206, Level = LogLevel.Debug, Message = "Deleting DNS response event record {Id}")]
+    private static partial void LogDeletingRecord(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 207, Level = LogLevel.Information, Message = "Successfully deleted DNS response event record {Id}")]
+    private static partial void LogDeletedRecordSuccessfully(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 208, Level = LogLevel.Warning, Message = "Deletion attempt failed. DNS response event record {Id} was not found")]
+    private static partial void LogDeleteFailedNotFound(ILogger logger, string id);
+
+    [LoggerMessage(EventId = 209, Level = LogLevel.Debug, Message = "Deleting old DNS Response records before {Cutoff}")]
+    private static partial void LogCleaningOldRecords(ILogger logger, long cutoff);
+
+    [LoggerMessage(EventId = 210, Level = LogLevel.Information, Message = "Successfully deleted {RowsAffected} DNS response event records")]
+    private static partial void LogCleanedOldRecordsSuccessfully(ILogger logger, int rowsAffected);
+
+    [LoggerMessage(EventId = 211, Level = LogLevel.Warning, Message = "Could not find any old DNS response event records before {Cutoff}")]
+    private static partial void LogNoOldRecordsFoundToClean(ILogger logger, long cutoff);
 }

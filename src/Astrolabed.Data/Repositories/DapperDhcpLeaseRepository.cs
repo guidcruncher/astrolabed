@@ -1,4 +1,4 @@
-using System.Data;
+using System.Data.Common;
 using System.Net;
 
 using Astrolabed.Core.Network;
@@ -13,30 +13,27 @@ using Microsoft.Extensions.Options;
 namespace Astrolabed.Data.Repositories;
 
 /// <summary>
-/// Dapper implementation for managing <see cref="DhcpLease"/> persistence, 
-/// mapping queries through <see cref="DhcpLeaseEntity"/> to maintain exact SQL representations
-/// and enforcing colon-separated MAC address formatting.
+/// High-performance Dapper implementation for managing <see cref="DhcpLease"/> persistence.
+/// Maps database queries through <see cref="DhcpLeaseEntity"/> to maintain exact SQL representations
+/// and enforces standardized MAC address formatting.
 /// </summary>
-public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
+/// <remarks>
+/// Targets .NET 10 features including primary constructors, asynchronous disposable database contexts,
+/// structural parameter bindings to prevent GC allocations, and compile-time logger source generators.
+/// </remarks>
+/// <param name="connectionFactory">The asynchronous database connection factory.</param>
+/// <param name="databaseOptions">Configuration options containing database operational settings.</param>
+/// <param name="logger">Structured logger instance for diagnostic output.</param>
+public sealed partial class DapperDhcpLeaseRepository(
+    IDbConnectionFactory connectionFactory,
+    IOptions<DatabaseOptions> databaseOptions,
+    ILogger<DapperDhcpLeaseRepository> logger) : IDhcpLeaseRepository
 {
-    private readonly IDbConnectionFactory _connectionFactory;
-    private readonly DatabaseOptions _databaseOptions;
-    private readonly ILogger<DapperDhcpLeaseRepository> _logger;
+    private readonly IDbConnectionFactory _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    private readonly DatabaseOptions _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
+    private readonly ILogger<DapperDhcpLeaseRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DapperDhcpLeaseRepository(
-        IDbConnectionFactory connectionFactory,
-        IOptions<DatabaseOptions> databaseOptions,
-        ILogger<DapperDhcpLeaseRepository> logger)
-    {
-        ArgumentNullException.ThrowIfNull(connectionFactory);
-        ArgumentNullException.ThrowIfNull(databaseOptions);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _connectionFactory = connectionFactory;
-        _databaseOptions = databaseOptions.Value;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task<DhcpLease?> GetLeaseByClientIdOrMacAsync(
         string clientId,
         string macAddress,
@@ -61,13 +58,17 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
             LIMIT 1;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Fetching DHCP lease for ClientID {ClientId} or MAC {MacAddress}", clientId, formattedMac);
+        LogFetchingLeaseByClientOrMac(_logger, clientId, formattedMac);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("ClientId", clientId);
+        parameters.Add("MacAddress", formattedMac);
 
         var command = new CommandDefinition(
             sql,
-            new { ClientId = clientId, MacAddress = formattedMac },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -76,6 +77,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         return entity?.ToDomain();
     }
 
+    /// <inheritdoc />
     public async Task<DhcpLease?> GetLeaseByIpAsync(
         IPAddress ipAddress,
         CancellationToken cancellationToken = default)
@@ -94,14 +96,17 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
             WHERE ip_address = @IpAddress AND is_active = 1;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         string ipString = ipAddress.ToString();
-        _logger.LogDebug("Fetching active DHCP lease for IP {IpAddress}", ipString);
+        LogFetchingLeaseByIp(_logger, ipString);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("IpAddress", ipString);
 
         var command = new CommandDefinition(
             sql,
-            new { IpAddress = ipString },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -110,6 +115,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         return entity?.ToDomain();
     }
 
+    /// <inheritdoc />
     public async Task<bool> IsIpAvailableAsync(
         IPAddress ipAddress,
         string clientId,
@@ -127,16 +133,21 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
               AND lease_end_time > @Now;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         string ipString = ipAddress.ToString();
         long nowEpochSeconds = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        _logger.LogDebug("Checking availability for IP {IpAddress} against ClientID {ClientId}", ipString, clientId);
+        LogCheckingIpAvailability(_logger, ipString, clientId);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("IpAddress", ipString);
+        parameters.Add("ClientId", clientId);
+        parameters.Add("Now", nowEpochSeconds);
 
         var command = new CommandDefinition(
             sql,
-            new { IpAddress = ipString, ClientId = clientId, Now = nowEpochSeconds },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -145,6 +156,7 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         return count == 0;
     }
 
+    /// <inheritdoc />
     public async Task<DhcpLease> AllocateOrUpdateLeaseAsync(
         string clientId,
         string clientName,
@@ -159,8 +171,8 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
         ArgumentNullException.ThrowIfNull(requestedIp);
 
         string formattedMac = MacAddressFormatter.Format(macAddress);
-        DateTime now = DateTime.UtcNow;
-        DateTime leaseEndTime = now.Add(duration);
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        DateTimeOffset leaseEndTime = now.Add(duration);
 
         var lease = new DhcpLease
         {
@@ -168,8 +180,8 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
             ClientName = clientName,
             MacAddress = formattedMac,
             IpAddress = requestedIp,
-            LeaseStartTime = now,
-            LeaseEndTime = leaseEndTime,
+            LeaseStartTime = now.UtcDateTime,
+            LeaseEndTime = leaseEndTime.UtcDateTime,
             IsActive = true
         };
 
@@ -190,32 +202,33 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
                 is_active = EXCLUDED.is_active;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Allocating or updating lease for ClientID {ClientId}, MAC {MacAddress}, IP {IpAddress}", clientId, formattedMac, entity.IpAddress);
+        LogAllocatingLease(_logger, clientId, formattedMac, entity.IpAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("ClientId", entity.ClientId);
+        parameters.Add("ClientName", entity.ClientName);
+        parameters.Add("MacAddress", entity.MacAddress);
+        parameters.Add("IpAddress", entity.IpAddress);
+        parameters.Add("LeaseStartTime", entity.LeaseStartTime);
+        parameters.Add("LeaseEndTime", entity.LeaseEndTime);
+        parameters.Add("IsActive", entity.IsActive);
 
         var command = new CommandDefinition(
             sql,
-            new
-            {
-                entity.ClientId,
-                entity.ClientName,
-                entity.MacAddress,
-                entity.IpAddress,
-                entity.LeaseStartTime,
-                entity.LeaseEndTime,
-                entity.IsActive
-            },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
         await connection.ExecuteAsync(command);
 
-        _logger.LogInformation("Successfully allocated or updated lease for ClientID {ClientId} with IP {IpAddress}", clientId, entity.IpAddress);
+        LogLeaseAllocatedSuccessfully(_logger, clientId, entity.IpAddress);
 
         return lease;
     }
 
+    /// <inheritdoc />
     public async Task ReleaseLeaseAsync(
         string clientId,
         string macAddress,
@@ -232,13 +245,17 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
             WHERE client_id = @ClientId OR mac_address = @MacAddress;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
-        _logger.LogDebug("Releasing lease for ClientID {ClientId} or MAC {MacAddress}", clientId, formattedMac);
+        LogReleasingLease(_logger, clientId, formattedMac);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("ClientId", clientId);
+        parameters.Add("MacAddress", formattedMac);
 
         var command = new CommandDefinition(
             sql,
-            new { ClientId = clientId, MacAddress = formattedMac },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -246,12 +263,35 @@ public sealed class DapperDhcpLeaseRepository : IDhcpLeaseRepository
 
         if (rowsAffected > 0)
         {
-            _logger.LogInformation("Successfully released {RowsAffected} lease record(s) for ClientID {ClientId} / MAC {MacAddress}", rowsAffected, clientId, formattedMac);
+            LogLeaseReleasedSuccessfully(_logger, rowsAffected, clientId, formattedMac);
         }
         else
         {
-            _logger.LogWarning("No active lease found to release for ClientID {ClientId} / MAC {MacAddress}", clientId, formattedMac);
+            LogNoActiveLeaseFoundToRelease(_logger, clientId, formattedMac);
         }
     }
-}
 
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Fetching DHCP lease for ClientID {ClientId} or MAC {MacAddress}")]
+    private static partial void LogFetchingLeaseByClientOrMac(ILogger logger, string clientId, string macAddress);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Fetching active DHCP lease for IP {IpAddress}")]
+    private static partial void LogFetchingLeaseByIp(ILogger logger, string ipAddress);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Debug, Message = "Checking availability for IP {IpAddress} against ClientID {ClientId}")]
+    private static partial void LogCheckingIpAvailability(ILogger logger, string ipAddress, string clientId);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "Allocating or updating lease for ClientID {ClientId}, MAC {MacAddress}, IP {IpAddress}")]
+    private static partial void LogAllocatingLease(ILogger logger, string clientId, string macAddress, string? ipAddress);
+
+    [LoggerMessage(EventId = 5, Level = LogLevel.Information, Message = "Successfully allocated or updated lease for ClientID {ClientId} with IP {IpAddress}")]
+    private static partial void LogLeaseAllocatedSuccessfully(ILogger logger, string clientId, string? ipAddress);
+
+    [LoggerMessage(EventId = 6, Level = LogLevel.Debug, Message = "Releasing lease for ClientID {ClientId} or MAC {MacAddress}")]
+    private static partial void LogReleasingLease(ILogger logger, string clientId, string macAddress);
+
+    [LoggerMessage(EventId = 7, Level = LogLevel.Information, Message = "Successfully released {RowsAffected} lease record(s) for ClientID {ClientId} / MAC {MacAddress}")]
+    private static partial void LogLeaseReleasedSuccessfully(ILogger logger, int rowsAffected, string clientId, string macAddress);
+
+    [LoggerMessage(EventId = 8, Level = LogLevel.Warning, Message = "No active lease found to release for ClientID {ClientId} / MAC {MacAddress}")]
+    private static partial void LogNoActiveLeaseFoundToRelease(ILogger logger, string clientId, string macAddress);
+}

@@ -1,36 +1,72 @@
 using System.Collections.Concurrent;
 using System.Net;
 
+using Astrolabed.Core.Network;
 using Astrolabed.Data.Models;
 
 namespace Astrolabed.Data.Repositories;
 
-
-public class InMemoryDhcpLeaseRepository : IDhcpLeaseRepository
+/// <summary>
+/// High-performance, thread-safe in-memory repository for managing <see cref="DhcpLease"/> records.
+/// Uses secondary index dictionaries to achieve O(1) constant time lookups across Client ID, MAC address, and IP address.
+/// </summary>
+/// <remarks>
+/// Targets .NET 10 standards. Guarantees memory safety and concurrent protection by storing immutable lease snapshots.
+/// </remarks>
+public sealed class InMemoryDhcpLeaseRepository : IDhcpLeaseRepository
 {
     private readonly ConcurrentDictionary<string, DhcpLease> _leasesByClientId = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DhcpLease> _leasesByMac = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<IPAddress, DhcpLease> _leasesByIp = new();
 
-    public Task<DhcpLease?> GetLeaseByClientIdOrMacAsync(string clientId, string macAddress, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<DhcpLease?> GetLeaseByClientIdOrMacAsync(
+        string clientId,
+        string macAddress,
+        CancellationToken cancellationToken = default)
     {
-        if (_leasesByClientId.TryGetValue(clientId, out var lease))
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
+
+        if (_leasesByClientId.TryGetValue(clientId, out DhcpLease? leaseByClient))
         {
-            return Task.FromResult<DhcpLease?>(lease);
+            return Task.FromResult<DhcpLease?>(CloneLease(leaseByClient));
         }
 
-        var leaseByMac = _leasesByClientId.Values.FirstOrDefault(l => l.MacAddress.Equals(macAddress, StringComparison.OrdinalIgnoreCase));
-        return Task.FromResult(leaseByMac);
+        string formattedMac = MacAddressFormatter.Format(macAddress);
+        if (_leasesByMac.TryGetValue(formattedMac, out DhcpLease? leaseByMac))
+        {
+            return Task.FromResult<DhcpLease?>(CloneLease(leaseByMac));
+        }
+
+        return Task.FromResult<DhcpLease?>(null);
     }
 
-    public Task<DhcpLease?> GetLeaseByIpAsync(IPAddress ipAddress, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<DhcpLease?> GetLeaseByIpAsync(
+        IPAddress ipAddress,
+        CancellationToken cancellationToken = default)
     {
-        var lease = _leasesByClientId.Values.FirstOrDefault(l => l.IpAddress.Equals(ipAddress) && l.IsActive);
-        return Task.FromResult(lease);
+        ArgumentNullException.ThrowIfNull(ipAddress);
+
+        if (_leasesByIp.TryGetValue(ipAddress, out DhcpLease? lease) && lease.IsActive)
+        {
+            return Task.FromResult<DhcpLease?>(CloneLease(lease));
+        }
+
+        return Task.FromResult<DhcpLease?>(null);
     }
 
-    public Task<bool> IsIpAvailableAsync(IPAddress ipAddress, string clientId, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<bool> IsIpAvailableAsync(
+        IPAddress ipAddress,
+        string clientId,
+        CancellationToken cancellationToken = default)
     {
-        var existingLease = _leasesByClientId.Values.FirstOrDefault(l => l.IpAddress.Equals(ipAddress) && l.IsActive);
-        if (existingLease == null)
+        ArgumentNullException.ThrowIfNull(ipAddress);
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+
+        if (!_leasesByIp.TryGetValue(ipAddress, out DhcpLease? existingLease) || !existingLease.IsActive)
         {
             return Task.FromResult(true);
         }
@@ -39,40 +75,95 @@ public class InMemoryDhcpLeaseRepository : IDhcpLeaseRepository
         return Task.FromResult(belongsToClient);
     }
 
-    public Task<DhcpLease> AllocateOrUpdateLeaseAsync(string clientId, string clientName, string macAddress, IPAddress requestedIp, TimeSpan duration, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task<DhcpLease> AllocateOrUpdateLeaseAsync(
+        string clientId,
+        string clientName,
+        string macAddress,
+        IPAddress requestedIp,
+        TimeSpan duration,
+        CancellationToken cancellationToken = default)
     {
-        var now = DateTime.UtcNow;
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        ArgumentNullException.ThrowIfNull(clientName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
+        ArgumentNullException.ThrowIfNull(requestedIp);
+
+        string formattedMac = MacAddressFormatter.Format(macAddress);
+        DateTime now = DateTime.UtcNow;
 
         var lease = new DhcpLease
         {
             ClientId = clientId,
             ClientName = clientName,
-            MacAddress = macAddress,
+            MacAddress = formattedMac,
             IpAddress = requestedIp,
             LeaseStartTime = now,
             LeaseEndTime = now.Add(duration),
             IsActive = true
         };
 
-        _leasesByClientId[clientId] = lease;
-        return Task.FromResult(lease);
+        DhcpLease snapshot = CloneLease(lease);
+
+        _leasesByClientId[clientId] = snapshot;
+        _leasesByMac[formattedMac] = snapshot;
+        _leasesByIp[requestedIp] = snapshot;
+
+        return Task.FromResult(CloneLease(snapshot));
     }
 
-    public Task ReleaseLeaseAsync(string clientId, string macAddress, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public Task ReleaseLeaseAsync(
+        string clientId,
+        string macAddress,
+        CancellationToken cancellationToken = default)
     {
-        if (_leasesByClientId.TryGetValue(clientId, out var leaseByClient))
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientId);
+        ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
+
+        string formattedMac = MacAddressFormatter.Format(macAddress);
+
+        if (_leasesByClientId.TryGetValue(clientId, out DhcpLease? existingLease))
         {
-            leaseByClient.IsActive = false;
+            DeactivateLease(existingLease);
         }
-        else
+        else if (_leasesByMac.TryGetValue(formattedMac, out existingLease))
         {
-            var leaseByMac = _leasesByClientId.Values.FirstOrDefault(l => l.MacAddress.Equals(macAddress, StringComparison.OrdinalIgnoreCase));
-            if (leaseByMac != null)
-            {
-                leaseByMac.IsActive = false;
-            }
+            DeactivateLease(existingLease);
         }
 
         return Task.CompletedTask;
+    }
+
+    private void DeactivateLease(DhcpLease lease)
+    {
+        var deactivatedLease = new DhcpLease
+        {
+            ClientId = lease.ClientId,
+            ClientName = lease.ClientName,
+            MacAddress = lease.MacAddress,
+            IpAddress = lease.IpAddress,
+            LeaseStartTime = lease.LeaseStartTime,
+            LeaseEndTime = lease.LeaseEndTime,
+            IsActive = false
+        };
+
+        _leasesByClientId[lease.ClientId] = deactivatedLease;
+        _leasesByMac[lease.MacAddress] = deactivatedLease;
+        _leasesByIp[lease.IpAddress] = deactivatedLease;
+    }
+
+    private static DhcpLease CloneLease(DhcpLease lease)
+    {
+        return new DhcpLease
+        {
+            ClientId = lease.ClientId,
+            ClientName = lease.ClientName,
+            MacAddress = lease.MacAddress,
+            IpAddress = lease.IpAddress,
+            LeaseStartTime = lease.LeaseStartTime,
+            LeaseEndTime = lease.LeaseEndTime,
+            IsActive = lease.IsActive
+        };
     }
 }
