@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Ntp/Extensions/ServiceCollectionExtensions.cs
 using Astrolabed.Ntp.Options;
 using Astrolabed.Ntp.Services;
 
@@ -9,7 +10,7 @@ namespace Astrolabed.Ntp.Extensions;
 /// <summary>
 /// Extension methods for registering Network Time Protocol (NTP) server infrastructure services in an <see cref="IServiceCollection"/>.
 /// </summary>
-public static class NtpServiceCollectionExtensions
+public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Adds NTP server services, resolvers, handlers, and background hosted engines to the specified <see cref="IServiceCollection"/> using configuration binding.
@@ -17,7 +18,7 @@ public static class NtpServiceCollectionExtensions
     /// <param name="services">The service collection to add services to.</param>
     /// <param name="configuration">The configuration section root containing NTP server options.</param>
     /// <returns>The modified <see cref="IServiceCollection"/> for fluent method chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <c>null</c>.</exception>
     public static IServiceCollection AddNtpServer(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -39,7 +40,7 @@ public static class NtpServiceCollectionExtensions
     /// <param name="services">The service collection to add services to.</param>
     /// <param name="configureOptions">The action delegate used to configure <see cref="NtpServerOptions"/>.</param>
     /// <returns>The modified <see cref="IServiceCollection"/> for fluent method chaining.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configureOptions"/> is null.</exception>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configureOptions"/> is <c>null</c>.</exception>
     public static IServiceCollection AddNtpServer(this IServiceCollection services, Action<NtpServerOptions> configureOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -57,10 +58,12 @@ public static class NtpServiceCollectionExtensions
 
     private static void AddCoreServices(IServiceCollection services)
     {
+        // Concrete time resolvers used by CompositeTimeResolver
         services.AddSingleton<LocalTimeResolver>();
         services.AddSingleton<UpstreamTimeResolver>();
         services.AddSingleton<ITimeResolver, CompositeTimeResolver>();
 
+        // High-performance stateless NTP handler & server loop
         services.AddSingleton<INtpServerHandler, NtpServerHandler>();
         services.AddHostedService<NtpServerEngine>();
     }

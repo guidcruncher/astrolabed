@@ -1,4 +1,4 @@
-// File: src/Astrolabed.EventBus/Extensions/EventBusServiceCollectionExtensions.cs
+// File: src/Astrolabed.EventBus/Extensions/ServiceCollectionExtensions.cs
 using Astrolabed.EventBus.Options;
 
 using Microsoft.Extensions.Configuration;
@@ -9,7 +9,7 @@ namespace Astrolabed.EventBus.Extensions;
 /// <summary>
 /// Service collection extensions for configuring the event broker and event listeners.
 /// </summary>
-public static class EventBusServiceCollectionExtensions
+public static class ServiceCollectionExtensions
 {
     /// <summary>
     /// Registers the root event broker and configures event options.
@@ -17,6 +17,7 @@ public static class EventBusServiceCollectionExtensions
     /// <param name="services">Target service collection.</param>
     /// <param name="configuration">Configuration provider instance.</param>
     /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <c>null</c>.</exception>
     public static IServiceCollection AddRootEventBroker(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -35,28 +36,31 @@ public static class EventBusServiceCollectionExtensions
     }
 
     /// <summary>
-    /// Registers an event listener for a specific event type.
+    /// Registers an event listener for a specific event type using a scoped lifetime.
     /// </summary>
     /// <typeparam name="TEvent">The event type to listen for.</typeparam>
     /// <typeparam name="TListener">The listener implementation type.</typeparam>
     /// <param name="services">Target service collection.</param>
     /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is <c>null</c>.</exception>
     public static IServiceCollection AddEventListener<TEvent, TListener>(this IServiceCollection services)
         where TListener : class, IEventListener<TEvent>
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        services.AddTransient<IEventListener<TEvent>, TListener>();
+        services.AddScoped<IEventListener<TEvent>, TListener>();
 
         return services;
     }
 
     /// <summary>
-    /// Automatically registers all <see cref="IEventListener{TEvent}"/> interfaces implemented by <typeparamref name="TListener"/>.
+    /// Automatically registers all <see cref="IEventListener{TEvent}"/> interfaces implemented by <typeparamref name="TListener"/> using a scoped lifetime.
     /// </summary>
     /// <typeparam name="TListener">The concrete listener type to register.</typeparam>
     /// <param name="services">Target service collection.</param>
     /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> is <c>null</c>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when <typeparamref name="TListener"/> does not implement any event listener interfaces.</exception>
     public static IServiceCollection AddEventListener<TListener>(this IServiceCollection services)
         where TListener : class
     {
@@ -72,7 +76,7 @@ public static class EventBusServiceCollectionExtensions
         {
             if (iface.IsGenericType && iface.GetGenericTypeDefinition() == serviceInterfaceType)
             {
-                services.AddTransient(iface, listenerType);
+                services.AddScoped(iface, listenerType);
                 registered = true;
             }
         }

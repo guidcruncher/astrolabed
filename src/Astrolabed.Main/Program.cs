@@ -31,17 +31,16 @@ public static class Program
             })
             .ConfigureServices((context, services) =>
             {
-                // 1. Data Layer & Persistence Setup
-                services.AddDatabasePersistenceServices(context.Configuration);
-                services.AddDatabaseInitializer();
+                // 1. Unified Data Layer & Persistence Setup
+                services.AddAstrolabedData(context.Configuration);
 
                 // 2. Event Broker Setup
                 services.AddRootEventBroker(context.Configuration);
 
-                // 3. Sub-host Event Listeners
+                // 3. Event Listeners
                 services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
-                // 4. Protocol Servers & Engines
+                // 4. Protocol Servers & Network Engines
                 services.AddNtpServer(context.Configuration);
                 services.AddDhcpServer(context.Configuration);
                 services.AddDnsServer(context.Configuration);
@@ -55,3 +54,4 @@ public static class Program
         await host.RunAsync().ConfigureAwait(false);
     }
 }
+
