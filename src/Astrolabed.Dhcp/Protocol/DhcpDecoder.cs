@@ -3,15 +3,34 @@ using System.Net;
 
 namespace Astrolabed.Dhcp.Protocol;
 
-public class DhcpDecoder
+/// <summary>
+/// High-performance, zero-allocation binary decoder for RFC 2131 compliant DHCP network packets.
+/// </summary>
+public static class DhcpDecoder
 {
-    private static readonly byte[] MagicCookie = { 0x63, 0x82, 0x53, 0x63 };
+    private const int MinimumHeaderSize = 236;
+    private const int MagicCookieSize = 4;
+    private const int SNameOffset = 44;
+    private const int SNameLength = 64;
+    private const int FileOffset = 108;
+    private const int FileLength = 128;
+    private const int OptionsOffset = 240;
 
-    public DhcpMessage Decode(ReadOnlySpan<byte> buffer)
+    private static ReadOnlySpan<byte> MagicCookie => [0x63, 0x82, 0x53, 0x63];
+
+    /// <summary>
+    /// Decodes a raw binary byte span into a structured <see cref="DhcpMessage"/>.
+    /// </summary>
+    /// <param name="buffer">The binary buffer containing the incoming DHCP packet payload.</param>
+    /// <returns>A fully parsed <see cref="DhcpMessage"/> instance.</returns>
+    /// <exception cref="ArgumentException">Thrown when the buffer length is smaller than the standard DHCP header.</exception>
+    public static DhcpMessage Decode(ReadOnlySpan<byte> buffer)
     {
-        if (buffer.Length < 236)
+        if (buffer.Length < MinimumHeaderSize)
         {
-            throw new ArgumentException("Buffer size is smaller than standard DHCP header.", nameof(buffer));
+            throw new ArgumentException(
+                $"Buffer size ({buffer.Length} bytes) is smaller than the required standard DHCP header size of {MinimumHeaderSize} bytes.",
+                nameof(buffer));
         }
 
         var message = new DhcpMessage
@@ -29,25 +48,30 @@ public class DhcpDecoder
             GatewayIpAddress = new IPAddress(buffer.Slice(24, 4))
         };
 
-        buffer.Slice(28, 16).CopyTo(message.ClientHardwareAddress);
+        // Copy Client Hardware Address safely taking HardwareAddressLength into account
+        int chaddrLength = Math.Min((int)message.HardwareAddressLength, 16);
+        buffer.Slice(28, chaddrLength).CopyTo(message.ClientHardwareAddress);
 
         byte overloadFlags = 0;
-        int offset = 236;
 
-        if (buffer.Length >= offset + 4 && buffer.Slice(offset, 4).SequenceEqual(MagicCookie))
+        // Process Magic Cookie and Standard Options Field
+        if (buffer.Length >= OptionsOffset && buffer.Slice(MinimumHeaderSize, MagicCookieSize).SequenceEqual(MagicCookie))
         {
-            offset += 4;
-            overloadFlags = ReadOptionsFromSpan(buffer.Slice(offset), message.Options);
+            overloadFlags = ReadOptionsFromSpan(buffer[OptionsOffset..], message.Options);
         }
 
-        if ((overloadFlags & 1) != 0 && buffer.Length >= 236)
+        // RFC 2131: Option Overload Processing
+        // 1 = 'file' field holds options
+        // 2 = 'sname' field holds options
+        // 3 = both 'file' and 'sname' fields hold options
+        if ((overloadFlags & 1) != 0 && buffer.Length >= FileOffset + FileLength)
         {
-            ReadOptionsFromSpan(buffer.Slice(108, 128), message.Options);
+            ReadOptionsFromSpan(buffer.Slice(FileOffset, FileLength), message.Options);
         }
 
-        if ((overloadFlags & 2) != 0 && buffer.Length >= 108)
+        if ((overloadFlags & 2) != 0 && buffer.Length >= SNameOffset + SNameLength)
         {
-            ReadOptionsFromSpan(buffer.Slice(44, 64), message.Options);
+            ReadOptionsFromSpan(buffer.Slice(SNameOffset, SNameLength), message.Options);
         }
 
         return message;
@@ -61,10 +85,12 @@ public class DhcpDecoder
         while (offset < optionBuffer.Length)
         {
             byte code = optionBuffer[offset++];
+
             if (code == (byte)DhcpOptionCode.Pad)
             {
                 continue;
             }
+
             if (code == (byte)DhcpOptionCode.End)
             {
                 break;
@@ -76,23 +102,26 @@ public class DhcpDecoder
             }
 
             byte length = optionBuffer[offset++];
+
             if (offset + length > optionBuffer.Length)
             {
+                // Truncated option encountered; halt parsing safely
                 break;
             }
 
-            byte[] data = optionBuffer.Slice(offset, length).ToArray();
+            ReadOnlySpan<byte> optionDataSpan = optionBuffer.Slice(offset, length);
             var optionCode = (DhcpOptionCode)code;
 
-            if (optionCode == DhcpOptionCode.OptionOverload && data.Length > 0)
+            if (optionCode == DhcpOptionCode.OptionOverload && optionDataSpan.Length > 0)
             {
-                overloadValue = data[0];
+                overloadValue = optionDataSpan[0];
             }
 
-            options.Add(new DhcpOption(optionCode, data));
+            options.Add(new DhcpOption(optionCode, optionDataSpan.ToArray()));
             offset += length;
         }
 
         return overloadValue;
     }
 }
+

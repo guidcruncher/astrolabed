@@ -11,29 +11,33 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dhcp.Services;
 
-public class DhcpEngine : BackgroundService
+/// <summary>
+/// Core DHCP hosted background engine responsible for receiving incoming UDP packets,
+/// executing scoped processing pipelines, and broadcasting server responses.
+/// </summary>
+/// <param name="scopeFactory">Factory for creating scoped service resolution contexts per message.</param>
+/// <param name="options">Monitored options instance containing runtime DHCP server configuration.</param>
+/// <param name="logger">Structured logging engine instance.</param>
+public sealed partial class DhcpEngine(
+    IServiceScopeFactory scopeFactory,
+    IOptionsMonitor<DhcpServerOptions> options,
+    ILogger<DhcpEngine> logger) : BackgroundService
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IOptionsMonitor<DhcpServerOptions> _options;
-    private readonly ILogger<DhcpEngine> _logger;
-    private readonly DhcpDecoder _decoder = new();
-    private readonly DhcpEncoder _encoder = new();
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+    private readonly IOptionsMonitor<DhcpServerOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly ILogger<DhcpEngine> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DhcpEngine(
-        IServiceScopeFactory scopeFactory,
-        IOptionsMonitor<DhcpServerOptions> options,
-        ILogger<DhcpEngine> logger)
-    {
-        _scopeFactory = scopeFactory;
-        _options = options;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var config = _options.CurrentValue;
+        DhcpServerOptions config = _options.CurrentValue;
+
+        if (!IPAddress.TryParse(config.ListenAddress.Address, out IPAddress? bindIp))
+        {
+            bindIp = IPAddress.Any;
+        }
+
         int bindPort = config.TestMode ? config.TestPort : config.ListenAddress.Port;
-        var bindIp = IPAddress.Parse(config.ListenAddress.Address);
 
         using var udpClient = new UdpClient();
         if (!config.TestMode)
@@ -42,38 +46,50 @@ public class DhcpEngine : BackgroundService
         }
 
         udpClient.Client.Bind(new IPEndPoint(bindIp, bindPort));
-        _logger.LogInformation("DHCP Listener started on {Address}:{Port} (TestMode: {TestMode})", bindIp, bindPort, config.TestMode);
+        LogDhcpEngineStarted(_logger, bindIp, bindPort, config.TestMode);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var result = await udpClient.ReceiveAsync(stoppingToken);
-                var requestMessage = _decoder.Decode(result.Buffer);
+                UdpReceiveResult result = await udpClient.ReceiveAsync(stoppingToken).ConfigureAwait(false);
+                DhcpMessage requestMessage = DhcpDecoder.Decode(result.Buffer);
 
-                using var scope = _scopeFactory.CreateScope();
+                await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
                 var handler = scope.ServiceProvider.GetRequiredService<IDhcpHandler>();
 
-                var responseMessage = await handler.ProcessMessageAsync(requestMessage, stoppingToken);
+                DhcpMessage? responseMessage = await handler.ProcessMessageAsync(requestMessage, stoppingToken).ConfigureAwait(false);
 
-                if (responseMessage != null)
+                if (responseMessage is not null)
                 {
-                    byte[] responseBytes = _encoder.Encode(responseMessage);
+                    byte[] responseBytes = DhcpEncoder.Encode(responseMessage);
                     IPEndPoint destination = config.TestMode
                         ? result.RemoteEndPoint
                         : new IPEndPoint(IPAddress.Broadcast, result.RemoteEndPoint.Port == 0 ? 68 : result.RemoteEndPoint.Port);
 
-                    await udpClient.SendAsync(responseBytes, responseBytes.Length, destination);
+                    await udpClient.SendAsync(responseBytes, responseBytes.Length, destination).ConfigureAwait(false);
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 break;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error occurred processing DHCP packet.");
+                LogPacketProcessingError(_logger, ex);
             }
         }
     }
+
+    [LoggerMessage(
+        EventId = 101,
+        Level = LogLevel.Information,
+        Message = "DHCP Listener started on {Address}:{Port} (TestMode: {TestMode})")]
+    private static partial void LogDhcpEngineStarted(ILogger logger, IPAddress address, int port, bool testMode);
+
+    [LoggerMessage(
+        EventId = 501,
+        Level = LogLevel.Error,
+        Message = "Error occurred processing DHCP packet.")]
+    private static partial void LogPacketProcessingError(ILogger logger, Exception exception);
 }

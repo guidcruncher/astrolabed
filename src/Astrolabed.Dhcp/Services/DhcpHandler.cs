@@ -1,5 +1,3 @@
-namespace Astrolabed.Dhcp.Services;
-
 using System.Net;
 using System.Text;
 
@@ -10,38 +8,43 @@ using Astrolabed.Dhcp.Protocol;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-public class DhcpHandler : IDhcpHandler
+namespace Astrolabed.Dhcp.Services;
+
+/// <summary>
+/// Core handler service responsible for processing incoming DHCP client DISCOVER, REQUEST, 
+/// and RELEASE messages and generating corresponding OFFER, ACK, and NAK replies.
+/// </summary>
+/// <param name="leaseRepository">Database repository for evaluating and persisting IP lease allocations.</param>
+/// <param name="options">Monitored options instance holding server configuration settings.</param>
+/// <param name="logger">Structured logger instance for recording packet handling state transitions.</param>
+public sealed partial class DhcpHandler(
+    IDhcpLeaseRepository leaseRepository,
+    IOptionsMonitor<DhcpServerOptions> options,
+    ILogger<DhcpHandler> logger) : IDhcpHandler
 {
-    private readonly IDhcpLeaseRepository _leaseRepository;
-    private readonly IOptionsMonitor<DhcpServerOptions> _options;
-    private readonly ILogger<DhcpHandler> _logger;
+    private readonly IDhcpLeaseRepository _leaseRepository = leaseRepository ?? throw new ArgumentNullException(nameof(leaseRepository));
+    private readonly IOptionsMonitor<DhcpServerOptions> _options = options ?? throw new ArgumentNullException(nameof(options));
+    private readonly ILogger<DhcpHandler> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DhcpHandler(
-        IDhcpLeaseRepository leaseRepository,
-        IOptionsMonitor<DhcpServerOptions> options,
-        ILogger<DhcpHandler> logger)
-    {
-        _leaseRepository = leaseRepository;
-        _options = options;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task<DhcpMessage?> ProcessMessageAsync(DhcpMessage request, CancellationToken cancellationToken = default)
     {
-        var messageType = request.GetMessageType();
-        if (messageType == null)
+        ArgumentNullException.ThrowIfNull(request);
+
+        DhcpMessageType? messageType = request.GetMessageType();
+        if (messageType is null)
         {
-            _logger.LogWarning("Received DHCP message without MessageType option.");
+            LogMissingMessageTypeWarning(_logger);
             return null;
         }
 
-        var config = _options.CurrentValue;
+        DhcpServerOptions config = _options.CurrentValue;
 
         return messageType switch
         {
-            DhcpMessageType.Discover => await HandleDiscoverAsync(request, config, cancellationToken),
-            DhcpMessageType.Request => await HandleRequestAsync(request, config, cancellationToken),
-            DhcpMessageType.Release => await HandleReleaseAsync(request, cancellationToken),
+            DhcpMessageType.Discover => await HandleDiscoverAsync(request, config, cancellationToken).ConfigureAwait(false),
+            DhcpMessageType.Request => await HandleRequestAsync(request, config, cancellationToken).ConfigureAwait(false),
+            DhcpMessageType.Release => await HandleReleaseAsync(request, cancellationToken).ConfigureAwait(false),
             _ => null
         };
     }
@@ -52,19 +55,19 @@ public class DhcpHandler : IDhcpHandler
         string clientId = GetClientId(request, macAddress);
         string clientName = GetClientName(request);
 
-        _logger.LogInformation("Processing DHCP DISCOVER - ClientID: {ClientId}, Name: {ClientName}, MAC: {Mac}", clientId, clientName, macAddress);
+        LogProcessingDiscover(_logger, clientId, clientName, macAddress);
 
         IPAddress? requestedIp = GetRequestedIp(request);
         IPAddress selectedIp = config.GetStartIpAddress();
 
-        if (requestedIp != null && config.IsIpInPool(requestedIp) && await _leaseRepository.IsIpAvailableAsync(requestedIp, clientId, cancellationToken))
+        if (requestedIp is not null && config.IsIpInPool(requestedIp) && await _leaseRepository.IsIpAvailableAsync(requestedIp, clientId, cancellationToken).ConfigureAwait(false))
         {
             selectedIp = requestedIp;
         }
         else
         {
-            var existingLease = await _leaseRepository.GetLeaseByClientIdOrMacAsync(clientId, macAddress, cancellationToken);
-            if (existingLease != null && config.IsIpInPool(existingLease.IpAddress))
+            var existingLease = await _leaseRepository.GetLeaseByClientIdOrMacAsync(clientId, macAddress, cancellationToken).ConfigureAwait(false);
+            if (existingLease is not null && config.IsIpInPool(existingLease.IpAddress))
             {
                 selectedIp = existingLease.IpAddress;
             }
@@ -76,7 +79,7 @@ public class DhcpHandler : IDhcpHandler
             macAddress,
             selectedIp,
             TimeSpan.FromSeconds(config.LeaseTimeSeconds),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         return CreateReply(request, config, DhcpMessageType.Offer, lease.IpAddress);
     }
@@ -87,20 +90,20 @@ public class DhcpHandler : IDhcpHandler
         string clientId = GetClientId(request, macAddress);
         string clientName = GetClientName(request);
 
-        _logger.LogInformation("Processing DHCP REQUEST - ClientID: {ClientId}, Name: {ClientName}, MAC: {Mac}", clientId, clientName, macAddress);
+        LogProcessingRequest(_logger, clientId, clientName, macAddress);
 
         IPAddress targetIp = GetRequestedIp(request) ?? request.ClientIpAddress;
 
         if (targetIp.Equals(IPAddress.Any) || !config.IsIpInPool(targetIp))
         {
-            _logger.LogWarning("Rejecting DHCP REQUEST for IP {TargetIp} - Outside allocated pool.", targetIp);
+            LogRejectingRequestOutsidePool(_logger, targetIp);
             return CreateNakReply(request, config, "Requested IP address is outside configured pool range.");
         }
 
-        bool isAvailable = await _leaseRepository.IsIpAvailableAsync(targetIp, clientId, cancellationToken);
+        bool isAvailable = await _leaseRepository.IsIpAvailableAsync(targetIp, clientId, cancellationToken).ConfigureAwait(false);
         if (!isAvailable)
         {
-            _logger.LogWarning("Rejecting DHCP REQUEST for IP {TargetIp} - Assigned to another client.", targetIp);
+            LogRejectingRequestAlreadyLeased(_logger, targetIp);
             return CreateNakReply(request, config, "Requested IP address is already leased to another client.");
         }
 
@@ -110,7 +113,7 @@ public class DhcpHandler : IDhcpHandler
             macAddress,
             targetIp,
             TimeSpan.FromSeconds(config.LeaseTimeSeconds),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
 
         return CreateReply(request, config, DhcpMessageType.Ack, lease.IpAddress);
     }
@@ -120,57 +123,63 @@ public class DhcpHandler : IDhcpHandler
         string macAddress = GetMacAddressString(request.ClientHardwareAddress);
         string clientId = GetClientId(request, macAddress);
 
-        _logger.LogInformation("Processing DHCP RELEASE - ClientID: {ClientId}, MAC: {Mac}", clientId, macAddress);
-        await _leaseRepository.ReleaseLeaseAsync(clientId, macAddress, cancellationToken);
+        LogProcessingRelease(_logger, clientId, macAddress);
+        await _leaseRepository.ReleaseLeaseAsync(clientId, macAddress, cancellationToken).ConfigureAwait(false);
         return null;
     }
 
-    private static string GetMacAddressString(byte[] hardwareAddress)
+    private static string GetMacAddressString(ReadOnlySpan<byte> hardwareAddress)
     {
-        return Convert.ToHexString(hardwareAddress, 0, Math.Min(hardwareAddress.Length, 6));
+        int length = Math.Min(hardwareAddress.Length, 6);
+        return Convert.ToHexStringLower(hardwareAddress[..length]);
     }
 
     private static string GetClientId(DhcpMessage request, string fallbackMac)
     {
-        var clientIdOption = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.ClientIdentifier);
-        if (clientIdOption != null && clientIdOption.Data.Length > 0)
+        DhcpOption? clientIdOption = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.ClientIdentifier);
+        if (clientIdOption is not null && clientIdOption.Data.Length > 0)
         {
-            return Convert.ToHexString(clientIdOption.Data);
+            return Convert.ToHexStringLower(clientIdOption.Data);
         }
+
         return fallbackMac;
     }
 
     private static string GetClientName(DhcpMessage request)
     {
-        var hostNameOption = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.HostName);
-        if (hostNameOption != null && hostNameOption.Data.Length > 0)
+        DhcpOption? hostNameOption = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.HostName);
+        if (hostNameOption is not null && hostNameOption.Data.Length > 0)
         {
             return Encoding.ASCII.GetString(hostNameOption.Data).TrimEnd('\0');
         }
+
         return string.Empty;
     }
 
     private static IPAddress? GetRequestedIp(DhcpMessage request)
     {
-        var requestedIpOpt = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.RequestedIpAddress);
-        if (requestedIpOpt != null && requestedIpOpt.Data.Length == 4)
+        DhcpOption? requestedIpOpt = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.RequestedIpAddress);
+        if (requestedIpOpt is not null && requestedIpOpt.Data.Length == 4)
         {
             return new IPAddress(requestedIpOpt.Data);
         }
+
         return null;
     }
 
     private static HashSet<DhcpOptionCode> GetRequestedOptionCodes(DhcpMessage request)
     {
         var requestedCodes = new HashSet<DhcpOptionCode>();
-        var prlOpt = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.ParameterRequestList);
-        if (prlOpt != null)
+        DhcpOption? prlOpt = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.ParameterRequestList);
+
+        if (prlOpt is not null)
         {
             foreach (byte code in prlOpt.Data)
             {
                 requestedCodes.Add((DhcpOptionCode)code);
             }
         }
+
         return requestedCodes;
     }
 
@@ -188,7 +197,7 @@ public class DhcpHandler : IDhcpHandler
             ServerIpAddress = config.GetServerIp()
         };
 
-        var requestedCodes = GetRequestedOptionCodes(request);
+        HashSet<DhcpOptionCode> requestedCodes = GetRequestedOptionCodes(request);
         bool hasParameterList = requestedCodes.Count > 0;
 
         reply.Options.Add(DhcpOption.CreateByte(DhcpOptionCode.DhcpMessageType, (byte)replyType));
@@ -260,4 +269,40 @@ public class DhcpHandler : IDhcpHandler
 
         return nak;
     }
+
+    [LoggerMessage(
+        EventId = 201,
+        Level = LogLevel.Warning,
+        Message = "Received DHCP message without MessageType option.")]
+    private static partial void LogMissingMessageTypeWarning(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 202,
+        Level = LogLevel.Information,
+        Message = "Processing DHCP DISCOVER - ClientID: {ClientId}, Name: {ClientName}, MAC: {Mac}")]
+    private static partial void LogProcessingDiscover(ILogger logger, string clientId, string clientName, string mac);
+
+    [LoggerMessage(
+        EventId = 203,
+        Level = LogLevel.Information,
+        Message = "Processing DHCP REQUEST - ClientID: {ClientId}, Name: {ClientName}, MAC: {Mac}")]
+    private static partial void LogProcessingRequest(ILogger logger, string clientId, string clientName, string mac);
+
+    [LoggerMessage(
+        EventId = 204,
+        Level = LogLevel.Information,
+        Message = "Processing DHCP RELEASE - ClientID: {ClientId}, MAC: {Mac}")]
+    private static partial void LogProcessingRelease(ILogger logger, string clientId, string mac);
+
+    [LoggerMessage(
+        EventId = 205,
+        Level = LogLevel.Warning,
+        Message = "Rejecting DHCP REQUEST for IP {TargetIp} - Outside allocated pool.")]
+    private static partial void LogRejectingRequestOutsidePool(ILogger logger, IPAddress targetIp);
+
+    [LoggerMessage(
+        EventId = 206,
+        Level = LogLevel.Warning,
+        Message = "Rejecting DHCP REQUEST for IP {TargetIp} - Assigned to another client.")]
+    private static partial void LogRejectingRequestAlreadyLeased(ILogger logger, IPAddress targetIp);
 }
