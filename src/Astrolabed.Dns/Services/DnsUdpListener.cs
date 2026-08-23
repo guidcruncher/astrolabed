@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using System.Threading.Channels;
 
-using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
 
 using Microsoft.Extensions.Logging;

@@ -2,12 +2,10 @@ using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Extensions;
-using Astrolabed.EventBus;
 using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
 using Astrolabed.Ntp.Extensions;
 
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 

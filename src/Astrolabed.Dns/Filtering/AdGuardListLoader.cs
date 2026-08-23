@@ -1,6 +1,3 @@
-using System.IO;
-using System.Net.Http;
-
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
