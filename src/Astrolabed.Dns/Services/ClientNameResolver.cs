@@ -3,6 +3,7 @@ using Astrolabed.Data.Repositories;
 
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace Astrolabed.Dns.Services;
 
@@ -39,7 +40,7 @@ public sealed partial class ClientNameResolver : IClientNameResolver
 
         LogResolvingClientName(_logger, ipAddress);
         
-        var device = await repository.GetByIpAddressAsync(ipAddress, cancellationToken).ConfigureAwait(false);
+        var device = await repository.GetByIpAddressAsync(IPAddress.Parse(ipAddress), cancellationToken).ConfigureAwait(false);
         return device?.HostName;
     }
 
