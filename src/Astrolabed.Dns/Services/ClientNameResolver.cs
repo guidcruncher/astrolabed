@@ -1,136 +1,51 @@
-using System.Net;
-using System.Text;
-
+// File: src/Astrolabed.Dns/Services/ClientNameResolver.cs
 using Astrolabed.Data.Repositories;
-using Astrolabed.Dns.Models;
-using Astrolabed.Dns.Resolvers;
-using Astrolabed.Dns.Serialization;
-using Astrolabed.Dns.Upstream;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Services;
 
 /// <summary>
-/// Asynchronously resolves reverse DNS questions to client hostnames via local static entries, ARP tables, or conditional forwarding.
+/// Resolves LAN client display names using dynamic scopes to safely consume scoped repositories from a singleton context.
 /// </summary>
-/// <param name="ptrResolver">PTR record resolver service.</param>
-/// <param name="upstreamClientFactory">Upstream DNS query execution factory.</param>
-/// <param name="repository">LAN device repository for ARP/DHCP device lookups.</param>
-/// <param name="logger">Structured logger instance.</param>
-public sealed partial class ClientNameResolver(
-    IPtrResolver ptrResolver,
-    IUpstreamClientFactory upstreamClientFactory,
-    IDiscoveredLanDeviceRepository repository,
-    ILogger<ClientNameResolver> logger) : IClientNameResolver
+public sealed partial class ClientNameResolver : IClientNameResolver
 {
-    private readonly IPtrResolver _ptrResolver = ptrResolver ?? throw new ArgumentNullException(nameof(ptrResolver));
-    private readonly IUpstreamClientFactory _upstreamClientFactory = upstreamClientFactory ?? throw new ArgumentNullException(nameof(upstreamClientFactory));
-    private readonly IDiscoveredLanDeviceRepository _repository = repository ?? throw new ArgumentNullException(nameof(repository));
-    private readonly ILogger<ClientNameResolver> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IServiceScopeFactory _scopeFactory;
+    private readonly ILogger<ClientNameResolver> _logger;
 
-    /// <inheritdoc />
-    public async Task<string> ResolveClientNameAsync(string question, CancellationToken ct = default)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ClientNameResolver"/> class.
+    /// </summary>
+    /// <param name="scopeFactory">Service scope factory for resolving scoped repositories on demand.</param>
+    /// <param name="logger">Structured logger instance.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any required argument is <c>null</c>.</exception>
+    public ClientNameResolver(
+        IServiceScopeFactory scopeFactory,
+        ILogger<ClientNameResolver> logger)
     {
-        if (string.IsNullOrWhiteSpace(question))
-        {
-            return string.Empty;
-        }
+        ArgumentNullException.ThrowIfNull(scopeFactory);
+        ArgumentNullException.ThrowIfNull(logger);
 
-        // 1. Static Overrides Match
-        if (_ptrResolver.TryResolvePtr(question, out string? staticDomain) && !string.IsNullOrEmpty(staticDomain))
-        {
-            return staticDomain;
-        }
-
-        // 2. ARP / Discovered LAN Device Match
-        var device = await _repository.GetByPtrAddressAsync(question, ct).ConfigureAwait(false);
-        if (device is not null && !string.IsNullOrEmpty(device.HostName))
-        {
-            return device.HostName;
-        }
-
-        // 3. Conditional PTR Subnet Forwarding Match
-        if (_ptrResolver is PtrResolver concreteResolver &&
-            concreteResolver.TryGetConditionalForwarder(question, out IPAddress? targetResolverIp) &&
-            targetResolverIp is not null)
-        {
-            try
-            {
-                byte[] rawQueryPacket = QuestionBuilder.BuildPtrQuery(question);
-
-                var upstreamMessage = await _upstreamClientFactory
-                    .ExecuteQueryAsync(targetResolverIp.ToString(), rawQueryPacket, ct)
-                    .ConfigureAwait(false);
-
-                if (upstreamMessage?.Answers is { Count: > 0 })
-                {
-                    foreach (DnsResourceRecord answer in upstreamMessage.Answers)
-                    {
-                        if (answer.Type == DnsType.PTR && answer.Data is { Length: > 0 })
-                        {
-                            string hostname = DecodeDomainName(answer.Data);
-                            if (!string.IsNullOrEmpty(hostname))
-                            {
-                                return hostname;
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                LogConditionalForwarderFailed(_logger, ex, question);
-            }
-        }
-
-        return string.Empty;
+        _scopeFactory = scopeFactory;
+        _logger = logger;
     }
 
-    private static string DecodeDomainName(ReadOnlySpan<byte> data)
+    /// <inheritdoc />
+    public async Task<string?> ResolveClientNameAsync(string ipAddress, CancellationToken cancellationToken = default)
     {
-        if (data.IsEmpty)
-        {
-            return string.Empty;
-        }
+        using IServiceScope scope = _scopeFactory.CreateScope();
+        var repository = scope.ServiceProvider.GetRequiredService<IDiscoveredLanDeviceRepository>();
 
-        var sb = new StringBuilder();
-        int offset = 0;
-
-        while (offset < data.Length)
-        {
-            byte length = data[offset++];
-            if (length == 0)
-            {
-                break;
-            }
-
-            // Stop processing if compression pointer (0xC0) is encountered
-            if ((length & 0xC0) == 0xC0)
-            {
-                break;
-            }
-
-            if (offset + length > data.Length)
-            {
-                break;
-            }
-
-            if (sb.Length > 0)
-            {
-                sb.Append('.');
-            }
-
-            sb.Append(Encoding.ASCII.GetString(data.Slice(offset, length)));
-            offset += length;
-        }
-
-        return sb.ToString();
+        LogResolvingClientName(_logger, ipAddress);
+        
+        var device = await repository.GetByIpAddressAsync(ipAddress, cancellationToken).ConfigureAwait(false);
+        return device?.HostName;
     }
 
     [LoggerMessage(
-        EventId = 801,
-        Level = LogLevel.Warning,
-        Message = "Failed to resolve client name via conditional forwarder for query {Question}")]
-    private static partial void LogConditionalForwarderFailed(ILogger logger, Exception exception, string question);
+        EventId = 901,
+        Level = LogLevel.Debug,
+        Message = "Resolving LAN client name for IP address: {IpAddress}")]
+    private static partial void LogResolvingClientName(ILogger logger, string ipAddress);
 }
