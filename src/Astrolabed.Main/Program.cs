@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Main/Program.cs
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
@@ -48,7 +49,7 @@ public static class Program
             .Build();
 
         // Perform explicit database initialization after DI container build and before engine execution
-        await host.Services.InitializeDatabaseAsync().ConfigureAwait(false);
+        await host.InitializeDatabaseAsync().ConfigureAwait(false);
 
         // Run application host asynchronously until process termination request
         await host.RunAsync().ConfigureAwait(false);

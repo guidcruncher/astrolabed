@@ -1,5 +1,4 @@
 // File: src/Astrolabed.EventBus/Extensions/EventBusServiceCollectionExtensions.cs
-using Astrolabed.EventBus;
 using Astrolabed.EventBus.Options;
 
 using Microsoft.Extensions.Configuration;
