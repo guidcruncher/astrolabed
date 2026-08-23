@@ -66,6 +66,11 @@ public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore>
         return Volatile.Read(ref _snapshot);
     }
 
+    /// <summary>
+    /// Parses and separates raw filter rule strings into exact string match sets and compiled regular expressions.
+    /// </summary>
+    /// <param name="rules">Raw domain filter rules.</param>
+    /// <returns>A tuple containing exact domain matches and compiled regex patterns.</returns>
     private (HashSet<string> ExactMatches, List<Regex> RegexMatches) ProcessRules(IEnumerable<string> rules)
     {
         var exactMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -115,6 +120,12 @@ public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore>
         return (exactMatches, regexMatches);
     }
 
+    /// <summary>
+    /// Determines whether a rule string contains regular expression syntax or wildcard constructs.
+    /// </summary>
+    /// <param name="rule">The input rule string to test.</param>
+    /// <param name="pattern">Outputs the derived regex pattern if matched.</param>
+    /// <returns><c>true</c> if the rule represents a regex pattern or wildcard match; otherwise <c>false</c>.</returns>
     private static bool IsRegexOrWildcardRule(string rule, out string pattern)
     {
         if (rule.StartsWith('/') && rule.EndsWith('/') && rule.Length > 2)
@@ -142,6 +153,11 @@ public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore>
         return false;
     }
 
+    /// <summary>
+    /// Normalizes domain name strings by trimming trailing dots and casing to lowercase.
+    /// </summary>
+    /// <param name="domain">The raw domain string.</param>
+    /// <returns>A normalized lowercase domain string.</returns>
     private static string NormalizeDomain(string domain)
     {
         return domain.Trim().TrimEnd('.').ToLowerInvariant();
@@ -168,12 +184,23 @@ public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore>
 /// <summary>
 /// Immutable snapshot container for domain filtering rules.
 /// </summary>
+/// <param name="ExactAllows">Frozen set of exact allow domain rules.</param>
+/// <param name="RegexAllows">Compiled list of regular expression allow rules.</param>
+/// <param name="ExactBlocks">Frozen set of exact block domain rules.</param>
+/// <param name="RegexBlocks">Compiled list of regular expression block rules.</param>
 public sealed record RuleStoreSnapshot(
     FrozenSet<string> ExactAllows,
     IReadOnlyList<Regex> RegexAllows,
     FrozenSet<string> ExactBlocks,
     IReadOnlyList<Regex> RegexBlocks)
 {
+    /// <summary>
+    /// Gets a string representation list of all compiled regex allow patterns.
+    /// </summary>
     public IReadOnlyList<string> RegexAllowsSelect { get; } = RegexAllows.Select(r => r.ToString()).ToList();
+
+    /// <summary>
+    /// Gets a string representation list of all compiled regex block patterns.
+    /// </summary>
     public IReadOnlyList<string> RegexBlocksSelect { get; } = RegexBlocks.Select(r => r.ToString()).ToList();
 }
