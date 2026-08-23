@@ -1,46 +1,53 @@
 namespace Astrolabed.Dns.Services;
 
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 
 /// <summary>
-/// Extension methods for retrieving IP address information from System.Net.EndPoint instances.
+/// High-performance extension methods for extracting IP address information from <see cref="EndPoint"/> instances.
 /// </summary>
 public static class EndPointExtensions
 {
     /// <summary>
-    /// Attempts to extract the IPAddress from an EndPoint instance.
+    /// Attempts to extract the <see cref="IPAddress"/> from an <see cref="EndPoint"/> instance.
     /// </summary>
-    /// <param name="endPoint">The network endpoint.</param>
-    /// <param name="ipAddress">The extracted IPAddress if the endpoint is an IPEndPoint; otherwise, null.</param>
-    /// <returns>True if an IP address was successfully retrieved; otherwise, false.</returns>
-    public static bool TryGetIPAddress(this EndPoint? endPoint, out IPAddress? ipAddress)
+    /// <param name="endPoint">The network endpoint to evaluate.</param>
+    /// <param name="ipAddress">The extracted IP address if the endpoint represents an IP or host IP string; otherwise, <see langword="null"/>.</param>
+    /// <returns><see langword="true"/> if an IP address was successfully retrieved or parsed; otherwise, <see langword="false"/>.</returns>
+    public static bool TryGetIPAddress(this EndPoint? endPoint, [NotNullWhen(true)] out IPAddress? ipAddress)
     {
-        if (endPoint is IPEndPoint ipEndPoint)
+        switch (endPoint)
         {
-            ipAddress = ipEndPoint.Address;
-            return true;
-        }
+            case IPEndPoint ipEndPoint:
+                ipAddress = ipEndPoint.Address;
+                return true;
 
-        ipAddress = null;
-        return false;
+            case DnsEndPoint dnsEndPoint when IPAddress.TryParse(dnsEndPoint.Host, out IPAddress? parsedIp):
+                ipAddress = parsedIp;
+                return true;
+
+            default:
+                ipAddress = null;
+                return false;
+        }
     }
 
     /// <summary>
-    /// Gets the IPAddress from an EndPoint, throwing an exception if the endpoint is not an IPEndPoint.
+    /// Gets the <see cref="IPAddress"/> from an <see cref="EndPoint"/>, throwing an exception if the endpoint cannot be resolved to an IP.
     /// </summary>
     /// <param name="endPoint">The network endpoint.</param>
-    /// <returns>The associated IPAddress instance.</returns>
-    /// <exception cref="ArgumentNullException">Thrown when endPoint is null.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when endPoint cannot be cast to IPEndPoint.</exception>
+    /// <returns>The associated <see cref="IPAddress"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="endPoint"/> is <see langword="null"/>.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when <paramref name="endPoint"/> cannot be cast or converted to an <see cref="IPAddress"/>.</exception>
     public static IPAddress GetIPAddress(this EndPoint endPoint)
     {
         ArgumentNullException.ThrowIfNull(endPoint);
 
-        if (endPoint is IPEndPoint ipEndPoint)
+        if (endPoint.TryGetIPAddress(out IPAddress? ipAddress))
         {
-            return ipEndPoint.Address;
+            return ipAddress;
         }
 
-        throw new InvalidOperationException($"Cannot extract IP address. Endpoint of type '{endPoint.GetType().FullName}' is not an IPEndPoint.");
+        throw new InvalidOperationException($"Cannot extract IP address. Endpoint of type '{endPoint.GetType().FullName}' is not a valid IPEndPoint or parseable DnsEndPoint.");
     }
 }

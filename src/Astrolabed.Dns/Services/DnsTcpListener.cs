@@ -1,4 +1,3 @@
-// File: src/Astrolabed.Dns/Services/DnsTcpListener.cs
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Net;
@@ -11,43 +10,43 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 
-public sealed class DnsTcpListener : IDnsListener
+/// <summary>
+/// Asynchronous TCP listener for handling inbound stream-based DNS queries with 2-byte prefix framing.
+/// </summary>
+/// <param name="queryProcessor">DNS query processing engine.</param>
+/// <param name="optionsMonitor">Monitored DNS engine options.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DnsTcpListener(
+    IDnsQueryProcessor queryProcessor,
+    IOptionsMonitor<DnsEngineOptions> optionsMonitor,
+    ILogger<DnsTcpListener> logger) : IDnsListener
 {
-    private readonly IDnsQueryProcessor _queryProcessor;
-    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
-    private readonly ILogger<DnsTcpListener> _logger;
+    private readonly IDnsQueryProcessor _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
+    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+    private readonly ILogger<DnsTcpListener> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DnsTcpListener(
-        IDnsQueryProcessor queryProcessor,
-        IOptionsMonitor<DnsEngineOptions> optionsMonitor,
-        ILogger<DnsTcpListener> logger)
-    {
-        _queryProcessor = queryProcessor;
-        _optionsMonitor = optionsMonitor;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task ListenAsync(IPAddress address, int port, CancellationToken ct)
     {
         var listener = new TcpListener(address, port);
-        _logger.LogInformation("Starting TCP Listener on {Address}#{Port}", address.ToString(), port.ToString());
+        LogStartingTcpListener(_logger, address, port);
 
         listener.Server.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         listener.Start();
 
-        _logger.LogInformation("TCP Listener Started on {Address}#{Port}", address.ToString(), port.ToString());
+        LogTcpListenerStarted(_logger, address, port);
 
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                var tcpClient = await listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
+                TcpClient tcpClient = await listener.AcceptTcpClientAsync(ct).ConfigureAwait(false);
                 _ = ProcessConnectionSafelyAsync(tcpClient, ct);
             }
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Expected shutdown signal
+            // Graceful shutdown requested
         }
         finally
         {
@@ -63,24 +62,24 @@ public sealed class DnsTcpListener : IDnsListener
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            // Graceful shutdown
+            // Graceful shutdown requested
         }
         catch (Exception ex) when (ex is IOException or SocketException)
         {
-            _logger.LogDebug(ex, "TCP connection closed by remote peer.");
+            LogConnectionClosedByPeer(_logger, ex);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error handling TCP connection.");
+            LogUnexpectedConnectionError(_logger, ex);
         }
     }
 
     private async Task HandleTcpConnectionAsync(TcpClient client, CancellationToken ct)
     {
         using (client)
-        await using (var stream = client.GetStream())
+        await using (NetworkStream stream = client.GetStream())
         {
-            var remoteEndPoint = client.Client?.RemoteEndPoint ?? new IPEndPoint(IPAddress.Loopback, 0);
+            EndPoint remoteEndPoint = client.Client?.RemoteEndPoint ?? new IPEndPoint(IPAddress.Loopback, 0);
             byte[] lengthBuffer = new byte[2];
 
             while (!ct.IsCancellationRequested && client.Connected)
@@ -105,9 +104,12 @@ public sealed class DnsTcpListener : IDnsListener
                         break;
                     }
 
-                    byte[]? response = await _queryProcessor.ProcessRequestAsync(memoryBuffer.ToArray(), remoteEndPoint, ct).ConfigureAwait(false);
+                    // Process payload without creating array copies
+                    byte[]? response = await _queryProcessor
+                        .ProcessRequestAsync(packetBuffer[..packetLength], remoteEndPoint, ct)
+                        .ConfigureAwait(false);
 
-                    if (response != null && response.Length > 0)
+                    if (response is { Length: > 0 })
                     {
                         int sendLength = 2 + response.Length;
                         byte[] writeBuffer = ArrayPool<byte>.Shared.Rent(sendLength);
@@ -117,7 +119,6 @@ public sealed class DnsTcpListener : IDnsListener
                             Buffer.BlockCopy(response, 0, writeBuffer, 2, response.Length);
 
                             await stream.WriteAsync(writeBuffer.AsMemory(0, sendLength), ct).ConfigureAwait(false);
-                            await stream.FlushAsync(ct).ConfigureAwait(false);
                         }
                         finally
                         {
@@ -147,4 +148,28 @@ public sealed class DnsTcpListener : IDnsListener
         }
         return true;
     }
+
+    [LoggerMessage(
+        EventId = 201,
+        Level = LogLevel.Information,
+        Message = "Starting TCP Listener on {Address}#{Port}")]
+    private static partial void LogStartingTcpListener(ILogger logger, IPAddress address, int port);
+
+    [LoggerMessage(
+        EventId = 202,
+        Level = LogLevel.Information,
+        Message = "TCP Listener Started on {Address}#{Port}")]
+    private static partial void LogTcpListenerStarted(ILogger logger, IPAddress address, int port);
+
+    [LoggerMessage(
+        EventId = 203,
+        Level = LogLevel.Debug,
+        Message = "TCP connection closed by remote peer.")]
+    private static partial void LogConnectionClosedByPeer(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 204,
+        Level = LogLevel.Error,
+        Message = "Unexpected error handling TCP connection.")]
+    private static partial void LogUnexpectedConnectionError(ILogger logger, Exception exception);
 }

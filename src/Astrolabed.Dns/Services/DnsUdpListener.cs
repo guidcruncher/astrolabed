@@ -1,4 +1,3 @@
-// File: src/Astrolabed.Dns/Services/DnsUdpListener.cs
 using System.Buffers;
 using System.Net;
 using System.Net.Sockets;
@@ -12,87 +11,140 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 
-public sealed class DnsUdpListener : IDnsListener
+/// <summary>
+/// High-throughput UDP listener utilizing System.Threading.Channels and memory pooling for low-allocation packet processing.
+/// </summary>
+/// <param name="queryProcessor">DNS query processing engine.</param>
+/// <param name="optionsMonitor">Monitored DNS engine configuration options.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DnsUdpListener(
+    IDnsQueryProcessor queryProcessor,
+    IOptionsMonitor<DnsEngineOptions> optionsMonitor,
+    ILogger<DnsUdpListener> logger) : IDnsListener
 {
-    private readonly IDnsQueryProcessor _queryProcessor;
-    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
-    private readonly Channel<DnsUdpReceiveResult> _incomingUdpChannel;
-    private readonly ILogger<DnsUdpListener> _logger;
+    private readonly IDnsQueryProcessor _queryProcessor = queryProcessor ?? throw new ArgumentNullException(nameof(queryProcessor));
+    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+    private readonly ILogger<DnsUdpListener> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DnsUdpListener(
-        IDnsQueryProcessor queryProcessor,
-        IOptionsMonitor<DnsEngineOptions> optionsMonitor,
-    ILogger<DnsUdpListener> logger)
-    {
-        _queryProcessor = queryProcessor;
-        _optionsMonitor = optionsMonitor;
-        _logger = logger;
-
-        _incomingUdpChannel = Channel.CreateUnbounded<DnsUdpReceiveResult>(new UnboundedChannelOptions
+    private readonly Channel<PooledUdpPacket> _incomingUdpChannel = Channel.CreateBounded<PooledUdpPacket>(
+        new BoundedChannelOptions(10_000)
         {
             SingleWriter = true,
+            SingleReader = false,
+            FullMode = BoundedChannelFullMode.DropOldest,
             AllowSynchronousContinuations = true
         });
-    }
 
+    /// <inheritdoc />
     public async Task ListenAsync(IPAddress address, int port, CancellationToken ct)
     {
-        var options = _optionsMonitor.CurrentValue;
-        var workerTasks = new Task[options.ProcessingThreads];
-        _logger.LogInformation("Starting Udp Listener on {Address}#{Port}", address.ToString(), port.ToString());
+        DnsEngineOptions options = _optionsMonitor.CurrentValue;
+        int threadCount = Math.Max(1, options.ProcessingThreads);
+        var workerTasks = new Task[threadCount];
 
-        for (int i = 0; i < options.ProcessingThreads; i++)
+        LogStartingUdpListener(_logger, address, port);
+
+        for (int i = 0; i < threadCount; i++)
         {
-            workerTasks[i] = Task.Run(() => ProcessUdpPacketQueueAsync(ct), ct);
+            workerTasks[i] = ProcessUdpPacketQueueAsync(ct);
         }
 
-        var listenTask = Task.Run(() => ListenUdpAsync(address, port, ct), ct);
+        Task listenTask = ListenUdpAsync(address, port, ct);
 
-        _logger.LogInformation("Udp Listener Started on {Address}#{Port}", address.ToString(), port.ToString());
+        LogUdpListenerStarted(_logger, address, port);
 
         await Task.WhenAll(listenTask, Task.WhenAll(workerTasks)).ConfigureAwait(false);
     }
 
     private async Task ListenUdpAsync(IPAddress address, int port, CancellationToken ct)
     {
-        using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        AddressFamily addressFamily = address.AddressFamily == AddressFamily.InterNetworkV6
+            ? AddressFamily.InterNetworkV6
+            : AddressFamily.InterNetwork;
+
+        using var socket = new Socket(addressFamily, SocketType.Dgram, ProtocolType.Udp);
         socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
         socket.Bind(new IPEndPoint(address, port));
 
-        var buffer = ArrayPool<byte>.Shared.Rent(4096);
+        EndPoint remoteEndPoint = addressFamily == AddressFamily.InterNetworkV6
+            ? new IPEndPoint(IPAddress.IPv6Any, 0)
+            : new IPEndPoint(IPAddress.Any, 0);
+
         try
         {
             while (!ct.IsCancellationRequested)
             {
-                var result = await socket.ReceiveFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), ct).ConfigureAwait(false);
+                IMemoryOwner<byte> owner = MemoryPool<byte>.Shared.Rent(4096);
+                SocketReceiveFromResult result = await socket
+                    .ReceiveFromAsync(owner.Memory, SocketFlags.None, remoteEndPoint, ct)
+                    .ConfigureAwait(false);
 
-                var packetCopy = new byte[result.ReceivedBytes];
-                Array.Copy(buffer, 0, packetCopy, 0, result.ReceivedBytes);
+                var packet = new PooledUdpPacket(owner, result.ReceivedBytes, result.RemoteEndPoint, socket);
 
-                _incomingUdpChannel.Writer.TryWrite(new DnsUdpReceiveResult(packetCopy, result.RemoteEndPoint, socket));
+                if (!_incomingUdpChannel.Writer.TryWrite(packet))
+                {
+                    packet.Dispose();
+                }
             }
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested) { }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            // Expected shutdown signal
+        }
         finally
         {
-            ArrayPool<byte>.Shared.Return(buffer);
             _incomingUdpChannel.Writer.Complete();
         }
     }
 
     private async Task ProcessUdpPacketQueueAsync(CancellationToken ct)
     {
-        var reader = _incomingUdpChannel.Reader;
+        ChannelReader<PooledUdpPacket> reader = _incomingUdpChannel.Reader;
         while (await reader.WaitToReadAsync(ct).ConfigureAwait(false))
         {
-            while (reader.TryRead(out var item))
+            while (reader.TryRead(out PooledUdpPacket item))
             {
-                byte[]? responseBytes = await _queryProcessor.ProcessRequestAsync(item.Buffer, item.RemoteEndPoint, ct).ConfigureAwait(false);
-                if (responseBytes != null)
+                using (item)
                 {
-                    await item.ServerSocket.SendToAsync(responseBytes, SocketFlags.None, item.RemoteEndPoint, ct).ConfigureAwait(false);
+                    byte[]? responseBytes = await _queryProcessor
+                        .ProcessRequestAsync(item.Buffer.ToArray(), item.RemoteEndPoint, ct)
+                        .ConfigureAwait(false);
+
+                    if (responseBytes is { Length: > 0 })
+                    {
+                        await item.ServerSocket
+                            .SendToAsync(responseBytes, SocketFlags.None, item.RemoteEndPoint, ct)
+                            .ConfigureAwait(false);
+                    }
                 }
             }
         }
     }
+
+    private readonly struct PooledUdpPacket(
+        IMemoryOwner<byte> memoryOwner,
+        int length,
+        EndPoint remoteEndPoint,
+        Socket serverSocket) : IDisposable
+    {
+        private readonly IMemoryOwner<byte> _memoryOwner = memoryOwner;
+
+        public ReadOnlySpan<byte> Buffer => _memoryOwner.Memory.Span[..length];
+        public EndPoint RemoteEndPoint { get; } = remoteEndPoint;
+        public Socket ServerSocket { get; } = serverSocket;
+
+        public void Dispose() => _memoryOwner.Dispose();
+    }
+
+    [LoggerMessage(
+        EventId = 301,
+        Level = LogLevel.Information,
+        Message = "Starting UDP Listener on {Address}#{Port}")]
+    private static partial void LogStartingUdpListener(ILogger logger, IPAddress address, int port);
+
+    [LoggerMessage(
+        EventId = 302,
+        Level = LogLevel.Information,
+        Message = "UDP Listener Started on {Address}#{Port}")]
+    private static partial void LogUdpListenerStarted(ILogger logger, IPAddress address, int port);
 }

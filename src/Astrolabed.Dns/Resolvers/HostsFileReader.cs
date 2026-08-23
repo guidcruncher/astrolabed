@@ -1,98 +1,137 @@
-// File: src/Astrolabed.Dns/Resolvers/HostsFileReader.cs
+using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Resolvers;
 
-public partial class HostsFileReader : IHostsFileReader
+/// <summary>
+/// Provides high-performance, streaming hosts file loading and domain-to-IP address mapping.
+/// </summary>
+/// <param name="httpClient">HttpClient instance for downloading remote hosts files.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class HostsFileReader(
+    HttpClient httpClient,
+    ILogger<HostsFileReader> logger) : IHostsFileReader
 {
-    private readonly HttpClient _httpClient;
-    private readonly ILogger<HostsFileReader> _logger;
+    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    private readonly ILogger<HostsFileReader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     [GeneratedRegex(@"^(?=.{1,255}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)*(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)$", RegexOptions.Compiled)]
     private static partial Regex HostnameRegex();
 
-    public HostsFileReader(HttpClient httpClient, ILogger<HostsFileReader> logger)
-    {
-        _httpClient = httpClient;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task<IReadOnlyDictionary<string, List<IPAddress>>> ReadHostsAsync(string sourceLocation, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourceLocation);
 
-        string content;
-        string resolvedPath = sourceLocation;
-
         if (sourceLocation.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             sourceLocation.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("Downloading hosts file from Web source: {Url}", sourceLocation);
-            content = await _httpClient.GetStringAsync(sourceLocation, ct).ConfigureAwait(false);
-        }
-        else
-        {
-            // Resolve file:// or standard local relative paths cleanly
-            if (sourceLocation.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-            {
-                resolvedPath = sourceLocation["file://".Length..];
-            }
+            LogDownloadingHostsFromWeb(_logger, sourceLocation);
 
-            resolvedPath = Path.GetFullPath(resolvedPath);
-            _logger.LogInformation("Reading hosts file from filesystem path: {Path}", resolvedPath);
-            content = await File.ReadAllTextAsync(resolvedPath, ct).ConfigureAwait(false);
+            using HttpResponseMessage response = await _httpClient.GetAsync(sourceLocation, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var reader = new StreamReader(stream);
+            return await ParseHostsContentAsync(reader, ct).ConfigureAwait(false);
         }
 
-        return ParseHostsContent(content);
+        string resolvedPath = ResolveFilePath(sourceLocation);
+        LogReadingHostsFromFileSystem(_logger, resolvedPath);
+
+        await using FileStream fileStream = new(resolvedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        using var fileReader = new StreamReader(fileStream);
+        return await ParseHostsContentAsync(fileReader, ct).ConfigureAwait(false);
     }
 
-    private IReadOnlyDictionary<string, List<IPAddress>> ParseHostsContent(string content)
+    private static string ResolveFilePath(string sourceLocation)
+    {
+        if (Uri.TryCreate(sourceLocation, UriKind.Absolute, out Uri? uri) && uri.IsFile)
+        {
+            return uri.LocalPath;
+        }
+
+        string rawPath = sourceLocation;
+        if (sourceLocation.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
+        {
+            rawPath = sourceLocation["file://".Length..];
+        }
+
+        return Path.GetFullPath(rawPath);
+    }
+
+    private async Task<IReadOnlyDictionary<string, List<IPAddress>>> ParseHostsContentAsync(TextReader reader, CancellationToken ct)
     {
         var map = new Dictionary<string, List<IPAddress>>(StringComparer.OrdinalIgnoreCase);
 
-        using var reader = new StringReader(content);
         string? line;
-
-        while ((line = reader.ReadLine()) != null)
+        while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
         {
-            int commentIdx = line.IndexOf('#');
+            ReadOnlySpan<char> span = line.AsSpan();
+
+            int commentIdx = span.IndexOf('#');
             if (commentIdx >= 0)
             {
-                line = line[..commentIdx];
+                span = span[..commentIdx];
             }
 
-            line = line.Trim();
-            if (string.IsNullOrWhiteSpace(line))
+            span = span.Trim();
+            if (span.IsEmpty)
             {
                 continue;
             }
 
-            string[] tokens = line.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-            if (tokens.Length < 2)
+            // Extract IP Address token (first whitespace-delimited segment)
+            int firstSpace = span.IndexOfAny(' ', '\t');
+            if (firstSpace < 0)
             {
                 continue;
             }
 
-            if (!IPAddress.TryParse(tokens[0], out var ipAddress))
+            ReadOnlySpan<char> ipSpan = span[..firstSpace].Trim();
+            ReadOnlySpan<char> hostnamesSpan = span[firstSpace..].Trim();
+
+            if (!IPAddress.TryParse(ipSpan, out IPAddress? ipAddress))
             {
-                _logger.LogWarning("Skipping invalid IP address in hosts entry: {Token}", tokens[0]);
+                LogSkippingInvalidIp(_logger, ipSpan.ToString());
                 continue;
             }
 
-            for (int i = 1; i < tokens.Length; i++)
+            // Slice remaining hostnames without array allocations
+            while (!hostnamesSpan.IsEmpty)
             {
-                string hostname = tokens[i].TrimEnd('.');
+                int nextSpace = hostnamesSpan.IndexOfAny(' ', '\t');
+                ReadOnlySpan<char> hostnameSpan;
 
-                if (!IsValidHostname(hostname))
+                if (nextSpace >= 0)
                 {
-                    _logger.LogWarning("Skipping invalid hostname in hosts entry: {Hostname}", hostname);
+                    hostnameSpan = hostnamesSpan[..nextSpace].Trim();
+                    hostnamesSpan = hostnamesSpan[nextSpace..].TrimStart(' ').TrimStart('\t');
+                }
+                else
+                {
+                    hostnameSpan = hostnamesSpan.Trim();
+                    hostnamesSpan = ReadOnlySpan<char>.Empty;
+                }
+
+                if (hostnameSpan.IsEmpty)
+                {
                     continue;
                 }
 
-                if (!map.TryGetValue(hostname, out var ipList))
+                string hostname = hostnameSpan.TrimEnd('.').ToString();
+
+                if (!IsValidHostname(hostname))
+                {
+                    LogSkippingInvalidHostname(_logger, hostname);
+                    continue;
+                }
+
+                if (!map.TryGetValue(hostname, out List<IPAddress>? ipList))
                 {
                     ipList = new List<IPAddress>();
                     map[hostname] = ipList;
@@ -117,4 +156,28 @@ public partial class HostsFileReader : IHostsFileReader
 
         return HostnameRegex().IsMatch(hostname);
     }
+
+    [LoggerMessage(
+        EventId = 401,
+        Level = LogLevel.Information,
+        Message = "Downloading hosts file from Web source: {Url}")]
+    private static partial void LogDownloadingHostsFromWeb(ILogger logger, string url);
+
+    [LoggerMessage(
+        EventId = 402,
+        Level = LogLevel.Information,
+        Message = "Reading hosts file from filesystem path: {Path}")]
+    private static partial void LogReadingHostsFromFileSystem(ILogger logger, string path);
+
+    [LoggerMessage(
+        EventId = 403,
+        Level = LogLevel.Warning,
+        Message = "Skipping invalid IP address in hosts entry: {Token}")]
+    private static partial void LogSkippingInvalidIp(ILogger logger, string token);
+
+    [LoggerMessage(
+        EventId = 404,
+        Level = LogLevel.Warning,
+        Message = "Skipping invalid hostname in hosts entry: {Hostname}")]
+    private static partial void LogSkippingInvalidHostname(ILogger logger, string hostname);
 }

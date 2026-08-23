@@ -1,4 +1,3 @@
-// File: src/Astrolabed.Dns/Resolvers/HostsManager.cs
 using System.Net;
 
 using Astrolabed.Dns.Models;
@@ -10,7 +9,13 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Resolvers;
 
-public sealed class HostsManager : IHostsManager, IHostedService, IDisposable
+/// <summary>
+/// Manages asynchronous loading, dynamic configuration reloading, and merging of local hosts file entries.
+/// </summary>
+/// <param name="hostsFileReader">Reader service for parsing hosts file sources.</param>
+/// <param name="optionsMonitor">Options monitor for tracking dynamic configuration updates.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class HostsManager : IHostsManager, IHostedService, IDisposable
 {
     private readonly IHostsFileReader _hostsFileReader;
     private readonly IOptionsMonitor<HostsFileCollectionOptions> _optionsMonitor;
@@ -20,65 +25,82 @@ public sealed class HostsManager : IHostsManager, IHostedService, IDisposable
 
     private IReadOnlyList<HostsEntry> _entries = Array.Empty<HostsEntry>();
 
-    public IReadOnlyList<HostsEntry> Entries => _entries;
-
     public HostsManager(
         IHostsFileReader hostsFileReader,
         IOptionsMonitor<HostsFileCollectionOptions> optionsMonitor,
         ILogger<HostsManager> logger)
     {
-        _hostsFileReader = hostsFileReader;
-        _optionsMonitor = optionsMonitor;
-        _logger = logger;
+        _hostsFileReader = hostsFileReader ?? throw new ArgumentNullException(nameof(hostsFileReader));
+        _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         _optionsChangeListener = _optionsMonitor.OnChange((options, name) =>
         {
-            _logger.LogInformation("Hosts configuration changed ({Name}). Triggering dynamic reload...", name);
-            _ = ReloadAsync();
+            LogConfigurationChanged(_logger, name ?? "default");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await ReloadAsync().ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    LogConfigurationReloadFailed(_logger, ex);
+                }
+            });
         });
     }
 
+    /// <inheritdoc />
+    public IReadOnlyList<HostsEntry> Entries => Volatile.Read(ref _entries);
+
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Initializing HostsManager and loading hosts files...");
+        LogInitializingHostsManager(_logger);
         await ReloadAsync(cancellationToken).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
+    /// <inheritdoc />
     public async Task ReloadAsync(CancellationToken ct = default)
     {
         await _lock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
-            var options = _optionsMonitor.CurrentValue;
-            if (options.Sources == null || options.Sources.Count == 0)
+            HostsFileCollectionOptions options = _optionsMonitor.CurrentValue;
+            if (options.Sources is null || options.Sources.Count == 0)
             {
-                _logger.LogWarning("No hosts file sources configured in HostsFileCollectionOptions.");
-                _entries = Array.Empty<HostsEntry>();
+                LogNoSourcesConfigured(_logger);
+                Volatile.Write(ref _entries, Array.Empty<HostsEntry>());
                 return;
             }
 
             var aggregatedMap = new Dictionary<string, HashSet<IPAddress>>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var source in options.Sources)
+            foreach (string source in options.Sources)
             {
-                if (string.IsNullOrWhiteSpace(source)) continue;
+                if (string.IsNullOrWhiteSpace(source))
+                {
+                    continue;
+                }
 
                 try
                 {
-                    _logger.LogInformation("Loading hosts entries from {Source}", source);
-                    var fileEntries = await _hostsFileReader.ReadHostsAsync(source, ct).ConfigureAwait(false);
+                    LogLoadingSource(_logger, source);
+                    IReadOnlyDictionary<string, List<IPAddress>> fileEntries = await _hostsFileReader.ReadHostsAsync(source, ct).ConfigureAwait(false);
 
-                    foreach (var (hostname, addresses) in fileEntries)
+                    foreach ((string hostname, List<IPAddress> addresses) in fileEntries)
                     {
-                        if (!aggregatedMap.TryGetValue(hostname, out var addressSet))
+                        if (!aggregatedMap.TryGetValue(hostname, out HashSet<IPAddress>? addressSet))
                         {
                             addressSet = new HashSet<IPAddress>();
                             aggregatedMap[hostname] = addressSet;
                         }
 
-                        foreach (var addr in addresses)
+                        foreach (IPAddress addr in addresses)
                         {
                             addressSet.Add(addr);
                         }
@@ -86,16 +108,16 @@ public sealed class HostsManager : IHostsManager, IHostedService, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to load hosts source from {Source}", source);
+                    LogFailedToLoadSource(_logger, ex, source);
                 }
             }
 
-            var mergedEntries = aggregatedMap
+            List<HostsEntry> mergedEntries = aggregatedMap
                 .Select(kvp => new HostsEntry(kvp.Key, kvp.Value.ToList()))
                 .ToList();
 
-            _entries = mergedEntries;
-            _logger.LogInformation("Successfully merged and deduplicated {Count} unique hostnames.", _entries.Count);
+            Volatile.Write(ref _entries, mergedEntries);
+            LogMergedAndDeduplicated(_logger, mergedEntries.Count);
         }
         finally
         {
@@ -103,9 +125,52 @@ public sealed class HostsManager : IHostsManager, IHostedService, IDisposable
         }
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         _optionsChangeListener?.Dispose();
         _lock.Dispose();
     }
+
+    [LoggerMessage(
+        EventId = 501,
+        Level = LogLevel.Information,
+        Message = "Hosts configuration changed ({Name}). Triggering dynamic reload...")]
+    private static partial void LogConfigurationChanged(ILogger logger, string name);
+
+    [LoggerMessage(
+        EventId = 502,
+        Level = LogLevel.Error,
+        Message = "Failed to reload hosts configuration following change event.")]
+    private static partial void LogConfigurationReloadFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 503,
+        Level = LogLevel.Information,
+        Message = "Initializing HostsManager and loading hosts files...")]
+    private static partial void LogInitializingHostsManager(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 504,
+        Level = LogLevel.Warning,
+        Message = "No hosts file sources configured in HostsFileCollectionOptions.")]
+    private static partial void LogNoSourcesConfigured(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 505,
+        Level = LogLevel.Information,
+        Message = "Loading hosts entries from {Source}")]
+    private static partial void LogLoadingSource(ILogger logger, string source);
+
+    [LoggerMessage(
+        EventId = 506,
+        Level = LogLevel.Error,
+        Message = "Failed to load hosts source from {Source}")]
+    private static partial void LogFailedToLoadSource(ILogger logger, Exception exception, string source);
+
+    [LoggerMessage(
+        EventId = 507,
+        Level = LogLevel.Information,
+        Message = "Successfully merged and deduplicated {Count} unique hostnames.")]
+    private static partial void LogMergedAndDeduplicated(ILogger logger, int count);
 }

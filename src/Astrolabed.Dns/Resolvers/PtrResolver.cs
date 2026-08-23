@@ -1,5 +1,5 @@
-// File: src/Astrolabed.Dns/Resolvers/PtrResolver.cs
-using System.Collections.Concurrent;
+using System.Collections.Frozen;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Net;
 
@@ -10,54 +10,77 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Resolvers;
 
-public sealed class PtrResolver : IPtrResolver
+/// <summary>
+/// Resolves reverse DNS pointer (PTR) record queries and conditional subnets using zero-allocation span parsing.
+/// </summary>
+/// <param name="optionsMonitor">Options monitor tracking DNS engine settings.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class PtrResolver : IPtrResolver, IDisposable
 {
     private static readonly IdnMapping IdnMapping = new();
+
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
     private readonly ILogger<PtrResolver> _logger;
     private readonly IDisposable? _optionsChangeListener;
 
-    private ConcurrentDictionary<IPAddress, string> _ipToPtrMap = new();
-    private List<(IPNetwork Network, IPAddress TargetServer)> _conditionalRules = new();
+    private FrozenDictionary<IPAddress, string> _ipToPtrMap = FrozenDictionary<IPAddress, string>.Empty;
+    private ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> _conditionalRules = ImmutableArray<(IPNetwork, IPAddress)>.Empty;
 
     public PtrResolver(
         IOptionsMonitor<DnsEngineOptions> optionsMonitor,
         ILogger<PtrResolver> logger)
     {
-        _optionsMonitor = optionsMonitor;
-        _logger = logger;
+        _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
         RebuildTables(_optionsMonitor.CurrentValue);
         _optionsChangeListener = _optionsMonitor.OnChange(RebuildTables);
     }
 
+    /// <inheritdoc />
     public bool TryResolvePtr(string ptrQuery, out string? domainName)
     {
         domainName = null;
 
-        if (string.IsNullOrWhiteSpace(ptrQuery)) return false;
-        if (!TryParsePtrQueryToIp(ptrQuery, out var parsedIp) || parsedIp == null) return false;
-
-        // 1. Direct Static Record Match
-        if (_ipToPtrMap.TryGetValue(parsedIp, out var matchedDomain))
+        if (string.IsNullOrWhiteSpace(ptrQuery))
         {
-            domainName = matchedDomain;
-            return true;
+            return false;
         }
 
-        return false;
+        if (!TryParsePtrQueryToIp(ptrQuery, out IPAddress? parsedIp) || parsedIp is null)
+        {
+            return false;
+        }
+
+        // Direct Static Record Match via Volatile Read
+        FrozenDictionary<IPAddress, string> map = Volatile.Read(ref _ipToPtrMap);
+        return map.TryGetValue(parsedIp, out domainName);
     }
 
+    /// <summary>
+    /// Attempts to resolve a conditional forwarder target address for a reverse DNS PTR query.
+    /// </summary>
+    /// <param name="ptrQuery">The PTR query string to inspect.</param>
+    /// <param name="targetResolver">Outputs the designated forwarder IP address if matched; otherwise <c>null</c>.</param>
+    /// <returns><c>true</c> if a matching subnet rule was found; otherwise <c>false</c>.</returns>
     public bool TryGetConditionalForwarder(string ptrQuery, out IPAddress? targetResolver)
     {
         targetResolver = null;
 
-        if (string.IsNullOrWhiteSpace(ptrQuery)) return false;
-        if (!TryParsePtrQueryToIp(ptrQuery, out var parsedIp) || parsedIp == null) return false;
-
-        // 2. Subnet Match for Conditional Forwarding
-        foreach (var (network, server) in _conditionalRules)
+        if (string.IsNullOrWhiteSpace(ptrQuery))
         {
+            return false;
+        }
+
+        if (!TryParsePtrQueryToIp(ptrQuery, out IPAddress? parsedIp) || parsedIp is null)
+        {
+            return false;
+        }
+
+        ImmutableArray<(IPNetwork Network, IPAddress TargetServer)> rules = Volatile.Read(ref _conditionalRules);
+        for (int i = 0; i < rules.Length; i++)
+        {
+            var (network, server) = rules[i];
             if (network.Contains(parsedIp))
             {
                 targetResolver = server;
@@ -68,10 +91,21 @@ public sealed class PtrResolver : IPtrResolver
         return false;
     }
 
+    /// <summary>
+    /// Parses an IPv4 or IPv6 PTR query string into a concrete <see cref="IPAddress"/>.
+    /// </summary>
+    /// <param name="ptrQuery">The PTR query string (e.g. "1.0.0.127.in-addr.arpa").</param>
+    /// <param name="ipAddress">Outputs the parsed IP address if successful.</param>
+    /// <returns><c>true</c> if successfully parsed; otherwise <c>false</c>.</returns>
     public static bool TryParsePtrQueryToIp(string ptrQuery, out IPAddress? ipAddress)
     {
         ipAddress = null;
-        string query = ptrQuery.Trim().TrimEnd('.');
+        if (string.IsNullOrWhiteSpace(ptrQuery))
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> query = ptrQuery.AsSpan().Trim().TrimEnd('.');
 
         if (query.EndsWith(".in-addr.arpa", StringComparison.OrdinalIgnoreCase))
         {
@@ -86,47 +120,74 @@ public sealed class PtrResolver : IPtrResolver
         return false;
     }
 
-    private static bool TryParseIPv4Ptr(string query, out IPAddress? ipAddress)
+    private static bool TryParseIPv4Ptr(ReadOnlySpan<char> query, out IPAddress? ipAddress)
     {
         ipAddress = null;
-        ReadOnlySpan<char> labels = query.AsSpan(0, query.Length - ".in-addr.arpa".Length);
-        if (labels.IsEmpty) return false;
+        ReadOnlySpan<char> labels = query[..^".in-addr.arpa".Length];
+        if (labels.IsEmpty)
+        {
+            return false;
+        }
 
         Span<byte> octets = stackalloc byte[4];
         int octetCount = 0;
 
-        foreach (var range in labels.Split('.'))
+        foreach (Range range in labels.Split('.'))
         {
-            if (octetCount >= 4) return false;
+            if (octetCount >= 4)
+            {
+                return false;
+            }
+
             ReadOnlySpan<char> label = labels[range];
 
-            if (!byte.TryParse(label, NumberStyles.None, CultureInfo.InvariantCulture, out byte octet)) return false;
-            if (label.Length > 1 && label[0] == '0') return false;
+            if (!byte.TryParse(label, NumberStyles.None, CultureInfo.InvariantCulture, out byte octet))
+            {
+                return false;
+            }
+
+            if (label.Length > 1 && label[0] == '0')
+            {
+                return false;
+            }
 
             octets[octetCount++] = octet;
         }
 
-        if (octetCount != 4) return false;
+        if (octetCount != 4)
+        {
+            return false;
+        }
 
         Span<byte> ipBytes = stackalloc byte[4] { octets[3], octets[2], octets[1], octets[0] };
         ipAddress = new IPAddress(ipBytes);
         return true;
     }
 
-    private static bool TryParseIPv6Ptr(string query, out IPAddress? ipAddress)
+    private static bool TryParseIPv6Ptr(ReadOnlySpan<char> query, out IPAddress? ipAddress)
     {
         ipAddress = null;
-        ReadOnlySpan<char> labels = query.AsSpan(0, query.Length - ".ip6.arpa".Length);
-        if (labels.IsEmpty) return false;
+        ReadOnlySpan<char> labels = query[..^".ip6.arpa".Length];
+        if (labels.IsEmpty)
+        {
+            return false;
+        }
 
         Span<byte> nibbles = stackalloc byte[32];
         int nibbleCount = 0;
 
-        foreach (var range in labels.Split('.'))
+        foreach (Range range in labels.Split('.'))
         {
-            if (nibbleCount >= 32) return false;
+            if (nibbleCount >= 32)
+            {
+                return false;
+            }
+
             ReadOnlySpan<char> label = labels[range];
-            if (label.Length != 1) return false;
+            if (label.Length != 1)
+            {
+                return false;
+            }
 
             char ch = label[0];
             int value = ch switch
@@ -137,11 +198,18 @@ public sealed class PtrResolver : IPtrResolver
                 _ => -1
             };
 
-            if (value == -1) return false;
+            if (value == -1)
+            {
+                return false;
+            }
+
             nibbles[nibbleCount++] = (byte)value;
         }
 
-        if (nibbleCount != 32) return false;
+        if (nibbleCount != 32)
+        {
+            return false;
+        }
 
         Span<byte> ipBytes = stackalloc byte[16];
         for (int i = 0; i < 16; i++)
@@ -157,11 +225,14 @@ public sealed class PtrResolver : IPtrResolver
 
     private void RebuildTables(DnsEngineOptions options)
     {
-        var newMap = new ConcurrentDictionary<IPAddress, string>();
+        var newMap = new Dictionary<IPAddress, string>();
 
         foreach (var (key, domainName) in options.PtrRecords)
         {
-            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(domainName)) continue;
+            if (string.IsNullOrWhiteSpace(key) || string.IsNullOrWhiteSpace(domainName))
+            {
+                continue;
+            }
 
             string canonicalDomain;
             try
@@ -170,36 +241,60 @@ public sealed class PtrResolver : IPtrResolver
             }
             catch (ArgumentException)
             {
-                _logger.LogWarning("Invalid domain format in PTR options: {Domain}", domainName);
+                LogInvalidDomainInPtrOptions(_logger, domainName);
                 continue;
             }
 
-            if (TryParsePtrQueryToIp(key, out var ipFromPtr) && ipFromPtr != null)
+            if (TryParsePtrQueryToIp(key, out IPAddress? ipFromPtr) && ipFromPtr is not null)
             {
                 newMap[ipFromPtr] = canonicalDomain;
             }
-            else if (IPAddress.TryParse(key, out var directIp))
+            else if (IPAddress.TryParse(key, out IPAddress? directIp))
             {
                 newMap[directIp] = canonicalDomain;
             }
         }
 
-        var newRules = new List<(IPNetwork Network, IPAddress TargetServer)>();
-        foreach (var rule in options.ConditionalPtrRules)
+        var newRules = ImmutableArray.CreateBuilder<(IPNetwork Network, IPAddress TargetServer)>();
+        foreach (PtrConditionalRule rule in options.ConditionalPtrRules)
         {
-            if (IPNetwork.TryParse(rule.Subnet, out var network) && IPAddress.TryParse(rule.TargetResolver, out var server))
+            if (IPNetwork.TryParse(rule.Subnet, out IPNetwork network) && IPAddress.TryParse(rule.TargetResolver, out IPAddress? server))
             {
                 newRules.Add((network, server));
             }
             else
             {
-                _logger.LogWarning("Invalid conditional PTR rule: Subnet={Subnet}, Server={Server}", rule.Subnet, rule.TargetResolver);
+                LogInvalidConditionalPtrRule(_logger, rule.Subnet, rule.TargetResolver);
             }
         }
 
-        _ipToPtrMap = newMap;
-        _conditionalRules = newRules;
-        _logger.LogInformation("PTR Table updated. Static entries: {StaticCount}, Conditional rules: {RuleCount}", newMap.Count, newRules.Count);
-    }
-}
+        Volatile.Write(ref _ipToPtrMap, newMap.ToFrozenDictionary());
+        Volatile.Write(ref _conditionalRules, newRules.ToImmutable());
 
+        LogPtrTableUpdated(_logger, newMap.Count, newRules.Count);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _optionsChangeListener?.Dispose();
+    }
+
+    [LoggerMessage(
+        EventId = 601,
+        Level = LogLevel.Warning,
+        Message = "Invalid domain format in PTR options: {Domain}")]
+    private static partial void LogInvalidDomainInPtrOptions(ILogger logger, string domain);
+
+    [LoggerMessage(
+        EventId = 602,
+        Level = LogLevel.Warning,
+        Message = "Invalid conditional PTR rule: Subnet={Subnet}, Server={Server}")]
+    private static partial void LogInvalidConditionalPtrRule(ILogger logger, string subnet, string server);
+
+    [LoggerMessage(
+        EventId = 603,
+        Level = LogLevel.Information,
+        Message = "PTR Table updated. Static entries: {StaticCount}, Conditional rules: {RuleCount}")]
+    private static partial void LogPtrTableUpdated(ILogger logger, int staticCount, int ruleCount);
+}
