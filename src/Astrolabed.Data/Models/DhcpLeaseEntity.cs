@@ -1,5 +1,6 @@
-using Astrolabed.Core.Network;
 using System.Net;
+
+using Astrolabed.Core.Network;
 
 namespace Astrolabed.Data.Models;
 

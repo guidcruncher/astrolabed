@@ -1,9 +1,9 @@
 using System.Data;
 using System.Net;
 
+using Astrolabed.Core.Network;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
-using Astrolabed.Core.Network;
 
 using Dapper;
 
