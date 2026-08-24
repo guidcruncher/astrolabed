@@ -32,6 +32,7 @@ public sealed partial class InProcEventBroker(
 
         if (!_subscribers.TryGetValue(typeof(T), out ImmutableArray<Func<object, CancellationToken, ValueTask>> handlers) || handlers.IsEmpty)
         {
+            _logger.LogWarning("Attempting to publish an event when there are no subscribers.");
             return ValueTask.CompletedTask;
         }
 
