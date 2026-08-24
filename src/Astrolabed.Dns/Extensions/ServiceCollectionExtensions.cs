@@ -1,7 +1,6 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
 using Astrolabed.Core.Scheduler;
 using Astrolabed.Dns.Cache;
-using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Jobs;
 using Astrolabed.Dns.Models;
@@ -9,8 +8,6 @@ using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Services;
 using Astrolabed.Dns.Upstream;
-using Astrolabed.EventBus;
-using Astrolabed.EventBus.Events;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -104,7 +101,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
 
         // Event Bus Listeners
-        services.AddScoped<IEventListener<DnsResponseEvent>, DnsResponseListener>();
+        // services.AddScoped<IEventListener<DnsResponseEvent>, DnsResponseListener>();
 
         // Core Query Processing & Transport Listeners Pattern
         services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();

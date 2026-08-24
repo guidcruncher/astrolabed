@@ -54,7 +54,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             ClientEndpoint = domainEvent.ClientEndpoint.ToString() ?? string.Empty,
             ClientName = domainEvent.ClientName,
             ResolutionSource = domainEvent.ResolutionSource,
-            DurationMs = domainEvent.DurationMs
+            DurationMs = domainEvent.DurationMs,
+            Blocked = domainEvent.Blocked ? 1 : 0
         };
     }
 
@@ -77,7 +78,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             entity.ClientEndpoint,
             entity.ClientName,
             entity.ResolutionSource,
-            entity.DurationMs
+            entity.DurationMs,
+        entity.Blocked == 1
         );
     }
 

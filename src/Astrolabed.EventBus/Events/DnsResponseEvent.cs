@@ -13,6 +13,7 @@ namespace Astrolabed.EventBus.Events;
 /// <param name="ClientName">The resolved network hostname or IP representation of the client.</param>
 /// <param name="ResolutionSource">The resolution source tag describing how the query was answered.</param>
 /// <param name="DurationMs">The overall duration taken to resolve the query in milliseconds.</param>
+/// <param name="Blocked">Indicates if the response was blocked.</param>
 public sealed record DnsResponseEvent(
     DateTimeOffset StartTimeUTC,
     string ContextId,
@@ -21,5 +22,6 @@ public sealed record DnsResponseEvent(
     EndPoint ClientEndpoint,
     string ClientName,
     string ResolutionSource,
-    double DurationMs
+    double DurationMs,
+    bool Blocked
 );

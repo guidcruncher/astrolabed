@@ -41,6 +41,8 @@ public sealed partial class DnsQueryProcessor(
     IClientNameResolver clientResolver,
     ILogger<DnsQueryProcessor> logger) : IDnsQueryProcessor
 {
+    private static readonly AsyncLocal<bool> IsInternalLookup = new();
+
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
     private readonly IDnsCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
     private readonly IDomainFilter _domainFilter = domainFilter ?? throw new ArgumentNullException(nameof(domainFilter));
@@ -54,16 +56,28 @@ public sealed partial class DnsQueryProcessor(
     /// <inheritdoc />
     public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
+        bool isNestedQuery = IsInternalLookup.Value;
+        bool blocked = false;
         IPAddress address = clientEndpoint.GetIPAddress();
         var context = new DnsContext(address);
         string clientName = "localhost";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
-        if (!IPAddress.IsLoopback(address))
+        if (!isNestedQuery && !IPAddress.IsLoopback(address))
         {
             string ptrQuery = address.ToPtrFormat();
             LogDeterminingClientName(_logger, ptrQuery);
-            clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery, ct).ConfigureAwait(false);
+
+            IsInternalLookup.Value = true;
+            try
+            {
+                clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery, ct).ConfigureAwait(false);
+            }
+            finally
+            {
+                IsInternalLookup.Value = false;
+            }
+
             LogClientNameResolved(_logger, clientName);
         }
 
@@ -93,6 +107,7 @@ public sealed partial class DnsQueryProcessor(
                 !_domainFilter.IsAllowed(request.QuestionName) &&
                 _domainFilter.IsBlocked(request.QuestionName, out string? reason))
             {
+                blocked = true;
                 var filterEde = new ExtendedDnsError
                 {
                     InfoCode = ExtendedDnsErrorCode.Filtered,
@@ -260,21 +275,24 @@ public sealed partial class DnsQueryProcessor(
         }
         finally
         {
-            double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
-            LogQueryResult(_logger, context.Id, request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, elapsedMs);
+            if (!isNestedQuery)
+            {
+                double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
 
-            var dnsEvent = new DnsResponseEvent(
-                startTime,
-                context.Id.ToString(),
-                request.QuestionName,
-                request.QuestionType.ToString().ToUpperInvariant(),
-                clientEndpoint,
-                clientName,
-                resolutionSource,
-                elapsedMs
-            );
+                var dnsEvent = new DnsResponseEvent(
+                    startTime,
+                    context.Id.ToString(),
+                    request.QuestionName,
+                    request.QuestionType.ToString().ToUpperInvariant(),
+                    clientEndpoint,
+                    clientName,
+                    resolutionSource,
+                    elapsedMs,
+                    blocked
+                );
 
-            await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
+                await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
+            }
         }
     }
 
@@ -295,10 +313,4 @@ public sealed partial class DnsQueryProcessor(
         Level = LogLevel.Warning,
         Message = "[Context {ContextId}] Failed to resolve query via upstream {Upstream}")]
     private static partial void LogUpstreamResolutionFailed(ILogger logger, Exception exception, Guid contextId, string upstream);
-
-    [LoggerMessage(
-        EventId = 904,
-        Level = LogLevel.Information,
-        Message = "Context [{ContextId}] Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {ElapsedMs:F2}ms")]
-    private static partial void LogQueryResult(ILogger logger, Guid contextId, string domain, DnsType type, EndPoint client, string source, double elapsedMs);
 }

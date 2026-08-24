@@ -28,6 +28,20 @@ public interface IDhcpLeaseRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Asynchronously retrieves an active DHCP lease assigned to the specified PTR address.
+    /// </summary>
+    /// <param name="ptrAddress">The target to look up.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// A task representing the asynchronous operation, containing the matching <see cref="DhcpLease"/> if found and active;
+    /// otherwise, <see langword="null"/>.
+    /// </returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="ptrAddress"/> is null.</exception>
+    Task<DhcpLease?> GetLeaseByPtrAddressAsync(
+        string ptrAddress,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Asynchronously retrieves an active DHCP lease assigned to the specified IP address.
     /// </summary>
     /// <param name="ipAddress">The target <see cref="IPAddress"/> to look up.</param>

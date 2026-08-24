@@ -1,3 +1,5 @@
+// File: src/Astrolabed.Dns/Resolvers/HostsManager.cs
+using System.Collections.Frozen;
 using System.Net;
 
 using Astrolabed.Dns.Models;
@@ -40,9 +42,14 @@ public sealed partial class HostsManager : IHostsManager, IHostedService, IDispo
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     /// <summary>
-    /// Volatile backing store holding the current thread-safe snapshot of loaded hosts entries.
+    /// Volatile backing store holding the current thread-safe list snapshot of loaded hosts entries.
     /// </summary>
     private IReadOnlyList<HostsEntry> _entries = Array.Empty<HostsEntry>();
+
+    /// <summary>
+    /// Volatile backing store holding the current thread-safe frozen lookup dictionary of host entries.
+    /// </summary>
+    private FrozenDictionary<string, HostsEntry> _lookup = FrozenDictionary<string, HostsEntry>.Empty;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="HostsManager"/> class with required dependencies and options change tracking.
@@ -81,6 +88,9 @@ public sealed partial class HostsManager : IHostsManager, IHostedService, IDispo
     public IReadOnlyList<HostsEntry> Entries => Volatile.Read(ref _entries);
 
     /// <inheritdoc />
+    public FrozenDictionary<string, HostsEntry> Lookup => Volatile.Read(ref _lookup);
+
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         LogInitializingHostsManager(_logger);
@@ -101,6 +111,7 @@ public sealed partial class HostsManager : IHostsManager, IHostedService, IDispo
             {
                 LogNoSourcesConfigured(_logger);
                 Volatile.Write(ref _entries, Array.Empty<HostsEntry>());
+                Volatile.Write(ref _lookup, FrozenDictionary<string, HostsEntry>.Empty);
                 return;
             }
 
@@ -142,7 +153,14 @@ public sealed partial class HostsManager : IHostsManager, IHostedService, IDispo
                 .Select(kvp => new HostsEntry(kvp.Key, kvp.Value.ToList()))
                 .ToList();
 
+            var lookupDict = mergedEntries.ToDictionary(
+                e => e.Hostname.Trim().TrimEnd('.'),
+                e => e,
+                StringComparer.OrdinalIgnoreCase);
+
             Volatile.Write(ref _entries, mergedEntries);
+            Volatile.Write(ref _lookup, lookupDict.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
+
             LogMergedAndDeduplicated(_logger, mergedEntries.Count);
         }
         finally

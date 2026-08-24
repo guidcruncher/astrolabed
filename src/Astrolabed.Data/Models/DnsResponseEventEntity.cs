@@ -49,4 +49,9 @@ public sealed class DnsResponseEventEntity
     /// Gets or sets the total processing duration for the DNS query in milliseconds.
     /// </summary>
     public double DurationMs { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value to indicate if this response was blocked
+    /// </summary>
+    public int Blocked { get; set; }
 }

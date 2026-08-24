@@ -1,6 +1,4 @@
 // File: src/Astrolabed.Dns/Services/ClientNameResolver.cs
-using System.Net;
-
 using Astrolabed.Data.Repositories;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -34,23 +32,33 @@ public sealed partial class ClientNameResolver : IClientNameResolver
     }
 
     /// <inheritdoc />
-    public async Task<string> ResolveClientNameAsync(string ipAddress, CancellationToken cancellationToken = default)
+    public async Task<string> ResolveClientNameAsync(string ptrAddress, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(ipAddress) || !IPAddress.TryParse(ipAddress, out IPAddress? parsedIp))
+        if (string.IsNullOrWhiteSpace(ptrAddress))
         {
             return string.Empty;
         }
 
+        // 1. Check ARP table
         using IServiceScope scope = _scopeFactory.CreateScope();
         var repository = scope.ServiceProvider.GetRequiredService<IDiscoveredLanDeviceRepository>();
+        var dhcpRepository = scope.ServiceProvider.GetRequiredService<IDhcpLeaseRepository>();
+        LogResolvingClientName(_logger, ptrAddress);
 
-        LogResolvingClientName(_logger, ipAddress);
-
-        var device = await repository.GetByIpAddressAsync(parsedIp, cancellationToken).ConfigureAwait(false);
+        var device = await repository.GetByPtrAddressAsync(ptrAddress, cancellationToken).ConfigureAwait(false);
         if (device != null && !string.IsNullOrWhiteSpace(device.HostName))
         {
             return device.HostName;
         }
+
+        // 2. Check Local DHCP Leases (if enabled)
+        var dhcpDevice = await dhcpRepository.GetLeaseByPtrAddressAsync(ptrAddress, cancellationToken).ConfigureAwait(false);
+        if (dhcpDevice != null && !string.IsNullOrWhiteSpace(dhcpDevice.ClientName))
+        {
+            return dhcpDevice.ClientName;
+        }
+
+        // 3. Check Conditional Forwarding
 
         return string.Empty;
     }
@@ -58,6 +66,6 @@ public sealed partial class ClientNameResolver : IClientNameResolver
     [LoggerMessage(
         EventId = 901,
         Level = LogLevel.Debug,
-        Message = "Resolving LAN client name for IP address: {IpAddress}")]
-    private static partial void LogResolvingClientName(ILogger logger, string ipAddress);
+        Message = "Resolving LAN client name for PTR address: {PtrAddress}")]
+    private static partial void LogResolvingClientName(ILogger logger, string ptrAddress);
 }
