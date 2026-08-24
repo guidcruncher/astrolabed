@@ -32,6 +32,12 @@ public sealed partial class DhcpEngine(
     {
         DhcpServerOptions config = _options.CurrentValue;
 
+        if (!config.ListenAddress.Enabled)
+        {
+            _logger.LogWarning("DHCP Server is not enabled.");
+            return;
+        }
+
         if (!IPAddress.TryParse(config.ListenAddress.Address, out IPAddress? bindIp))
         {
             bindIp = IPAddress.Any;

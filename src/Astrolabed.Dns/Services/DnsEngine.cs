@@ -31,6 +31,12 @@ public sealed partial class DnsEngine(
 
         DnsEngineOptions options = _optionsMonitor.CurrentValue;
 
+        if (!options.ListenAddress.Enabled)
+        {
+            _logger.LogWarning("DNS Forwarder is not enabled.");
+            return;
+        }
+
         IPAddress address = string.IsNullOrWhiteSpace(options.ListenAddress.Address)
             ? IPAddress.Any
             : IPAddress.Parse(options.ListenAddress.Address);
