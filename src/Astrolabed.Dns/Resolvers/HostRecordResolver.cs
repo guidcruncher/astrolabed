@@ -1,4 +1,4 @@
-using System.Collections.Frozen;
+using System.Collections.Frozen; 
 using System.Net;
 using System.Net.Sockets;
 
@@ -52,6 +52,12 @@ public sealed partial class HostRecordResolver : IHostRecordResolver
     public bool TryResolveHost(string domain, DnsType recordType, out IPAddress? address)
     {
         address = null;
+
+	if (_hostsLookup.Count == 0) {
+	    _logger.LogWarning("Hosts entry list is empty. Is this expecteed?");
+	    return false;
+	}
+
         if (string.IsNullOrWhiteSpace(domain))
         {
             return false;
