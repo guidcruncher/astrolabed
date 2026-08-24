@@ -161,7 +161,7 @@ public sealed partial class DhcpHandler(
         DhcpOption? requestedIpOpt = request.Options.FirstOrDefault(o => o.Code == DhcpOptionCode.RequestedIpAddress);
         if (requestedIpOpt is not null && requestedIpOpt.Data.Length == 4)
         {
-            return new IPAddress(requestedIpOpt.Data);
+            return new IPAddress(requestedIpOpt.Data); // <-- BUG IS HERE
         }
 
         return null;
