@@ -1,109 +1,96 @@
-// File: src/Astrolabed.Dns/Filtering/DomainFilterRuleStore.cs
+using System.Collections.Frozen;
 using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
 
-public sealed class DomainFilterRuleStore : IDomainFilterRuleStore
+/// <summary>
+/// Provides high-performance, lock-free snapshot storage for exact and regex DNS filtering rules.
+/// </summary>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore> logger) : IDomainFilterRuleStore
 {
-    private readonly ILogger<DomainFilterRuleStore> _logger;
-    private readonly object _syncRoot = new();
+    private readonly ILogger<DomainFilterRuleStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly object _updateLock = new();
 
-    private HashSet<string> _exactAllows = new(StringComparer.OrdinalIgnoreCase);
-    private HashSet<string> _exactBlocks = new(StringComparer.OrdinalIgnoreCase);
-    private List<Regex> _regexAllows = [];
-    private List<Regex> _regexBlocks = [];
+    private RuleStoreSnapshot _snapshot = new(
+        FrozenSet<string>.Empty,
+        Array.Empty<Regex>(),
+        FrozenSet<string>.Empty,
+        Array.Empty<Regex>());
 
-    public DomainFilterRuleStore(ILogger<DomainFilterRuleStore> logger)
-    {
-        _logger = logger;
-    }
+    /// <inheritdoc />
+    public IReadOnlySet<string> ExactAllows => Volatile.Read(ref _snapshot).ExactAllows;
 
-    public IReadOnlySet<string> ExactAllows
-    {
-        get
-        {
-            lock (_syncRoot)
-            {
-                return new HashSet<string>(_exactAllows, StringComparer.OrdinalIgnoreCase);
-            }
-        }
-    }
+    /// <inheritdoc />
+    public IReadOnlySet<string> ExactBlocks => Volatile.Read(ref _snapshot).ExactBlocks;
 
-    public IReadOnlySet<string> ExactBlocks
-    {
-        get
-        {
-            lock (_syncRoot)
-            {
-                return new HashSet<string>(_exactBlocks, StringComparer.OrdinalIgnoreCase);
-            }
-        }
-    }
+    /// <inheritdoc />
+    public IReadOnlyList<string> RegexAllows => Volatile.Read(ref _snapshot).RegexAllowsSelect;
 
-    public IReadOnlyList<string> RegexAllows
-    {
-        get
-        {
-            lock (_syncRoot)
-            {
-                return _regexAllows.Select(r => r.ToString()).ToList();
-            }
-        }
-    }
+    /// <inheritdoc />
+    public IReadOnlyList<string> RegexBlocks => Volatile.Read(ref _snapshot).RegexBlocksSelect;
 
-    public IReadOnlyList<string> RegexBlocks
-    {
-        get
-        {
-            lock (_syncRoot)
-            {
-                return _regexBlocks.Select(r => r.ToString()).ToList();
-            }
-        }
-    }
-
+    /// <inheritdoc />
     public void UpdateRules(IEnumerable<string> allowRules, IEnumerable<string> blockRules)
     {
+        ArgumentNullException.ThrowIfNull(allowRules);
+        ArgumentNullException.ThrowIfNull(blockRules);
+
         var (exactAllows, regexAllows) = ProcessRules(allowRules);
         var (exactBlocks, regexBlocks) = ProcessRules(blockRules);
 
-        lock (_syncRoot)
+        var newSnapshot = new RuleStoreSnapshot(
+            exactAllows.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+            regexAllows,
+            exactBlocks.ToFrozenSet(StringComparer.OrdinalIgnoreCase),
+            regexBlocks);
+
+        lock (_updateLock)
         {
-            _exactAllows = exactAllows;
-            _regexAllows = regexAllows;
-            _exactBlocks = exactBlocks;
-            _regexBlocks = regexBlocks;
+            Volatile.Write(ref _snapshot, newSnapshot);
         }
 
-        _logger.LogInformation(
-            "Domain filter rule store updated. Allows: {ExactAllowsCount} exact, {RegexAllowsCount} regex. Blocks: {ExactBlocksCount} exact, {RegexBlocksCount} regex.",
-            exactAllows.Count, regexAllows.Count, exactBlocks.Count, regexBlocks.Count);
+        LogRulesUpdated(
+            _logger,
+            newSnapshot.ExactAllows.Count,
+            newSnapshot.RegexAllows.Count,
+            newSnapshot.ExactBlocks.Count,
+            newSnapshot.RegexBlocks.Count);
     }
 
-    public (HashSet<string> ExactAllows, List<Regex> RegexAllows, HashSet<string> ExactBlocks, List<Regex> RegexBlocks) GetCompiledSnapshot()
+    /// <inheritdoc />
+    public RuleStoreSnapshot GetCompiledSnapshot()
     {
-        lock (_syncRoot)
-        {
-            return (_exactAllows, _regexAllows, _exactBlocks, _regexBlocks);
-        }
+        return Volatile.Read(ref _snapshot);
     }
 
+    /// <summary>
+    /// Parses and separates raw filter rule strings into exact string match sets and compiled regular expressions.
+    /// </summary>
+    /// <param name="rules">Raw domain filter rules.</param>
+    /// <returns>A tuple containing exact domain matches and compiled regex patterns.</returns>
     private (HashSet<string> ExactMatches, List<Regex> RegexMatches) ProcessRules(IEnumerable<string> rules)
     {
         var exactMatches = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var rawRegexPatterns = new HashSet<string>(StringComparer.Ordinal);
         var regexMatches = new List<Regex>();
 
-        foreach (var rawRule in rules)
+        foreach (string rawRule in rules)
         {
-            if (string.IsNullOrWhiteSpace(rawRule)) continue;
+            if (string.IsNullOrWhiteSpace(rawRule))
+            {
+                continue;
+            }
 
-            var rule = rawRule.Trim();
-            if (rule.StartsWith('#')) continue; // Skip comments
+            string rule = rawRule.Trim();
+            if (rule.StartsWith('#'))
+            {
+                continue;
+            }
 
-            if (IsRegexRule(rule, out var pattern))
+            if (IsRegexOrWildcardRule(rule, out string pattern))
             {
                 rawRegexPatterns.Add(pattern);
             }
@@ -113,7 +100,7 @@ public sealed class DomainFilterRuleStore : IDomainFilterRuleStore
             }
         }
 
-        foreach (var pattern in rawRegexPatterns)
+        foreach (string pattern in rawRegexPatterns)
         {
             try
             {
@@ -126,14 +113,20 @@ public sealed class DomainFilterRuleStore : IDomainFilterRuleStore
             }
             catch (ArgumentException ex)
             {
-                _logger.LogError(ex, "Invalid regex pattern skipped: {Pattern}", pattern);
+                LogInvalidRegexSkipped(_logger, ex, pattern);
             }
         }
 
         return (exactMatches, regexMatches);
     }
 
-    private static bool IsRegexRule(string rule, out string pattern)
+    /// <summary>
+    /// Determines whether a rule string contains regular expression syntax or wildcard constructs.
+    /// </summary>
+    /// <param name="rule">The input rule string to test.</param>
+    /// <param name="pattern">Outputs the derived regex pattern if matched.</param>
+    /// <returns><c>true</c> if the rule represents a regex pattern or wildcard match; otherwise <c>false</c>.</returns>
+    private static bool IsRegexOrWildcardRule(string rule, out string pattern)
     {
         if (rule.StartsWith('/') && rule.EndsWith('/') && rule.Length > 2)
         {
@@ -141,7 +134,16 @@ public sealed class DomainFilterRuleStore : IDomainFilterRuleStore
             return true;
         }
 
-        if (rule.Contains('*') || rule.Contains('?') || rule.Contains('^') || rule.Contains('$'))
+        if (rule.Contains('*') || rule.Contains('?'))
+        {
+            string escaped = Regex.Escape(rule)
+                .Replace(@"\*", ".*")
+                .Replace(@"\?", ".");
+            pattern = $"^{escaped}$";
+            return true;
+        }
+
+        if (rule.Contains('^') || rule.Contains('$'))
         {
             pattern = rule;
             return true;
@@ -151,8 +153,54 @@ public sealed class DomainFilterRuleStore : IDomainFilterRuleStore
         return false;
     }
 
+    /// <summary>
+    /// Normalizes domain name strings by trimming trailing dots and casing to lowercase.
+    /// </summary>
+    /// <param name="domain">The raw domain string.</param>
+    /// <returns>A normalized lowercase domain string.</returns>
     private static string NormalizeDomain(string domain)
     {
         return domain.Trim().TrimEnd('.').ToLowerInvariant();
     }
+
+    [LoggerMessage(
+        EventId = 201,
+        Level = LogLevel.Information,
+        Message = "Domain filter rule store updated. Allows: {ExactAllowsCount} exact, {RegexAllowsCount} regex. Blocks: {ExactBlocksCount} exact, {RegexBlocksCount} regex.")]
+    private static partial void LogRulesUpdated(
+        ILogger logger,
+        int exactAllowsCount,
+        int regexAllowsCount,
+        int exactBlocksCount,
+        int regexBlocksCount);
+
+    [LoggerMessage(
+        EventId = 202,
+        Level = LogLevel.Error,
+        Message = "Invalid regex pattern skipped: {Pattern}")]
+    private static partial void LogInvalidRegexSkipped(ILogger logger, Exception exception, string pattern);
+}
+
+/// <summary>
+/// Immutable snapshot container for domain filtering rules.
+/// </summary>
+/// <param name="ExactAllows">Frozen set of exact allow domain rules.</param>
+/// <param name="RegexAllows">Compiled list of regular expression allow rules.</param>
+/// <param name="ExactBlocks">Frozen set of exact block domain rules.</param>
+/// <param name="RegexBlocks">Compiled list of regular expression block rules.</param>
+public sealed record RuleStoreSnapshot(
+    FrozenSet<string> ExactAllows,
+    IReadOnlyList<Regex> RegexAllows,
+    FrozenSet<string> ExactBlocks,
+    IReadOnlyList<Regex> RegexBlocks)
+{
+    /// <summary>
+    /// Gets a string representation list of all compiled regex allow patterns.
+    /// </summary>
+    public IReadOnlyList<string> RegexAllowsSelect { get; } = RegexAllows.Select(r => r.ToString()).ToList();
+
+    /// <summary>
+    /// Gets a string representation list of all compiled regex block patterns.
+    /// </summary>
+    public IReadOnlyList<string> RegexBlocksSelect { get; } = RegexBlocks.Select(r => r.ToString()).ToList();
 }

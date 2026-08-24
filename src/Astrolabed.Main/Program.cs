@@ -1,67 +1,57 @@
 // File: src/Astrolabed.Main/Program.cs
 using Astrolabed.Data.Extensions;
+using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Extensions;
-using Astrolabed.EventBus;
 using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
 using Astrolabed.Ntp.Extensions;
 
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Main;
 
+/// <summary>
+/// Application entry point and bootstrapping host builder for Astrolabed services.
+/// </summary>
 public static class Program
 {
+    /// <summary>
+    /// Configures and runs the unified Astrolabed application host.
+    /// </summary>
+    /// <param name="args">Command-line arguments.</param>
     public static async Task Main(string[] args)
     {
-        using var rootHost = Host.CreateDefaultBuilder(args)
-            .ConfigureServices(async (context, services) =>
-            {
-                services.AddDatabasePersistenceServices(context.Configuration);
-                services.AddDatabaseInitializer();
-                services.AddRootEventBroker(context.Configuration);
-                await services.InitializeDatabase();
-            })
-            .Build();
-
-        var centralBroker = rootHost.Services.GetRequiredService<IInProcEventBroker>();
-
-        using var dnsHost = Host.CreateDefaultBuilder(args)
-            .ConfigureAppConfiguration((hostingContext, config) =>
-            {
-                config.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true);
-                config.AddEnvironmentVariables();
-            })
+        IHost host = Host.CreateDefaultBuilder(args)
             .ConfigureLogging(logging =>
             {
                 logging.ClearProviders();
                 logging.AddConsole();
             })
-            .ConfigureServices((hostContext, services) =>
+            .ConfigureServices((context, services) =>
             {
-                // Data Layer
-                services.AddDatabasePersistenceServices(hostContext.Configuration);
+                // 1. Unified Data Layer & Persistence Setup
+                services.AddAstrolabedData(context.Configuration);
 
-                // Event Bus
-                services.AddSubHostEventBus(centralBroker);
+                // 2. Event Broker Setup
+                services.AddRootEventBroker(context.Configuration);
+
+                // 3. Event Listeners
                 services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
-                // NTP Services
-                services.AddNtpServer(hostContext.Configuration);
+                // 4. Protocol Servers & Network Engines
+                services.AddNtpServer(context.Configuration);
+                services.AddDhcpServer(context.Configuration);
+                services.AddDnsServer(context.Configuration);
+            })
+            .Build();
 
-                // DNS Services
-                services.AddAstrolabedDnsEngine(hostContext.Configuration);
-            }).Build();
+        // Perform explicit database initialization after DI container build and before engine execution
+        await host.InitializeDatabaseAsync().ConfigureAwait(false);
 
-        await rootHost.StartAsync();
-        await dnsHost.RunAsync().ConfigureAwait(false);
-
-        await dnsHost.StopAsync();
-        await rootHost.StopAsync();
-
+        // Run application host asynchronously until process termination request
+        await host.RunAsync().ConfigureAwait(false);
     }
 }
+

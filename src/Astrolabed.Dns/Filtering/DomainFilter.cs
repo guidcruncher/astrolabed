@@ -1,31 +1,77 @@
-// File: src/Astrolabed.Dns/Filtering/DomainFilter.cs
+using System.Text.RegularExpressions;
+
 namespace Astrolabed.Dns.Filtering;
 
-public sealed class DomainFilter : IDomainFilter
+/// <summary>
+/// Evaluates DNS query domains against exact, hierarchical subdomain, and regex rules.
+/// </summary>
+/// <param name="ruleStore">Rule store providing compiled filter rule snapshots.</param>
+public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilter
 {
-    private readonly IDomainFilterRuleStore _ruleStore;
+    private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
 
-    public DomainFilter(IDomainFilterRuleStore ruleStore)
-    {
-        _ruleStore = ruleStore;
-    }
-
+    /// <inheritdoc />
     public bool IsAllowed(string domain)
     {
-        var cleanDomain = NormalizeDomain(domain);
-        var (exactAllows, regexAllows, _, _) = _ruleStore.GetCompiledSnapshot();
-
-        // 1. Fast O(1) exact allow check
-        if (exactAllows.Contains(cleanDomain))
+        if (string.IsNullOrWhiteSpace(domain))
         {
-            return true;
+            return false;
         }
 
-        // 2. Pre-compiled Regex allow matching
-        for (int i = 0; i < regexAllows.Count; i++)
+        string cleanDomain = NormalizeDomain(domain);
+        RuleStoreSnapshot snapshot = _ruleStore.GetCompiledSnapshot();
+
+        return IsDomainAllowedInternal(cleanDomain, snapshot);
+    }
+
+    /// <inheritdoc />
+    public bool IsBlocked(string domain, out string? reason)
+    {
+        reason = null;
+        if (string.IsNullOrWhiteSpace(domain))
         {
-            if (regexAllows[i].IsMatch(cleanDomain))
+            return false;
+        }
+
+        string cleanDomain = NormalizeDomain(domain);
+        RuleStoreSnapshot snapshot = _ruleStore.GetCompiledSnapshot();
+
+        // Priority 1: Check Allow Rules (Exact, Subdomain, or Regex)
+        if (IsDomainAllowedInternal(cleanDomain, snapshot))
+        {
+            return false;
+        }
+
+        // Priority 2: Check Exact / Hierarchical Subdomain Block Rules
+        ReadOnlySpan<char> span = cleanDomain.AsSpan();
+        int offset = 0;
+
+        while (offset < span.Length)
+        {
+            string candidate = span[offset..].ToString();
+            if (snapshot.ExactBlocks.Contains(candidate))
             {
+                reason = $"Matched exact blocklist entry: {candidate}";
+                return true;
+            }
+
+            int nextDot = span[offset..].IndexOf('.');
+            if (nextDot < 0)
+            {
+                break;
+            }
+
+            offset += nextDot + 1;
+        }
+
+        // Priority 3: Check Regex Block Rules
+        IReadOnlyList<Regex> regexBlocks = snapshot.RegexBlocks;
+        for (int i = 0; i < regexBlocks.Count; i++)
+        {
+            Regex regex = regexBlocks[i];
+            if (regex.IsMatch(cleanDomain))
+            {
+                reason = $"Matched blocklist regex pattern: {regex}";
                 return true;
             }
         }
@@ -33,40 +79,35 @@ public sealed class DomainFilter : IDomainFilter
         return false;
     }
 
-    public bool IsBlocked(string domain, out string? reason)
+    private static bool IsDomainAllowedInternal(string cleanDomain, RuleStoreSnapshot snapshot)
     {
-        var cleanDomain = NormalizeDomain(domain);
-        reason = null;
+        // 1. Hierarchical Subdomain Allow Match
+        ReadOnlySpan<char> span = cleanDomain.AsSpan();
+        int offset = 0;
 
-        var (exactAllows, regexAllows, exactBlocks, regexBlocks) = _ruleStore.GetCompiledSnapshot();
-
-        // 1. Priority Override: Allow rules ALWAYS override block rules
-        if (exactAllows.Contains(cleanDomain))
+        while (offset < span.Length)
         {
-            return false;
+            string candidate = span[offset..].ToString();
+            if (snapshot.ExactAllows.Contains(candidate))
+            {
+                return true;
+            }
+
+            int nextDot = span[offset..].IndexOf('.');
+            if (nextDot < 0)
+            {
+                break;
+            }
+
+            offset += nextDot + 1;
         }
 
+        // 2. Pre-compiled Regex Allow Match
+        IReadOnlyList<Regex> regexAllows = snapshot.RegexAllows;
         for (int i = 0; i < regexAllows.Count; i++)
         {
             if (regexAllows[i].IsMatch(cleanDomain))
             {
-                return false;
-            }
-        }
-
-        // 2. Evaluate Block Rules (Exact match first, then Regex)
-        if (exactBlocks.Contains(cleanDomain))
-        {
-            reason = $"Matched exact blocklist entry: {cleanDomain}";
-            return true;
-        }
-
-        for (int i = 0; i < regexBlocks.Count; i++)
-        {
-            var regex = regexBlocks[i];
-            if (regex.IsMatch(cleanDomain))
-            {
-                reason = $"Matched blocklist regex pattern: {regex}";
                 return true;
             }
         }
@@ -79,3 +120,4 @@ public sealed class DomainFilter : IDomainFilter
         return domain.Trim().TrimEnd('.').ToLowerInvariant();
     }
 }
+

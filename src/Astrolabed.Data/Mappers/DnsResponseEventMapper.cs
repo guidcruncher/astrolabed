@@ -10,6 +10,12 @@ namespace Astrolabed.Data.Mappers;
 /// </summary>
 public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
 {
+    /// <summary>
+    /// Converts a <see cref="DnsResponseEventDto"/> data transfer object into a persistable <see cref="DnsResponseEventEntity"/>.
+    /// </summary>
+    /// <param name="dto">The source DTO model to map.</param>
+    /// <returns>A mapped <see cref="DnsResponseEventEntity"/> ready for database persistence.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="dto"/> is <c>null</c>.</exception>
     public DnsResponseEventEntity ToEntity(DnsResponseEventDto dto)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -28,6 +34,12 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
         };
     }
 
+    /// <summary>
+    /// Converts an in-memory <see cref="DnsResponseEvent"/> domain event into a persistable <see cref="DnsResponseEventEntity"/>.
+    /// </summary>
+    /// <param name="domainEvent">The source domain event model to map.</param>
+    /// <returns>A mapped <see cref="DnsResponseEventEntity"/> record.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domainEvent"/> is <c>null</c>.</exception>
     public DnsResponseEventEntity ToEntity(DnsResponseEvent domainEvent)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
@@ -46,6 +58,12 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
         };
     }
 
+    /// <summary>
+    /// Converts a <see cref="DnsResponseEventEntity"/> database record into a <see cref="DnsResponseEventDto"/> transport object.
+    /// </summary>
+    /// <param name="entity">The source entity record to map.</param>
+    /// <returns>A mapped <see cref="DnsResponseEventDto"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="entity"/> is <c>null</c>.</exception>
     public DnsResponseEventDto ToDto(DnsResponseEventEntity entity)
     {
         ArgumentNullException.ThrowIfNull(entity);
@@ -63,6 +81,11 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
         );
     }
 
+    /// <summary>
+    /// Parses a raw endpoint string into an <see cref="IPEndPoint"/> or <see cref="DnsEndPoint"/> fallback.
+    /// </summary>
+    /// <param name="endpointString">The endpoint string to parse.</param>
+    /// <returns>A concrete <see cref="EndPoint"/> instance.</returns>
     private static EndPoint ParseEndPoint(string endpointString)
     {
         if (IPEndPoint.TryParse(endpointString, out var ipEndPoint))

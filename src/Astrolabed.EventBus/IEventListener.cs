@@ -1,16 +1,19 @@
 namespace Astrolabed.EventBus;
 
 /// <summary>
-/// Interface for listening to generic event messages.
+/// Defines the asynchronous message handler contract for listening to event messages containing a payload of type <typeparamref name="T"/>.
 /// </summary>
-/// <typeparam name="T">The type of the event payload.</typeparam>
-public interface IEventListener<T>
+/// <typeparam name="T">The payload type encapsulated within the event message envelope.</typeparam>
+public interface IEventListener<T> : IEventListenerMarker
 {
     /// <summary>
-    /// Handles the incoming event message asynchronously.
+    /// Asynchronously processes an incoming event message envelope.
     /// </summary>
-    /// <param name="message">The generic message container holding payload and timestamp.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A ValueTask representing the asynchronous handling operation.</returns>
-    ValueTask HandleAsync(EventMessage<T> message, CancellationToken cancellationToken);
+    /// <param name="message">The generic event message container holding the message payload and metadata dispatch timestamp.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests during message handling.</param>
+    /// <returns>A <see cref="ValueTask"/> representing the asynchronous message handling operation.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="message"/> is null.</exception>
+    ValueTask HandleAsync(
+        EventMessage<T> message,
+        CancellationToken cancellationToken = default);
 }

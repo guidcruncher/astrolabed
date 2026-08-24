@@ -1,6 +1,7 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
 using Astrolabed.Core.Scheduler;
 using Astrolabed.Dns.Cache;
+using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Jobs;
 using Astrolabed.Dns.Models;
@@ -8,68 +9,86 @@ using Astrolabed.Dns.Options;
 using Astrolabed.Dns.Resolvers;
 using Astrolabed.Dns.Services;
 using Astrolabed.Dns.Upstream;
+using Astrolabed.EventBus;
+using Astrolabed.EventBus.Events;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Astrolabed.Dns.Extensions;
 
+/// <summary>
+/// Extension methods for registering Astrolabed DNS engine services into an <see cref="IServiceCollection"/>.
+/// </summary>
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddAstrolabedDnsEngine(
+    /// <summary>
+    /// Registers the core Astrolabed DNS engine services, resolvers, cache, network listeners, event listeners, and background tasks.
+    /// </summary>
+    /// <param name="services">The target service collection.</param>
+    /// <param name="configuration">Application configuration provider.</param>
+    /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <c>null</c>.</exception>
+    public static IServiceCollection AddDnsServer(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<NetworkScannerOptions>(
-            configuration.GetSection(NetworkScannerOptions.SectionName));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
 
-        services.Configure<DnsEngineOptions>(
-            configuration.GetSection(DnsEngineOptions.SectionName));
+        // Options Binding with Data Annotation Validation & Fast Startup Check
+        services.AddOptions<NetworkScannerOptions>()
+            .Bind(configuration.GetSection(NetworkScannerOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
-        services.Configure<HostsFileCollectionOptions>(
-            configuration.GetSection(HostsFileCollectionOptions.SectionName));
+        services.AddOptions<DnsEngineOptions>()
+            .Bind(configuration.GetSection(DnsEngineOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddOptions<HostsFileCollectionOptions>()
+            .Bind(configuration.GetSection(HostsFileCollectionOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddHttpClient();
 
+        // Core Caches & Filter Rule Stores
         services.AddSingleton<IDnsCache, DnsCache>();
 
-        // Domain Filter Rule Store registration (Handles deduplication, storage, and rule mutation)
         services.AddSingleton<DomainFilterRuleStore>();
         services.AddSingleton<IDomainFilterRuleStore>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
         services.AddSingleton<IReadOnlyDomainFilterRules>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
 
-        // Domain Filter Evaluation Engine
+        // Evaluation Engine
         services.AddSingleton<IDomainFilter, DomainFilter>();
 
-        // List Loader registration
+        // List Loaders
         services.AddHttpClient<IListLoader, AdGuardListLoader>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
-        // Register Options-driven Domain Filter Rule Loader Service
+        // Options-driven Rule Loader
         services.AddAstrolabedDomainFilterRuleLoader(configuration);
 
         services.AddSingleton<IPtrResolver, PtrResolver>();
 
-        // Hosts File Reader
+        // Hosts File Reader & Manager
         services.AddHttpClient<IHostsFileReader, HostsFileReader>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(10);
         });
 
-        // Register HostsManager Singleton & HostedService
         services.AddSingleton<HostsManager>();
         services.AddSingleton<IHostsManager>(sp => sp.GetRequiredService<HostsManager>());
-        services.AddHostedService<HostsManager>(sp => sp.GetRequiredService<HostsManager>());
+        services.AddHostedService(sp => sp.GetRequiredService<HostsManager>());
 
-        // Live HostsEntry collection delegation
         services.AddSingleton<IReadOnlyList<HostsEntry>, HostsEntryListWrapper>();
 
-        // Host Record Resolver
+        // Host Record Resolvers & Upstream Clients
         services.AddTransient<IHostRecordResolver, HostRecordResolver>();
-
-        // Upstream Clients
         services.AddTransient<UdpUpstreamDnsClient>();
         services.AddTransient<TcpUpstreamDnsClient>();
 
@@ -80,17 +99,19 @@ public static class ServiceCollectionExtensions
 
         services.AddSingleton<IUpstreamClientFactory, UpstreamClientFactory>();
 
-        // Client name resolver
-        services.AddTransient<INetworkScannerService, NetworkScannerService>();
-
+        // Client Name Resolution & Network Scanning (Scoped for clean database access inside jobs/scopes)
+        services.AddScoped<INetworkScannerService, NetworkScannerService>();
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
 
-        // Core Query Processing & Network Listeners Pattern
+        // Event Bus Listeners
+        services.AddScoped<IEventListener<DnsResponseEvent>, DnsResponseListener>();
+
+        // Core Query Processing & Transport Listeners Pattern
         services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();
         services.AddSingleton<IDnsListener, DnsUdpListener>();
         services.AddSingleton<IDnsListener, DnsTcpListener>();
 
-        // Scheduled jobs
+        // Scheduled Background Jobs & Engine
         services.AddJobScheduler();
         services.AddScheduledJob<NetworkScanJob>();
 
@@ -99,15 +120,28 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>
+    /// Registers the domain filter rule loader hosted service and options.
+    /// </summary>
+    /// <param name="services">The target service collection.</param>
+    /// <param name="configuration">Application configuration provider.</param>
+    /// <returns>The updated <see cref="IServiceCollection"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <c>null</c>.</exception>
     public static IServiceCollection AddAstrolabedDomainFilterRuleLoader(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<DomainFilterRuleOptions>(
-            configuration.GetSection(DomainFilterRuleOptions.SectionName));
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
+
+        services.AddOptions<DomainFilterRuleOptions>()
+            .Bind(configuration.GetSection(DomainFilterRuleOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
 
         services.AddHostedService<DomainFilterRuleReloader>();
 
         return services;
     }
 }
+

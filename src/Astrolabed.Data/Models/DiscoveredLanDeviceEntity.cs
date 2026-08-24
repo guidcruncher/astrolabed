@@ -11,16 +11,42 @@ namespace Astrolabed.Data.Models;
 /// </summary>
 public sealed class DiscoveredLanDeviceEntity
 {
+    /// <summary>
+    /// Gets or sets the primary string IP address column.
+    /// </summary>
     public required string IpAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the calculated reverse DNS pointer query address column.
+    /// </summary>
     public required string PtrAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the network adapter physical MAC address string column.
+    /// </summary>
     public required string MacAddress { get; set; }
+
+    /// <summary>
+    /// Gets or sets the resolved hostname column string.
+    /// </summary>
     public string? HostName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the most recent observation UTC timestamp expressed in Unix epoch seconds.
+    /// </summary>
     public required long LastSeen { get; set; }
+
+    /// <summary>
+    /// Gets or sets the initial observation UTC timestamp expressed in Unix epoch seconds.
+    /// </summary>
     public required long FirstSeen { get; set; }
 
     /// <summary>
     /// Creates a persistence entity instance from a domain record.
     /// </summary>
+    /// <param name="domain">The domain record to convert.</param>
+    /// <returns>A new <see cref="DiscoveredLanDeviceEntity"/> instance.</returns>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="domain"/> is <c>null</c>.</exception>
     public static DiscoveredLanDeviceEntity FromDomain(DiscoveredLanDevice domain)
     {
         ArgumentNullException.ThrowIfNull(domain);
@@ -39,6 +65,7 @@ public sealed class DiscoveredLanDeviceEntity
     /// <summary>
     /// Converts this entity instance into a strongly-typed domain model.
     /// </summary>
+    /// <returns>A populated <see cref="DiscoveredLanDevice"/> instance.</returns>
     public DiscoveredLanDevice ToDomain()
     {
         return new DiscoveredLanDevice(
@@ -46,7 +73,7 @@ public sealed class DiscoveredLanDeviceEntity
             MacAddress,
             HostName,
             DateTimeOffset.FromUnixTimeSeconds(LastSeen),
-        DateTimeOffset.FromUnixTimeSeconds(FirstSeen)
+            DateTimeOffset.FromUnixTimeSeconds(FirstSeen)
         );
     }
 }

@@ -1,4 +1,3 @@
-// File: src/Astrolabed.Dns/Services/DomainFilterRuleReloader.cs
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Options;
 
@@ -8,103 +7,145 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 
-public sealed class DomainFilterRuleReloader : IHostedService, IDisposable
+/// <summary>
+/// Hosted background service responsible for fetching, compiling, and updating domain filtering rules dynamically on configuration updates.
+/// </summary>
+/// <param name="optionsMonitor">Monitored domain filter options.</param>
+/// <param name="listLoader">List loading engine for remote/local sources.</param>
+/// <param name="ruleStore">In-memory rule storage component.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DomainFilterRuleReloader(
+    IOptionsMonitor<DomainFilterRuleOptions> optionsMonitor,
+    IListLoader listLoader,
+    IDomainFilterRuleStore ruleStore,
+    ILogger<DomainFilterRuleReloader> logger) : IHostedService, IDisposable
 {
-    private readonly IOptionsMonitor<DomainFilterRuleOptions> _optionsMonitor;
-    private readonly IListLoader _listLoader;
-    private readonly IDomainFilterRuleStore _ruleStore;
-    private readonly ILogger<DomainFilterRuleReloader> _logger;
+    private readonly IOptionsMonitor<DomainFilterRuleOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+    private readonly IListLoader _listLoader = listLoader ?? throw new ArgumentNullException(nameof(listLoader));
+    private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
+    private readonly ILogger<DomainFilterRuleReloader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
     private IDisposable? _onChangeDisposable;
 
-    public DomainFilterRuleReloader(
-        IOptionsMonitor<DomainFilterRuleOptions> optionsMonitor,
-        IListLoader listLoader,
-        IDomainFilterRuleStore ruleStore,
-        ILogger<DomainFilterRuleReloader> logger)
-    {
-        _optionsMonitor = optionsMonitor;
-        _listLoader = listLoader;
-        _ruleStore = ruleStore;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Initializing Domain Filter Rule Loader HostedService...");
+        LogInitializingService(_logger);
 
         await LoadAllRulesAsync(cancellationToken).ConfigureAwait(false);
 
-        _onChangeDisposable = _optionsMonitor.OnChange(async (_, _) =>
+        _onChangeDisposable = _optionsMonitor.OnChange((_, _) =>
         {
-            _logger.LogInformation("Configuration change detected in DomainFilterRules options. Reloading rule lists...");
-            try
-            {
-                await LoadAllRulesAsync(CancellationToken.None).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to reload rules following configuration update.");
-            }
+            LogConfigChangeDetected(_logger);
+            _ = ReloadRulesOnConfigChangeAsync();
         });
     }
 
+    /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken)
     {
         return Task.CompletedTask;
     }
 
+    private async Task ReloadRulesOnConfigChangeAsync()
+    {
+        try
+        {
+            await LoadAllRulesAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogReloadFailed(_logger, ex);
+        }
+    }
+
     private async Task LoadAllRulesAsync(CancellationToken cancellationToken)
     {
-        var options = _optionsMonitor.CurrentValue;
+        DomainFilterRuleOptions options = _optionsMonitor.CurrentValue;
         var aggregatedAllowRules = new List<string>();
         var aggregatedBlockRules = new List<string>();
 
         // 1. Process Allow List Sources
-        if (options.AllowListSources != null)
+        if (options.AllowListSources is { Count: > 0 })
         {
-            foreach (var source in options.AllowListSources)
+            foreach (string source in options.AllowListSources)
             {
                 try
                 {
-                    var (allows, blocks) = await _listLoader.LoadRulesAsync(source, cancellationToken).ConfigureAwait(false);
+                    (IReadOnlyList<string> allows, IReadOnlyList<string> blocks) = await _listLoader
+                        .LoadRulesAsync(source, cancellationToken)
+                        .ConfigureAwait(false);
+
                     aggregatedAllowRules.AddRange(allows);
                     // Standard entries in an explicit allow list default to allow rules
                     aggregatedAllowRules.AddRange(blocks);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to load allow list rules from source {Source}", source);
+                    LogLoadSourceFailed(_logger, ex, source);
                 }
             }
         }
 
         // 2. Process Block List Sources
-        if (options.BlockListSources != null)
+        if (options.BlockListSources is { Count: > 0 })
         {
-            foreach (var source in options.BlockListSources)
+            foreach (string source in options.BlockListSources)
             {
                 try
                 {
-                    var (allows, blocks) = await _listLoader.LoadRulesAsync(source, cancellationToken).ConfigureAwait(false);
+                    (IReadOnlyList<string> allows, IReadOnlyList<string> blocks) = await _listLoader
+                        .LoadRulesAsync(source, cancellationToken)
+                        .ConfigureAwait(false);
+
                     // Explicit exception rules (@@) in blocklists remain allow rules
                     aggregatedAllowRules.AddRange(allows);
                     aggregatedBlockRules.AddRange(blocks);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to load block list rules from source {Source}", source);
+                    LogLoadSourceFailed(_logger, ex, source);
                 }
             }
         }
 
         _ruleStore.UpdateRules(aggregatedAllowRules, aggregatedBlockRules);
-        _logger.LogInformation(
-            "Successfully updated IDomainFilterRuleStore. Total aggregated allow rules: {AllowCount}, block rules: {BlockCount}",
-            aggregatedAllowRules.Count, aggregatedBlockRules.Count);
+        LogRulesUpdatedSuccessfully(_logger, aggregatedAllowRules.Count, aggregatedBlockRules.Count);
     }
 
+    /// <inheritdoc />
     public void Dispose()
     {
         _onChangeDisposable?.Dispose();
     }
+
+    [LoggerMessage(
+        EventId = 401,
+        Level = LogLevel.Information,
+        Message = "Initializing Domain Filter Rule Loader HostedService...")]
+    private static partial void LogInitializingService(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 402,
+        Level = LogLevel.Information,
+        Message = "Configuration change detected in DomainFilterRules options. Reloading rule lists...")]
+    private static partial void LogConfigChangeDetected(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 403,
+        Level = LogLevel.Error,
+        Message = "Failed to reload rules following configuration update.")]
+    private static partial void LogReloadFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(
+        EventId = 404,
+        Level = LogLevel.Error,
+        Message = "Failed to load list rules from source {Source}")]
+    private static partial void LogLoadSourceFailed(ILogger logger, Exception exception, string source);
+
+    [LoggerMessage(
+        EventId = 405,
+        Level = LogLevel.Information,
+        Message = "Successfully updated IDomainFilterRuleStore. Total aggregated allow rules: {AllowCount}, block rules: {BlockCount}")]
+    private static partial void LogRulesUpdatedSuccessfully(ILogger logger, int allowCount, int blockCount);
 }

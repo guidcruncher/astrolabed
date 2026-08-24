@@ -31,3 +31,27 @@ CREATE INDEX IF NOT EXISTS idx_discovered_lan_devices_ip_address
 
 CREATE INDEX IF NOT EXISTS idx_discovered_lan_devices_last_seen 
     ON discovered_lan_devices (last_seen DESC);
+
+-- Create dhcp_leases table storing timestamps as Unix epoch seconds and booleans as integers
+CREATE TABLE IF NOT EXISTS dhcp_leases (
+    client_id VARCHAR(255) NOT NULL,
+    client_name VARCHAR(255) NOT NULL DEFAULT '',
+    mac_address VARCHAR(32) NOT NULL,
+    ip_address VARCHAR(45) NOT NULL,
+    lease_start_time BIGINT NOT NULL,
+    lease_end_time BIGINT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    CONSTRAINT pk_dhcp_leases PRIMARY KEY (client_id)
+);
+
+-- Index for queries filtering by MAC address (GetLeaseByClientIdOrMacAsync, ReleaseLeaseAsync)
+CREATE INDEX IF NOT EXISTS idx_dhcp_leases_mac_address 
+ON dhcp_leases (mac_address);
+
+-- Composite index for fast active IP lookups (GetLeaseByIpAsync)
+CREATE INDEX IF NOT EXISTS idx_dhcp_leases_ip_active 
+ON dhcp_leases (ip_address, is_active);
+
+-- Covering index for IP availability checks against active leases and expiration times (IsIpAvailableAsync)
+CREATE INDEX IF NOT EXISTS idx_dhcp_leases_availability 
+ON dhcp_leases (ip_address, is_active, lease_end_time, client_id);

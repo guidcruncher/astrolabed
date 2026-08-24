@@ -189,7 +189,7 @@ def parse_dhcp_packet(data: bytes) -> dict | None:
 
 def test_dhcp_server(
     target_host: str = "127.0.0.1",
-    target_port: int = 1067,
+    target_port: int = 1167,
     client_port: int = 68,
     mac_address: str = "00:11:22:33:44:55",
     hostname: str = "test-client",
@@ -277,7 +277,7 @@ def test_dhcp_server(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Test DHCP server lease workflow.")
     parser.add_argument(
-        "--server-port", "-p", type=int, default=1067, help="Target DHCP server port (default: 1067)"
+        "--server-port", "-p", type=int, default=1167, help="Target DHCP server port (default: 1167)"
     )
     parser.add_argument(
         "--client-port", "-c", type=int, default=68, help="Client UDP listening port (default: 68)"

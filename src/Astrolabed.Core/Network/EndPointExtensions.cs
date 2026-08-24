@@ -1,4 +1,4 @@
-namespace Astrolabed.Dns.Services;
+namespace Astrolabed.Core.Network;
 
 using System.Net;
 

@@ -1,4 +1,5 @@
-using System.Data;
+// File: src/Astrolabed.Data/Repositories/DapperDiscoveredLanDeviceRepository.cs
+using System.Data.Common;
 using System.Net;
 
 using Astrolabed.Data.Models;
@@ -13,29 +14,26 @@ using Microsoft.Extensions.Options;
 namespace Astrolabed.Data.Repositories;
 
 /// <summary>
-/// Dapper implementation for managing <see cref="DiscoveredLanDevice"/> persistence, 
-/// mapping queries through <see cref="DiscoveredLanDeviceEntity"/> to maintain exact SQL representations.
+/// High-performance Dapper implementation for managing <see cref="DiscoveredLanDevice"/> persistence,
+/// mapping database queries through <see cref="DiscoveredLanDeviceEntity"/> to maintain exact SQL representations.
 /// </summary>
-public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRepository
+/// <remarks>
+/// Enforces .NET 10 asynchronous execution via <see cref="DbConnection"/>, allocation-optimized batch execution,
+/// primary constructor usage, and source-generated structured logging.
+/// </remarks>
+/// <param name="connectionFactory">The database connection factory providing asynchronous database access.</param>
+/// <param name="databaseOptions">Database configuration settings, including command execution timeouts.</param>
+/// <param name="logger">Structured logging instance for diagnostic and operational logs.</param>
+public sealed partial class DapperDiscoveredLanDeviceRepository(
+    IDbConnectionFactory connectionFactory,
+    IOptions<DatabaseOptions> databaseOptions,
+    ILogger<DapperDiscoveredLanDeviceRepository> logger) : IDiscoveredLanDeviceRepository
 {
-    private readonly IDbConnectionFactory _connectionFactory;
-    private readonly DatabaseOptions _databaseOptions;
-    private readonly ILogger<DapperDiscoveredLanDeviceRepository> _logger;
+    private readonly IDbConnectionFactory _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    private readonly DatabaseOptions _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
+    private readonly ILogger<DapperDiscoveredLanDeviceRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DapperDiscoveredLanDeviceRepository(
-        IDbConnectionFactory connectionFactory,
-        IOptions<DatabaseOptions> databaseOptions,
-        ILogger<DapperDiscoveredLanDeviceRepository> logger)
-    {
-        ArgumentNullException.ThrowIfNull(connectionFactory);
-        ArgumentNullException.ThrowIfNull(databaseOptions);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _connectionFactory = connectionFactory;
-        _databaseOptions = databaseOptions.Value;
-        _logger = logger;
-    }
-
+    /// <inheritdoc />
     public async Task UpsertAsync(DiscoveredLanDevice device, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(device);
@@ -44,7 +42,7 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             INSERT INTO discovered_lan_devices (
                 mac_address, ip_address, ptr_address, host_name, last_seen, first_seen
             ) VALUES (
-                @MacAddress, @IpAddress, @ptrAddress, @HostName, @LastSeen, @FirstSeen
+                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
@@ -56,53 +54,61 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
         long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Upserting LAN device record for MAC {MacAddress}", device.MacAddress);
+        LogUpsertingLanDevice(_logger, device.MacAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("MacAddress", entity.MacAddress);
+        parameters.Add("IpAddress", entity.IpAddress);
+        parameters.Add("PtrAddress", entity.PtrAddress);
+        parameters.Add("HostName", entity.HostName);
+        parameters.Add("LastSeen", entity.LastSeen);
+        parameters.Add("FirstSeen", firstSeenEpoch);
 
         var command = new CommandDefinition(
             sql,
-            new
-            {
-                entity.MacAddress,
-                entity.IpAddress,
-                entity.PtrAddress,
-                entity.HostName,
-                entity.LastSeen,
-                FirstSeen = firstSeenEpoch
-            },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await connection.ExecuteAsync(command);
+        await connection.ExecuteAsync(command).ConfigureAwait(false);
 
-        _logger.LogInformation("Successfully upserted LAN device record for MAC {MacAddress}", device.MacAddress);
+        LogUpsertedLanDeviceSuccessfully(_logger, device.MacAddress);
     }
 
-    public async Task BulkUpsertAsync(IEnumerable<DiscoveredLanDevice> devices, CancellationToken cancellationToken = default)
+    /// <inheritdoc />
+    public async Task BulkUpsertAsync(IReadOnlyCollection<DiscoveredLanDevice> devices, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(devices);
 
+        if (devices.Count == 0)
+        {
+            LogBulkUpsertSkippedEmpty(_logger);
+            return;
+        }
+
+        DiscoveredLanDevice[] deviceArray = devices switch
+        {
+            DiscoveredLanDevice[] array => array,
+            List<DiscoveredLanDevice> list => list.ToArray(),
+            _ => devices.ToArray()
+        };
+
         long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-        var parameters = devices.Select(device =>
+        var parameterBatch = new DynamicParameters[deviceArray.Length];
+        for (int i = 0; i < deviceArray.Length; i++)
         {
-            DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
-            return new
-            {
-                entity.MacAddress,
-                entity.IpAddress,
-                entity.PtrAddress,
-                entity.HostName,
-                entity.LastSeen,
-                FirstSeen = firstSeenEpoch
-            };
-        }).ToList();
-
-        if (parameters.Count == 0)
-        {
-            _logger.LogDebug("Bulk upsert skipped as the provided collection contains no items");
-            return;
+            DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(deviceArray[i]);
+            var param = new DynamicParameters();
+            param.Add("MacAddress", entity.MacAddress);
+            param.Add("IpAddress", entity.IpAddress);
+            param.Add("PtrAddress", entity.PtrAddress);
+            param.Add("HostName", entity.HostName);
+            param.Add("LastSeen", entity.LastSeen);
+            param.Add("FirstSeen", firstSeenEpoch);
+            parameterBatch[i] = param;
         }
 
         const string sql = """
@@ -118,24 +124,22 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
                 last_seen = EXCLUDED.last_seen;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Executing bulk upsert for {Count} LAN device records", parameters.Count);
+        LogExecutingBulkUpsert(_logger, deviceArray.Length);
 
         var command = new CommandDefinition(
             sql,
-            parameters,
+            parameterBatch,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 
-        _logger.LogInformation(
-            "Successfully completed bulk upsert for {RequestedCount} devices ({RowsAffected} rows modified)",
-            parameters.Count,
-            rowsAffected);
+        LogBulkUpsertCompletedSuccessfully(_logger, deviceArray.Length, rowsAffected);
     }
 
+    /// <inheritdoc />
     public async Task<DiscoveredLanDevice?> GetByPtrAddressAsync(string ptrAddress, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ptrAddress);
@@ -150,21 +154,25 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             WHERE ptr_address = @PtrAddress;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Fetching LAN device record for PTR {PrrAddress}", ptrAddress);
+        LogFetchingByPtrAddress(_logger, ptrAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("PtrAddress", ptrAddress);
 
         var command = new CommandDefinition(
             sql,
-            new { PtrAddress = ptrAddress },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
 
+    /// <inheritdoc />
     public async Task<DiscoveredLanDevice?> GetByMacAddressAsync(string macAddress, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
@@ -179,21 +187,25 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             WHERE mac_address = @MacAddress;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Fetching LAN device record for MAC {MacAddress}", macAddress);
+        LogFetchingByMacAddress(_logger, macAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("MacAddress", macAddress);
 
         var command = new CommandDefinition(
             sql,
-            new { MacAddress = macAddress },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
 
+    /// <inheritdoc />
     public async Task<DiscoveredLanDevice?> GetByIpAddressAsync(IPAddress ipAddress, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(ipAddress);
@@ -208,22 +220,26 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             WHERE ip_address = @IpAddress;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
         string ipString = ipAddress.ToString();
-        _logger.LogDebug("Fetching LAN device record for IP {IpAddress}", ipString);
+        LogFetchingByIpAddress(_logger, ipString);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("IpAddress", ipString);
 
         var command = new CommandDefinition(
             sql,
-            new { IpAddress = ipString },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command);
+        DiscoveredLanDeviceEntity? entity = await connection.QuerySingleOrDefaultAsync<DiscoveredLanDeviceEntity>(command).ConfigureAwait(false);
 
         return entity?.ToDomain();
     }
 
+    /// <inheritdoc />
     public async Task<PagedResult<DiscoveredLanDevice>> GetPagedAsync(
         int pageNumber,
         int pageSize,
@@ -246,90 +262,144 @@ public sealed class DapperDiscoveredLanDeviceRepository : IDiscoveredLanDeviceRe
             LIMIT @PageSize OFFSET @Offset;
             """;
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug(
-            "Executing paged SELECT for LAN devices. PageNumber: {PageNumber}, PageSize: {PageSize}",
-            targetPage,
-            targetSize);
+        LogExecutingPagedSelect(_logger, targetPage, targetSize);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("PageSize", targetSize);
+        parameters.Add("Offset", offset);
 
         var command = new CommandDefinition(
             sql,
-            new { PageSize = targetSize, Offset = offset },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
+        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command).ConfigureAwait(false);
 
-        long totalCount = await gridReader.ReadSingleAsync<long>();
-        IEnumerable<DiscoveredLanDeviceEntity> entities = await gridReader.ReadAsync<DiscoveredLanDeviceEntity>();
+        long totalCount = await gridReader.ReadSingleAsync<long>().ConfigureAwait(false);
+        IEnumerable<DiscoveredLanDeviceEntity> entities = await gridReader.ReadAsync<DiscoveredLanDeviceEntity>().ConfigureAwait(false);
 
         List<DiscoveredLanDevice> items = entities.Select(e => e.ToDomain()).ToList();
 
-        _logger.LogInformation(
-            "Retrieved page {PageNumber} with {Count} LAN device records (Total dataset size: {TotalCount})",
-            targetPage,
-            items.Count,
-            totalCount);
+        LogRetrievedPagedResults(_logger, targetPage, items.Count, totalCount);
 
         return PagedResult<DiscoveredLanDevice>.Create(items, totalCount, targetPage, targetSize);
     }
 
+    /// <inheritdoc />
     public async Task<bool> DeleteByMacAddressAsync(string macAddress, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(macAddress);
 
         const string sql = "DELETE FROM discovered_lan_devices WHERE mac_address = @MacAddress;";
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Deleting LAN device record for MAC {MacAddress}", macAddress);
+        LogDeletingByMacAddress(_logger, macAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("MacAddress", macAddress);
 
         var command = new CommandDefinition(
             sql,
-            new { MacAddress = macAddress },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
         bool deleted = rowsAffected > 0;
 
         if (deleted)
         {
-            _logger.LogInformation("Successfully deleted LAN device record for MAC {MacAddress}", macAddress);
+            LogDeletedByMacAddressSuccessfully(_logger, macAddress);
         }
         else
         {
-            _logger.LogWarning("Deletion failed. LAN device record for MAC {MacAddress} was not found", macAddress);
+            LogDeleteByMacAddressFailedNotFound(_logger, macAddress);
         }
 
         return deleted;
     }
 
+    /// <inheritdoc />
     public async Task CleanOldDataAsync(DateTimeOffset cutoff, CancellationToken cancellationToken = default)
     {
         long cutoffEpochSeconds = cutoff.ToUnixTimeSeconds();
         const string sql = "DELETE FROM discovered_lan_devices WHERE last_seen < @Cutoff;";
 
-        using IDbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        _logger.LogDebug("Deleting LAN device records last seen before epoch timestamp {Cutoff}", cutoffEpochSeconds);
+        LogCleaningOldData(_logger, cutoffEpochSeconds);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Cutoff", cutoffEpochSeconds);
 
         var command = new CommandDefinition(
             sql,
-            new { Cutoff = cutoffEpochSeconds },
+            parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        int rowsAffected = await connection.ExecuteAsync(command);
+        int rowsAffected = await connection.ExecuteAsync(command).ConfigureAwait(false);
 
         if (rowsAffected > 0)
         {
-            _logger.LogInformation("Successfully deleted {RowsAffected} outdated LAN device records", rowsAffected);
+            LogCleanedOldDataSuccessfully(_logger, rowsAffected);
         }
         else
         {
-            _logger.LogWarning("No LAN device records found prior to epoch timestamp {Cutoff}", cutoffEpochSeconds);
+            LogNoOldDataFoundToClean(_logger, cutoffEpochSeconds);
         }
     }
+
+    [LoggerMessage(EventId = 101, Level = LogLevel.Debug, Message = "Upserting LAN device record for MAC {MacAddress}")]
+    private static partial void LogUpsertingLanDevice(ILogger logger, string? macAddress);
+
+    [LoggerMessage(EventId = 102, Level = LogLevel.Information, Message = "Successfully upserted LAN device record for MAC {MacAddress}")]
+    private static partial void LogUpsertedLanDeviceSuccessfully(ILogger logger, string? macAddress);
+
+    [LoggerMessage(EventId = 103, Level = LogLevel.Debug, Message = "Bulk upsert skipped as the provided collection contains no items")]
+    private static partial void LogBulkUpsertSkippedEmpty(ILogger logger);
+
+    [LoggerMessage(EventId = 104, Level = LogLevel.Debug, Message = "Executing bulk upsert for {Count} LAN device records")]
+    private static partial void LogExecutingBulkUpsert(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 105, Level = LogLevel.Information, Message = "Successfully completed bulk upsert for {RequestedCount} devices ({RowsAffected} rows modified)")]
+    private static partial void LogBulkUpsertCompletedSuccessfully(ILogger logger, int requestedCount, int rowsAffected);
+
+    [LoggerMessage(EventId = 106, Level = LogLevel.Debug, Message = "Fetching LAN device record for PTR {PtrAddress}")]
+    private static partial void LogFetchingByPtrAddress(ILogger logger, string ptrAddress);
+
+    [LoggerMessage(EventId = 107, Level = LogLevel.Debug, Message = "Fetching LAN device record for MAC {MacAddress}")]
+    private static partial void LogFetchingByMacAddress(ILogger logger, string macAddress);
+
+    [LoggerMessage(EventId = 108, Level = LogLevel.Debug, Message = "Fetching LAN device record for IP {IpAddress}")]
+    private static partial void LogFetchingByIpAddress(ILogger logger, string ipAddress);
+
+    [LoggerMessage(EventId = 109, Level = LogLevel.Debug, Message = "Executing paged SELECT for LAN devices. PageNumber: {PageNumber}, PageSize: {PageSize}")]
+    private static partial void LogExecutingPagedSelect(ILogger logger, int pageNumber, int pageSize);
+
+    [LoggerMessage(EventId = 110, Level = LogLevel.Information, Message = "Retrieved page {PageNumber} with {Count} LAN device records (Total dataset size: {TotalCount})")]
+    private static partial void LogRetrievedPagedResults(ILogger logger, int pageNumber, int count, long totalCount);
+
+    [LoggerMessage(EventId = 111, Level = LogLevel.Debug, Message = "Deleting LAN device record for MAC {MacAddress}")]
+    private static partial void LogDeletingByMacAddress(ILogger logger, string macAddress);
+
+    [LoggerMessage(EventId = 112, Level = LogLevel.Information, Message = "Successfully deleted LAN device record for MAC {MacAddress}")]
+    private static partial void LogDeletedByMacAddressSuccessfully(ILogger logger, string macAddress);
+
+    [LoggerMessage(EventId = 113, Level = LogLevel.Warning, Message = "Deletion failed. LAN device record for MAC {MacAddress} was not found")]
+    private static partial void LogDeleteByMacAddressFailedNotFound(ILogger logger, string macAddress);
+
+    [LoggerMessage(EventId = 114, Level = LogLevel.Debug, Message = "Deleting LAN device records last seen before epoch timestamp {Cutoff}")]
+    private static partial void LogCleaningOldData(ILogger logger, long cutoff);
+
+    [LoggerMessage(EventId = 115, Level = LogLevel.Information, Message = "Successfully deleted {RowsAffected} outdated LAN device records")]
+    private static partial void LogCleanedOldDataSuccessfully(ILogger logger, int rowsAffected);
+
+    [LoggerMessage(EventId = 116, Level = LogLevel.Warning, Message = "No LAN device records found prior to epoch timestamp {Cutoff}")]
+    private static partial void LogNoOldDataFoundToClean(ILogger logger, long cutoff);
 }
+

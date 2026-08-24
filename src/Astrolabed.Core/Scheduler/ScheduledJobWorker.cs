@@ -1,45 +1,44 @@
-// ScheduledJobWorker.cs
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Core.Scheduler;
 
-public class ScheduledJobWorker<TJob> : BackgroundService where TJob : IScheduledJob
+/// <summary>
+/// Long-running <see cref="BackgroundService"/> responsible for scheduling and executing <typeparamref name="TJob"/> tasks
+/// based on configured time intervals and time-of-day preferences.
+/// </summary>
+/// <typeparam name="TJob">The scheduled job type implementing <see cref="IScheduledJob"/>.</typeparam>
+/// <param name="scopeFactory">The service scope factory for resolving scoped job dependencies.</param>
+/// <param name="logger">Structured logger instance for job execution telemetry.</param>
+/// <param name="timeProvider">Optional time abstraction for deterministic testing and clock operations.</param>
+public sealed partial class ScheduledJobWorker<TJob>(
+    IServiceScopeFactory scopeFactory,
+    ILogger<ScheduledJobWorker<TJob>> logger,
+    TimeProvider? timeProvider = null) : BackgroundService where TJob : IScheduledJob
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly ILogger<ScheduledJobWorker<TJob>> _logger;
-    private readonly TimeProvider _timeProvider;
+    private static readonly string JobName = typeof(TJob).Name;
 
-    public ScheduledJobWorker(
-        IServiceScopeFactory scopeFactory,
-        ILogger<ScheduledJobWorker<TJob>> logger,
-        TimeProvider? timeProvider = null)
-    {
-        _scopeFactory = scopeFactory;
-        _logger = logger;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-    }
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
+    private readonly ILogger<ScheduledJobWorker<TJob>> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
+    /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Scheduled background worker for {JobType} started.", typeof(TJob).Name);
+        LogWorkerStarted(_logger, JobName);
 
         bool isFirstRun = true;
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            JobSchedule schedule;
-            using (IServiceScope scope = _scopeFactory.CreateScope())
-            {
-                TJob job = scope.ServiceProvider.GetRequiredService<TJob>();
-                schedule = job.Schedule;
-            }
+            JobSchedule schedule = FetchJobSchedule();
 
             if (isFirstRun && schedule.RunOnStartup)
             {
                 isFirstRun = false;
                 await RunJobScopeAsync(stoppingToken);
+
                 if (stoppingToken.IsCancellationRequested)
                 {
                     break;
@@ -52,18 +51,15 @@ public class ScheduledJobWorker<TJob> : BackgroundService where TJob : ISchedule
 
             TimeSpan delay = CalculateNextDelay(schedule);
 
-            _logger.LogInformation(
-                "Next execution for {JobType} scheduled in {TotalSeconds} seconds.",
-                typeof(TJob).Name,
-                delay.TotalSeconds);
+            LogNextExecutionScheduled(_logger, JobName, delay.TotalSeconds);
 
             try
             {
                 await Task.Delay(delay, _timeProvider, stoppingToken);
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("Worker execution for {JobType} was canceled.", typeof(TJob).Name);
+                LogWorkerCanceled(_logger, JobName);
                 break;
             }
 
@@ -76,42 +72,72 @@ public class ScheduledJobWorker<TJob> : BackgroundService where TJob : ISchedule
         }
     }
 
+    private JobSchedule FetchJobSchedule()
+    {
+        using IServiceScope scope = _scopeFactory.CreateScope();
+        TJob job = scope.ServiceProvider.GetRequiredService<TJob>();
+        return job.Schedule;
+    }
+
     private TimeSpan CalculateNextDelay(JobSchedule schedule)
     {
         DateTimeOffset now = _timeProvider.GetLocalNow();
 
         if (schedule.PreferredTimeOfDay.HasValue)
         {
-            DateTimeOffset targetToday = new DateTimeOffset(now.Year, now.Month, now.Day, 0, 0, 0, now.Offset)
-                .Add(schedule.PreferredTimeOfDay.Value);
+            DateTime localDate = now.LocalDateTime.Date;
+            TimeSpan timeOfDay = schedule.PreferredTimeOfDay.Value;
+
+            DateTimeOffset targetToday = new DateTimeOffset(localDate.Add(timeOfDay), now.Offset);
 
             DateTimeOffset nextRun = now >= targetToday
                 ? targetToday.Add(schedule.Interval)
                 : targetToday;
 
-            return nextRun - now;
+            TimeSpan delay = nextRun - now;
+            return delay < TimeSpan.Zero ? TimeSpan.Zero : delay;
         }
 
-        return schedule.Interval;
+        return schedule.Interval < TimeSpan.Zero ? TimeSpan.Zero : schedule.Interval;
     }
 
     private async Task RunJobScopeAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting scheduled execution for {JobType}.", typeof(TJob).Name);
+        LogStartingJobExecution(_logger, JobName);
 
         try
         {
-            using (IServiceScope scope = _scopeFactory.CreateScope())
-            {
-                TJob job = scope.ServiceProvider.GetRequiredService<TJob>();
-                await job.ExecuteAsync(cancellationToken);
-            }
+            await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+            TJob job = scope.ServiceProvider.GetRequiredService<TJob>();
+            await job.ExecuteAsync(cancellationToken);
 
-            _logger.LogInformation("Finished execution for {JobType}.", typeof(TJob).Name);
+            LogFinishedJobExecution(_logger, JobName);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LogWorkerCanceled(_logger, JobName);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while executing job {JobType}.", typeof(TJob).Name);
+            LogJobExecutionError(_logger, ex, JobName);
         }
     }
+
+    [LoggerMessage(EventId = 301, Level = LogLevel.Information, Message = "Scheduled background worker for {JobName} started.")]
+    private static partial void LogWorkerStarted(ILogger logger, string jobName);
+
+    [LoggerMessage(EventId = 302, Level = LogLevel.Information, Message = "Next execution for {JobName} scheduled in {TotalSeconds} seconds.")]
+    private static partial void LogNextExecutionScheduled(ILogger logger, string jobName, double totalSeconds);
+
+    [LoggerMessage(EventId = 303, Level = LogLevel.Information, Message = "Worker execution for {JobName} was canceled.")]
+    private static partial void LogWorkerCanceled(ILogger logger, string jobName);
+
+    [LoggerMessage(EventId = 304, Level = LogLevel.Information, Message = "Starting scheduled execution for {JobName}.")]
+    private static partial void LogStartingJobExecution(ILogger logger, string jobName);
+
+    [LoggerMessage(EventId = 305, Level = LogLevel.Information, Message = "Finished execution for {JobName}.")]
+    private static partial void LogFinishedJobExecution(ILogger logger, string jobName);
+
+    [LoggerMessage(EventId = 306, Level = LogLevel.Error, Message = "An error occurred while executing job {JobName}.")]
+    private static partial void LogJobExecutionError(ILogger logger, Exception exception, string jobName);
 }

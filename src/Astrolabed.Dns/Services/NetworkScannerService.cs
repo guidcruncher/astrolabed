@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -13,49 +14,57 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 
-public class NetworkScannerService : INetworkScannerService
+/// <summary>
+/// Scans the local network segment by warming OS ARP/Neighbor caches via UDP probes and parsing platform ARP tables.
+/// </summary>
+/// <param name="options">Configuration options controlling scanning parameters.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class NetworkScannerService(
+    IOptions<NetworkScannerOptions> options,
+    ILogger<NetworkScannerService> logger) : INetworkScannerService
 {
-    private readonly NetworkScannerOptions _options;
-    private readonly ILogger<NetworkScannerService> _logger;
+    private readonly NetworkScannerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+    private readonly ILogger<NetworkScannerService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public NetworkScannerService(
-        IOptions<NetworkScannerOptions> options,
-        ILogger<NetworkScannerService> logger)
-    {
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    [GeneratedRegex(@"(?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?<mac>([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})")]
+    private static partial Regex WindowsArpRegex();
 
+    [GeneratedRegex(@"(?<ip>\S+)\s+dev\s+\S+\s+lladdr\s+(?<mac>([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})")]
+    private static partial Regex LinuxNeighRegex();
+
+    [GeneratedRegex(@"\((?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\)\s+at\s+(?<mac>([0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})")]
+    private static partial Regex MacOsArpRegex();
+
+    /// <inheritdoc />
     public async Task<IReadOnlyCollection<DiscoveredLanDevice>> ScanLanAsync(CancellationToken cancellationToken = default)
     {
-
-        var localInterface = GetActiveIPv4Interface();
+        (IPAddress localIp, IPAddress subnetMask)? localInterface = GetActiveIPv4Interface();
         if (localInterface is null)
         {
-            _logger.LogError("No active non-loopback IPv4 network interface detected.");
+            LogNoActiveIPv4Interface(_logger);
             return Array.Empty<DiscoveredLanDevice>();
         }
 
-        var (localIp, subnetMask) = localInterface.Value;
-        var subnetAddresses = GetSubnetAddresses(localIp, subnetMask);
+        (IPAddress localIp, IPAddress subnetMask) = localInterface.Value;
+        List<IPAddress> subnetAddresses = GetSubnetAddresses(localIp, subnetMask);
 
-        _logger.LogInformation("Warming OS ARP table for {Count} target IPs on {LocalIp}...", subnetAddresses.Count, localIp);
+        LogWarmingArpCache(_logger, subnetAddresses.Count, localIp);
 
-        await WarmArpCacheAsync(subnetAddresses, cancellationToken);
+        await WarmArpCacheAsync(subnetAddresses, cancellationToken).ConfigureAwait(false);
 
-        _logger.LogInformation("Reading OS ARP/Neighbor table on platform {OS}...", RuntimeInformation.OSDescription);
+        LogReadingArpTable(_logger, RuntimeInformation.OSDescription);
 
-        var arpCache = await GetArpCacheAsync(cancellationToken);
+        IReadOnlyDictionary<string, string> arpCache = await GetArpCacheAsync(cancellationToken).ConfigureAwait(false);
         var results = new List<DiscoveredLanDevice>();
 
-        foreach (var targetIp in subnetAddresses)
+        foreach (IPAddress targetIp in subnetAddresses)
         {
-            if (arpCache.TryGetValue(targetIp.ToString(), out var macAddress))
+            if (arpCache.TryGetValue(targetIp.ToString(), out string? macAddress))
             {
                 string? hostName = null;
                 try
                 {
-                    var hostEntry = await System.Net.Dns.GetHostEntryAsync(targetIp.ToString(), cancellationToken);
+                    IPHostEntry hostEntry = await System.Net.Dns.GetHostEntryAsync(targetIp.ToString(), cancellationToken).ConfigureAwait(false);
                     hostName = hostEntry.HostName;
                 }
                 catch (SocketException)
@@ -63,15 +72,15 @@ public class NetworkScannerService : INetworkScannerService
                     // Host responded to ARP but reverse DNS lookup was unresolvable
                 }
 
-                var now = DateTimeOffset.UtcNow;
+                DateTimeOffset now = DateTimeOffset.UtcNow;
                 var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now);
                 results.Add(device);
 
-                _logger.LogInformation("Discovered LAN Host: {IP} [{MAC}] ({HostName})", targetIp, macAddress, hostName ?? "Unknown");
+                LogDiscoveredHost(_logger, targetIp, macAddress, hostName ?? "Unknown");
             }
         }
 
-        _logger.LogInformation("LAN ARP Scan complete. Discovered {Count} active devices.", results.Count);
+        LogScanCompleted(_logger, results.Count);
         return results.AsReadOnly();
     }
 
@@ -83,23 +92,24 @@ public class NetworkScannerService : INetworkScannerService
             CancellationToken = cancellationToken
         };
 
+        byte[] dummyData = [0x00];
+
         await Parallel.ForEachAsync(addresses, parallelOptions, async (ip, ct) =>
         {
             try
             {
                 using var udpClient = new UdpClient();
                 udpClient.Client.SendTimeout = _options.PingTimeoutMs;
-                var dummyData = new byte[] { 0x00 };
-                await udpClient.SendAsync(dummyData, dummyData.Length, new IPEndPoint(ip, 33434));
+                await udpClient.SendAsync(dummyData, dummyData.Length, new IPEndPoint(ip, 33434)).ConfigureAwait(false);
             }
             catch
             {
                 // Packet delivery failures are expected; the purpose is forcing an ARP resolution request from the OS kernel
             }
-        });
+        }).ConfigureAwait(false);
 
-        // Short sleep to allow the OS network stack to process incoming ARP/NDP replies
-        await Task.Delay(200, cancellationToken);
+        // Allow kernel socket stacks time to process inbound ARP/NDP replies
+        await Task.Delay(200, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyDictionary<string, string>> GetArpCacheAsync(CancellationToken cancellationToken)
@@ -110,21 +120,21 @@ public class NetworkScannerService : INetworkScannerService
         {
             await ParseCommandOutputAsync("arp", "-a", line =>
             {
-                var match = Regex.Match(line, @"(?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?<mac>([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})");
+                Match match = WindowsArpRegex().Match(line);
                 if (match.Success)
                 {
                     arpMap[match.Groups["ip"].Value] = match.Groups["mac"].Value.Replace('-', ':').ToUpperInvariant();
                 }
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
             if (File.Exists("/proc/net/arp"))
             {
-                var lines = await File.ReadAllLinesAsync("/proc/net/arp", cancellationToken);
-                foreach (var line in lines.Skip(1))
+                string[] lines = await File.ReadAllLinesAsync("/proc/net/arp", cancellationToken).ConfigureAwait(false);
+                foreach (string line in lines.Skip(1))
                 {
-                    var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                     if (parts.Length >= 4 && parts[3] != "00:00:00:00:00:00")
                     {
                         arpMap[parts[0]] = parts[3].ToUpperInvariant();
@@ -135,25 +145,25 @@ public class NetworkScannerService : INetworkScannerService
             {
                 await ParseCommandOutputAsync("ip", "neigh", line =>
                 {
-                    var match = Regex.Match(line, @"(?<ip>\S+)\s+dev\s+\S+\s+lladdr\s+(?<mac>([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2})");
+                    Match match = LinuxNeighRegex().Match(line);
                     if (match.Success)
                     {
                         arpMap[match.Groups["ip"].Value] = match.Groups["mac"].Value.ToUpperInvariant();
                     }
-                }, cancellationToken);
+                }, cancellationToken).ConfigureAwait(false);
             }
         }
         else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
             await ParseCommandOutputAsync("arp", "-a -n", line =>
             {
-                var match = Regex.Match(line, @"\((?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\)\s+at\s+(?<mac>([0-9a-fA-F]{1,2}:){5}[0-9a-fA-F]{1,2})");
+                Match match = MacOsArpRegex().Match(line);
                 if (match.Success)
                 {
-                    var formattedMac = string.Join(":", match.Groups["mac"].Value.Split(':').Select(b => b.PadLeft(2, '0')));
+                    string formattedMac = string.Join(":", match.Groups["mac"].Value.Split(':').Select(b => b.PadLeft(2, '0')));
                     arpMap[match.Groups["ip"].Value] = formattedMac.ToUpperInvariant();
                 }
-            }, cancellationToken);
+            }, cancellationToken).ConfigureAwait(false);
         }
 
         return arpMap;
@@ -164,7 +174,6 @@ public class NetworkScannerService : INetworkScannerService
         var startInfo = new ProcessStartInfo
         {
             FileName = fileName,
-
             Arguments = arguments,
             RedirectStandardOutput = true,
             UseShellExecute = false,
@@ -174,17 +183,17 @@ public class NetworkScannerService : INetworkScannerService
         using var process = Process.Start(startInfo);
         if (process is null) return;
 
-        while (await process.StandardOutput.ReadLineAsync(cancellationToken) is { } line)
+        while (await process.StandardOutput.ReadLineAsync(cancellationToken).ConfigureAwait(false) is { } line)
         {
             lineHandler(line);
         }
 
-        await process.WaitForExitAsync(cancellationToken);
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private static (IPAddress LocalIp, IPAddress SubnetMask)? GetActiveIPv4Interface()
     {
-        foreach (var netInterface in NetworkInterface.GetAllNetworkInterfaces())
+        foreach (NetworkInterface netInterface in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (netInterface.OperationalStatus != OperationalStatus.Up ||
                 netInterface.NetworkInterfaceType == NetworkInterfaceType.Loopback)
@@ -192,7 +201,7 @@ public class NetworkScannerService : INetworkScannerService
                 continue;
             }
 
-            foreach (var unicast in netInterface.GetIPProperties().UnicastAddresses)
+            foreach (UnicastIPAddressInformation unicast in netInterface.GetIPProperties().UnicastAddresses)
             {
                 if (unicast.Address.AddressFamily == AddressFamily.InterNetwork && unicast.IPv4Mask is not null)
                 {
@@ -206,33 +215,52 @@ public class NetworkScannerService : INetworkScannerService
 
     private static List<IPAddress> GetSubnetAddresses(IPAddress ipAddress, IPAddress mask)
     {
-        var ipBytes = ipAddress.GetAddressBytes();
-        var maskBytes = mask.GetAddressBytes();
+        uint ip = BinaryPrimitives.ReadUInt32BigEndian(ipAddress.GetAddressBytes());
+        uint maskBits = BinaryPrimitives.ReadUInt32BigEndian(mask.GetAddressBytes());
 
-        var networkBytes = new byte[4];
-        var broadcastBytes = new byte[4];
+        uint network = ip & maskBits;
+        uint broadcast = network | ~maskBits;
 
-        for (var i = 0; i < 4; i++)
+        var addresses = new List<IPAddress>((int)Math.Max(0, (long)broadcast - network - 1));
+        Span<byte> buffer = stackalloc byte[4];
+
+        for (uint current = network + 1; current < broadcast; current++)
         {
-            networkBytes[i] = (byte)(ipBytes[i] & maskBytes[i]);
-            broadcastBytes[i] = (byte)(networkBytes[i] | ~maskBytes[i]);
-        }
-
-        var addresses = new List<IPAddress>();
-        var current = (uint)(networkBytes[0] << 24 | networkBytes[1] << 16 | networkBytes[2] << 8 | networkBytes[3]) + 1;
-        var end = (uint)(broadcastBytes[0] << 24 | broadcastBytes[1] << 16 | broadcastBytes[2] << 8 | broadcastBytes[3]);
-
-        for (var i = current; i < end; i++)
-        {
-            addresses.Add(new IPAddress(new byte[]
-            {
-                (byte)((i >> 24) & 0xFF),
-                (byte)((i >> 16) & 0xFF),
-                (byte)((i >> 8) & 0xFF),
-                (byte)(i & 0xFF)
-            }));
+            BinaryPrimitives.WriteUInt32BigEndian(buffer, current);
+            addresses.Add(new IPAddress(buffer));
         }
 
         return addresses;
     }
+
+    [LoggerMessage(
+        EventId = 501,
+        Level = LogLevel.Error,
+        Message = "No active non-loopback IPv4 network interface detected.")]
+    private static partial void LogNoActiveIPv4Interface(ILogger logger);
+
+    [LoggerMessage(
+        EventId = 502,
+        Level = LogLevel.Information,
+        Message = "Warming OS ARP table for {Count} target IPs on {LocalIp}...")]
+    private static partial void LogWarmingArpCache(ILogger logger, int count, IPAddress localIp);
+
+    [LoggerMessage(
+        EventId = 503,
+        Level = LogLevel.Information,
+        Message = "Reading OS ARP/Neighbor table on platform {OS}...")]
+    private static partial void LogReadingArpTable(ILogger logger, string os);
+
+    [LoggerMessage(
+        EventId = 504,
+        Level = LogLevel.Information,
+        Message = "Discovered LAN Host: {IP} [{MAC}] ({HostName})")]
+    private static partial void LogDiscoveredHost(ILogger logger, IPAddress ip, string mac, string hostName);
+
+    [LoggerMessage(
+        EventId = 505,
+        Level = LogLevel.Information,
+        Message = "LAN ARP Scan complete. Discovered {Count} active devices.")]
+    private static partial void LogScanCompleted(ILogger logger, int count);
 }
+

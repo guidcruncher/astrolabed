@@ -3,57 +3,64 @@ using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
 
-public sealed class AdGuardListLoader : IListLoader
+/// <summary>
+/// Provides streaming loading and parsing of AdGuard and standard Hosts format domain filter lists.
+/// </summary>
+/// <param name="httpClient">HttpClient instance for fetching remote lists.</param>
+/// <param name="ruleStore">Domain filter rule store to update.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class AdGuardListLoader(
+    HttpClient httpClient,
+    IDomainFilterRuleStore ruleStore,
+    ILogger<AdGuardListLoader> logger) : IListLoader
 {
-    private readonly HttpClient _httpClient;
-    private readonly IDomainFilterRuleStore _ruleStore;
-    private readonly ILogger<AdGuardListLoader> _logger;
+    private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
+    private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
+    private readonly ILogger<AdGuardListLoader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public AdGuardListLoader(
-        HttpClient httpClient,
-        IDomainFilterRuleStore ruleStore,
-        ILogger<AdGuardListLoader> logger)
-    {
-        _httpClient = httpClient;
-        _ruleStore = ruleStore;
-        _logger = logger;
-    }
-
-    public async Task<(List<string> AllowRules, List<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(uriOrPath);
 
-        string content;
         if (uriOrPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             uriOrPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
-            _logger.LogInformation("Downloading AdGuard rule list from HTTP endpoint: {Uri}", uriOrPath);
-            using var response = await _httpClient.GetAsync(uriOrPath, ct).ConfigureAwait(false);
+            LogDownloadingHttpList(_logger, uriOrPath);
+
+            using HttpResponseMessage response = await _httpClient.GetAsync(uriOrPath, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
-            content = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
-        }
-        else
-        {
-            var filePath = ResolveFilePath(uriOrPath);
-            _logger.LogInformation("Reading AdGuard rule list from filesystem path: {FilePath}", filePath);
-            content = await File.ReadAllTextAsync(filePath, ct).ConfigureAwait(false);
+
+            await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+            using var reader = new StreamReader(stream);
+            return await ParseAdGuardRulesAsync(reader, ct).ConfigureAwait(false);
         }
 
-        return ParseAdGuardRules(content);
+        string filePath = ResolveFilePath(uriOrPath);
+        LogReadingFileContent(_logger, filePath);
+
+        await using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
+        using var fileReader = new StreamReader(fileStream);
+        return await ParseAdGuardRulesAsync(fileReader, ct).ConfigureAwait(false);
     }
 
+    /// <inheritdoc />
     public async Task LoadAndApplyListAsync(string uriOrPath, CancellationToken ct = default)
     {
         var (allowRules, blockRules) = await LoadRulesAsync(uriOrPath, ct).ConfigureAwait(false);
         _ruleStore.UpdateRules(allowRules, blockRules);
 
-        _logger.LogInformation("Successfully updated IDomainFilterRuleStore with rules loaded from {Source}.", uriOrPath);
+        LogUpdatedRuleStore(_logger, uriOrPath, allowRules.Count, blockRules.Count);
     }
 
     private static string ResolveFilePath(string uriOrPath)
     {
-        string rawPath = uriOrPath;
+        if (Uri.TryCreate(uriOrPath, UriKind.Absolute, out Uri? uri) && uri.IsFile)
+        {
+            return uri.LocalPath;
+        }
 
+        string rawPath = uriOrPath;
         if (uriOrPath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
         {
             rawPath = uriOrPath["file://".Length..];
@@ -62,79 +69,109 @@ public sealed class AdGuardListLoader : IListLoader
         return Path.GetFullPath(rawPath);
     }
 
-    private (List<string> AllowRules, List<string> BlockRules) ParseAdGuardRules(string rawContent)
+    private async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> ParseAdGuardRulesAsync(TextReader reader, CancellationToken ct)
     {
-        var allowRules = new List<string>();
-        var blockRules = new List<string>();
+        var allowRules = new List<string>(1000);
+        var blockRules = new List<string>(10000);
 
-        using var reader = new StringReader(rawContent);
         string? line;
-
-        while ((line = reader.ReadLine()) != null)
+        while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
         {
-            var rule = line.Trim();
+            ReadOnlySpan<char> span = line.AsSpan().Trim();
 
-            if (string.IsNullOrWhiteSpace(rule) || rule.StartsWith('!') || rule.StartsWith('#'))
+            if (span.IsEmpty || span[0] is '!' or '#')
             {
                 continue;
             }
 
-            if (rule.Contains("##") || rule.Contains("#$#") || rule.Contains("#?#"))
+            // Ignore element hiding and cosmetic rules
+            if (span.Contains("##".AsSpan(), StringComparison.Ordinal) ||
+                span.Contains("#$#".AsSpan(), StringComparison.Ordinal) ||
+                span.Contains("#?#".AsSpan(), StringComparison.Ordinal))
             {
                 continue;
             }
 
             bool isAllow = false;
 
-            if (rule.StartsWith("@@"))
+            if (span.StartsWith("@@".AsSpan(), StringComparison.Ordinal))
             {
                 isAllow = true;
-                rule = rule[2..];
+                span = span[2..];
             }
 
-            int modifierIndex = rule.IndexOf('$');
+            int modifierIndex = span.IndexOf('$');
             if (modifierIndex >= 0)
             {
-                rule = rule[..modifierIndex];
+                span = span[..modifierIndex];
             }
 
-            rule = rule.Trim();
-            if (string.IsNullOrEmpty(rule)) continue;
-
-            string? parsedDomain = null;
-
-            if (rule.StartsWith("||"))
+            span = span.Trim();
+            if (span.IsEmpty)
             {
-                int endIdx = rule.IndexOf('^');
-                parsedDomain = endIdx >= 0 ? rule[2..endIdx] : rule[2..];
+                continue;
             }
-            else if (rule.StartsWith("0.0.0.0 ") || rule.StartsWith("127.0.0.1 "))
+
+            ReadOnlySpan<char> parsedDomain = default;
+
+            if (span.StartsWith("||".AsSpan(), StringComparison.Ordinal))
             {
-                var parts = rule.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                if (parts.Length >= 2)
+                int endIdx = span.IndexOf('^');
+                parsedDomain = endIdx >= 0 ? span[2..endIdx] : span[2..];
+            }
+            else if (span.StartsWith("0.0.0.0 ".AsSpan(), StringComparison.Ordinal) ||
+                     span.StartsWith("127.0.0.1 ".AsSpan(), StringComparison.Ordinal))
+            {
+                int firstSpace = span.IndexOf(' ');
+                if (firstSpace >= 0)
                 {
-                    parsedDomain = parts[1];
+                    parsedDomain = span[(firstSpace + 1)..].Trim();
                 }
             }
-            else if (!rule.StartsWith('/') && !rule.StartsWith('|'))
+            else if (span[0] is not '/' and not '|')
             {
-                parsedDomain = rule.TrimEnd('^');
+                parsedDomain = span.TrimEnd('^');
             }
 
-            if (!string.IsNullOrWhiteSpace(parsedDomain))
+            if (!parsedDomain.IsEmpty)
             {
+                string domain = parsedDomain.ToString();
                 if (isAllow)
                 {
-                    allowRules.Add(parsedDomain);
+                    allowRules.Add(domain);
                 }
                 else
                 {
-                    blockRules.Add(parsedDomain);
+                    blockRules.Add(domain);
                 }
             }
         }
 
-        _logger.LogInformation("Parsed AdGuard rules. Loaded {AllowCount} allow rules and {BlockCount} block rules.", allowRules.Count, blockRules.Count);
+        LogParsedRulesCount(_logger, allowRules.Count, blockRules.Count);
         return (allowRules, blockRules);
     }
+
+    [LoggerMessage(
+        EventId = 101,
+        Level = LogLevel.Information,
+        Message = "Downloading AdGuard rule list from HTTP endpoint: {Uri}")]
+    private static partial void LogDownloadingHttpList(ILogger logger, string uri);
+
+    [LoggerMessage(
+        EventId = 102,
+        Level = LogLevel.Information,
+        Message = "Reading AdGuard rule list from filesystem path: {FilePath}")]
+    private static partial void LogReadingFileContent(ILogger logger, string filePath);
+
+    [LoggerMessage(
+        EventId = 103,
+        Level = LogLevel.Information,
+        Message = "Parsed AdGuard rules. Loaded {AllowCount} allow rules and {BlockCount} block rules.")]
+    private static partial void LogParsedRulesCount(ILogger logger, int allowCount, int blockCount);
+
+    [LoggerMessage(
+        EventId = 104,
+        Level = LogLevel.Information,
+        Message = "Successfully updated IDomainFilterRuleStore with {AllowCount} allow and {BlockCount} block rules loaded from {Source}.")]
+    private static partial void LogUpdatedRuleStore(ILogger logger, string source, int allowCount, int blockCount);
 }

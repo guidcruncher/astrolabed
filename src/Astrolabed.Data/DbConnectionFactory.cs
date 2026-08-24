@@ -1,4 +1,3 @@
-using System.Data;
 using System.Data.Common;
 
 using Astrolabed.Data.Options;
@@ -14,30 +13,29 @@ namespace Astrolabed.Data;
 /// <summary>
 /// Implements connection instantiation for PostgreSQL and SQLite based on explicit provider configuration.
 /// </summary>
-public sealed class DbConnectionFactory : IDbConnectionFactory
+
+/// <remarks>
+/// Instantiates database connections asynchronously and exposes <see cref="DbConnection"/> to support
+/// non-blocking <see cref="IAsyncDisposable"/> cleanup in consuming repositories.
+/// </remarks>
+/// <param name="options">Database options containing connection string and provider selection.</param>
+/// <param name="logger">Structured logger instance for factory diagnostic logging.</param>
+public sealed partial class DbConnectionFactory(
+    IOptions<DatabaseOptions> options,
+    ILogger<DbConnectionFactory> logger) : IDbConnectionFactory
 {
-    private readonly DatabaseOptions _options;
-    private readonly ILogger<DbConnectionFactory> _logger;
+    private readonly DatabaseOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+    private readonly ILogger<DbConnectionFactory> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DbConnectionFactory(
-        IOptions<DatabaseOptions> options,
-        ILogger<DbConnectionFactory> logger)
+    /// <inheritdoc />
+    public async Task<DbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(options);
-        ArgumentNullException.ThrowIfNull(logger);
-
-        _options = options.Value;
-        _logger = logger;
+        LogCreatingConnection(_logger, _options.Provider);
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
         {
             throw new InvalidOperationException("Database connection string has not been configured.");
         }
-    }
-
-    public async Task<IDbConnection> CreateConnectionAsync(CancellationToken cancellationToken = default)
-    {
-        _logger.LogDebug("Creating database connection using configured provider: {Provider}", _options.Provider);
 
         DbConnection connection = _options.Provider switch
         {
@@ -46,10 +44,22 @@ public sealed class DbConnectionFactory : IDbConnectionFactory
             _ => throw new InvalidOperationException($"Unsupported database provider specified: {_options.Provider}")
         };
 
-        await connection.OpenAsync(cancellationToken);
-
-        _logger.LogTrace("Database connection successfully opened for provider: {Provider}", _options.Provider);
-
-        return connection;
+        try
+        {
+            await connection.OpenAsync(cancellationToken);
+            LogConnectionOpenedSuccessfully(_logger, _options.Provider);
+            return connection;
+        }
+        catch
+        {
+            await connection.DisposeAsync();
+            throw;
+        }
     }
+
+    [LoggerMessage(EventId = 101, Level = LogLevel.Debug, Message = "Creating database connection using configured provider: {Provider}")]
+    private static partial void LogCreatingConnection(ILogger logger, Provider provider);
+
+    [LoggerMessage(EventId = 102, Level = LogLevel.Trace, Message = "Database connection successfully opened for provider: {Provider}")]
+    private static partial void LogConnectionOpenedSuccessfully(ILogger logger, Provider provider);
 }

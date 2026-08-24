@@ -8,7 +8,8 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <Authors>Guidcruncher</Authors>
-     <Description>Astrolabed Main entrypoint.</Description>
+    <Description>Astrolabed Main entrypoint.</Description>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
   </PropertyGroup>
 
   <ItemGroup>

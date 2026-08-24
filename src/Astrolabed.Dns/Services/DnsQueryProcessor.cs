@@ -18,57 +18,56 @@ using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Services;
 
-public sealed class DnsQueryProcessor : IDnsQueryProcessor
-{
-    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
-    private readonly IDnsCache _cache;
-    private readonly IDomainFilter _domainFilter;
-    private readonly IHostRecordResolver _hostResolver;
-    private readonly IPtrResolver _ptrResolver;
-    private readonly IUpstreamClientFactory _upstreamClientFactory;
-    private readonly ILogger<DnsQueryProcessor> _logger;
-    private readonly IInProcEventBroker _eventBus;
-    private readonly IClientNameResolver _clientResolver;
-
-    public DnsQueryProcessor(
-        IOptionsMonitor<DnsEngineOptions> optionsMonitor,
-        IDnsCache cache,
-        IDomainFilter domainFilter,
-        IHostRecordResolver hostResolver,
-        IPtrResolver ptrResolver,
-        IUpstreamClientFactory upstreamClientFactory,
-        IInProcEventBroker eventBus,
+/// <summary>
+/// High-performance processor for handling DNS queries, blocklist filter evaluation, local host resolution, and upstream forwarding.
+/// </summary>
+/// <param name="optionsMonitor">Monitored engine configuration options.</param>
+/// <param name="cache">DNS query response cache.</param>
+/// <param name="domainFilter">Domain blocklist/allowlist filter component.</param>
+/// <param name="hostResolver">Local hosts file record resolver.</param>
+/// <param name="ptrResolver">Reverse DNS PTR record resolver.</param>
+/// <param name="upstreamClientFactory">Upstream DNS resolution client factory.</param>
+/// <param name="eventBus">In-process event bus for publishing DNS telemetry metrics.</param>
+/// <param name="clientResolver">Client IP reverse name lookup resolver.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DnsQueryProcessor(
+    IOptionsMonitor<DnsEngineOptions> optionsMonitor,
+    IDnsCache cache,
+    IDomainFilter domainFilter,
+    IHostRecordResolver hostResolver,
+    IPtrResolver ptrResolver,
+    IUpstreamClientFactory upstreamClientFactory,
+    IInProcEventBroker eventBus,
     IClientNameResolver clientResolver,
-        ILogger<DnsQueryProcessor> logger)
-    {
-        _optionsMonitor = optionsMonitor;
-        _cache = cache;
-        _domainFilter = domainFilter;
-        _hostResolver = hostResolver;
-        _ptrResolver = ptrResolver;
-        _clientResolver = clientResolver;
-        _upstreamClientFactory = upstreamClientFactory;
-        _eventBus = eventBus;
-        _logger = logger;
-    }
+    ILogger<DnsQueryProcessor> logger) : IDnsQueryProcessor
+{
+    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+    private readonly IDnsCache _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+    private readonly IDomainFilter _domainFilter = domainFilter ?? throw new ArgumentNullException(nameof(domainFilter));
+    private readonly IHostRecordResolver _hostResolver = hostResolver ?? throw new ArgumentNullException(nameof(hostResolver));
+    private readonly IPtrResolver _ptrResolver = ptrResolver ?? throw new ArgumentNullException(nameof(ptrResolver));
+    private readonly IUpstreamClientFactory _upstreamClientFactory = upstreamClientFactory ?? throw new ArgumentNullException(nameof(upstreamClientFactory));
+    private readonly IInProcEventBroker _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
+    private readonly IClientNameResolver _clientResolver = clientResolver ?? throw new ArgumentNullException(nameof(clientResolver));
+    private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public async Task<byte[]?> ProcessRequestAsync(byte[] rawPacket, EndPoint clientEndpoint, CancellationToken ct)
+    /// <inheritdoc />
+    public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
-        var address = clientEndpoint.GetIPAddress();
-        DnsContext context = new DnsContext(address);
+        IPAddress address = clientEndpoint.GetIPAddress();
+        var context = new DnsContext(address);
         string clientName = "localhost";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
         if (!IPAddress.IsLoopback(address))
         {
-            clientName = "";
-            var ptrQuery = address.ToPtrFormat();
-            _logger.LogInformation("Determining Client Name for {PtrQuery}", ptrQuery);
-            clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery);
-            _logger.LogInformation("ClientName is {ClientName}", clientName);
+            string ptrQuery = address.ToPtrFormat();
+            LogDeterminingClientName(_logger, ptrQuery);
+            clientName = await _clientResolver.ResolveClientNameAsync(ptrQuery, ct).ConfigureAwait(false);
+            LogClientNameResolved(_logger, clientName);
         }
 
-        if (!DnsWireParser.TryParse(rawPacket, out var request) || request is null)
+        if (!DnsWireParser.TryParse(rawPacket.Span, out DnsWireMessage? request) || request is null)
         {
             return null;
         }
@@ -80,10 +79,9 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         {
             // 1. Cache Check
             if (request.QuestionName is { Length: > 0 } &&
-                _cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out var cachedPayload) &&
-                cachedPayload is byte[] payloadBytes)
+                _cache.TryGet(request.QuestionName, (ushort)request.QuestionType, out ReadOnlyMemory<byte> cachedPayload))
             {
-                responseBytes = (byte[])payloadBytes.Clone();
+                responseBytes = cachedPayload.ToArray();
                 BinaryPrimitives.WriteUInt16BigEndian(responseBytes.AsSpan(0, 2), request.TransactionId);
 
                 resolutionSource = "CACHE";
@@ -93,7 +91,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             // 2. Blocklist / Allowlist Filter Evaluation
             if (request.QuestionName is { Length: > 0 } &&
                 !_domainFilter.IsAllowed(request.QuestionName) &&
-                _domainFilter.IsBlocked(request.QuestionName, out var reason))
+                _domainFilter.IsBlocked(request.QuestionName, out string? reason))
             {
                 var filterEde = new ExtendedDnsError
                 {
@@ -101,7 +99,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                     ExtraText = reason ?? "Blocked by policy filter"
                 };
 
-                var options = _optionsMonitor.CurrentValue;
+                DnsEngineOptions options = _optionsMonitor.CurrentValue;
 
                 switch (options.BlockedResponseMode)
                 {
@@ -116,7 +114,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                         break;
 
                     case BlockedResponseMode.ZeroIp:
-                        var zeroIp = request.QuestionType == DnsType.AAAA ? IPAddress.IPv6Any : IPAddress.Any;
+                        IPAddress zeroIp = request.QuestionType == DnsType.AAAA ? IPAddress.IPv6Any : IPAddress.Any;
                         var zeroRecord = new DnsResourceRecord
                         {
                             Name = request.QuestionName,
@@ -130,7 +128,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                         break;
 
                     case BlockedResponseMode.CustomIp:
-                        if (IPAddress.TryParse(options.CustomBlockedIp, out var customIp))
+                        if (IPAddress.TryParse(options.CustomBlockedIp, out IPAddress? customIp))
                         {
                             var customRecord = new DnsResourceRecord
                             {
@@ -163,7 +161,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             // 3. Hosts File Resolution (A / AAAA)
             if (request.QuestionName is { Length: > 0 } &&
                 (request.QuestionType == DnsType.A || request.QuestionType == DnsType.AAAA) &&
-                _hostResolver.TryResolveHost(request.QuestionName, request.QuestionType, out var matchedIp))
+                _hostResolver.TryResolveHost(request.QuestionName, request.QuestionType, out IPAddress? matchedIp))
             {
                 var record = new DnsResourceRecord
                 {
@@ -183,9 +181,9 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             if (request.QuestionType == DnsType.PTR && request.QuestionName is { Length: > 0 })
             {
                 // 4a. Static Overrides Match
-                if (_ptrResolver.TryResolvePtr(request.QuestionName, out var targetDomain) && targetDomain is not null)
+                if (_ptrResolver.TryResolvePtr(request.QuestionName, out string? targetDomain) && targetDomain is not null)
                 {
-                    var ptrBuffer = new byte[256];
+                    Span<byte> ptrBuffer = stackalloc byte[256];
                     int ptrOffset = 0;
                     DnsWireBuilder.EncodeDomainName(ptrBuffer, ref ptrOffset, targetDomain);
 
@@ -194,7 +192,7 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                         Name = request.QuestionName,
                         Type = DnsType.PTR,
                         Ttl = 300,
-                        Data = ptrBuffer.AsSpan(0, ptrOffset).ToArray()
+                        Data = ptrBuffer[..ptrOffset].ToArray()
                     };
 
                     responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
@@ -203,11 +201,12 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 }
 
                 // 4b. Conditional PTR Subnet Forwarding
-                if (_ptrResolver is PtrResolver concreteResolver &&
-                    concreteResolver.TryGetConditionalForwarder(request.QuestionName, out var targetResolverIp) &&
+                if (_ptrResolver.TryGetConditionalForwarder(request.QuestionName, out IPAddress? targetResolverIp) &&
                     targetResolverIp is not null)
                 {
-                    var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(targetResolverIp.ToString(), rawPacket, ct).ConfigureAwait(false);
+                    DnsWireMessage? upstreamMessage = await _upstreamClientFactory
+                        .ExecuteQueryAsync(targetResolverIp.ToString(), rawPacket, ct)
+                        .ConfigureAwait(false);
 
                     if (upstreamMessage is not null)
                     {
@@ -221,14 +220,16 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
             }
 
             // 5. Default Upstream Forwarding
-            var upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
+            IReadOnlyList<string>? upstreams = _optionsMonitor.CurrentValue.UpstreamResolvers;
             if (upstreams is { Count: > 0 })
             {
-                foreach (var upstream in upstreams)
+                foreach (string upstream in upstreams)
                 {
                     try
                     {
-                        var upstreamMessage = await _upstreamClientFactory.ExecuteQueryAsync(upstream, rawPacket, ct).ConfigureAwait(false);
+                        DnsWireMessage? upstreamMessage = await _upstreamClientFactory
+                            .ExecuteQueryAsync(upstream, rawPacket, ct)
+                            .ConfigureAwait(false);
 
                         if (upstreamMessage is not null)
                         {
@@ -241,12 +242,12 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogWarning(ex, "[Context {Context}] Failed to resolve query via upstream {Upstream}", context.Id.ToString(), upstream);
+                        LogUpstreamResolutionFailed(_logger, ex, context.Id, upstream);
                     }
                 }
             }
 
-            // Fallback: If no hosts match and upstream fails/unreachable, return ServFail or NXDomain instead of dropping packet
+            // Fallback: If no hosts match and upstream fails/unreachable, return ServFail
             var servfailEde = new ExtendedDnsError
             {
                 InfoCode = ExtendedDnsErrorCode.NoReachableAuthority,
@@ -259,8 +260,8 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
         }
         finally
         {
-            _logger.LogInformation("Context [{Context}] Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {Elapsed:F2}ms",
-                context.Id.ToString(), request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, (DateTimeOffset.UtcNow - startTime).TotalMilliseconds);
+            double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
+            LogQueryResult(_logger, context.Id, request.QuestionName, request.QuestionType, clientEndpoint, resolutionSource, elapsedMs);
 
             var dnsEvent = new DnsResponseEvent(
                 startTime,
@@ -270,10 +271,34 @@ public sealed class DnsQueryProcessor : IDnsQueryProcessor
                 clientEndpoint,
                 clientName,
                 resolutionSource,
-                (DateTimeOffset.UtcNow - startTime).TotalMilliseconds
+                elapsedMs
             );
 
             await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
         }
     }
+
+    [LoggerMessage(
+        EventId = 901,
+        Level = LogLevel.Information,
+        Message = "Determining Client Name for {PtrQuery}")]
+    private static partial void LogDeterminingClientName(ILogger logger, string ptrQuery);
+
+    [LoggerMessage(
+        EventId = 902,
+        Level = LogLevel.Information,
+        Message = "ClientName is {ClientName}")]
+    private static partial void LogClientNameResolved(ILogger logger, string clientName);
+
+    [LoggerMessage(
+        EventId = 903,
+        Level = LogLevel.Warning,
+        Message = "[Context {ContextId}] Failed to resolve query via upstream {Upstream}")]
+    private static partial void LogUpstreamResolutionFailed(ILogger logger, Exception exception, Guid contextId, string upstream);
+
+    [LoggerMessage(
+        EventId = 904,
+        Level = LogLevel.Information,
+        Message = "Context [{ContextId}] Query [{Domain} | {Type}] Client: {Client} Source: {Source} Elapsed: {ElapsedMs:F2}ms")]
+    private static partial void LogQueryResult(ILogger logger, Guid contextId, string domain, DnsType type, EndPoint client, string source, double elapsedMs);
 }

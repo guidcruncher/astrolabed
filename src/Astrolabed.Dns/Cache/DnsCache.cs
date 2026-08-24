@@ -1,28 +1,39 @@
-// File: src/Astrolabed.Dns/Cache/DnsCache.cs
 using System.Collections.Concurrent;
 
 using Astrolabed.Dns.Options;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace Astrolabed.Dns.Cache;
 
-public sealed class DnsCache : IDnsCache
+/// <summary>
+/// Thread-safe, high-performance in-memory DNS record cache supporting LRU eviction and zero-allocation key matching.
+/// </summary>
+/// <param name="optionsMonitor">Options monitor tracking max cache capacity constraints.</param>
+/// <param name="logger">Structured logger instance.</param>
+public sealed partial class DnsCache(
+    IOptionsMonitor<DnsEngineOptions> optionsMonitor,
+    ILogger<DnsCache> logger) : IDnsCache
 {
-    private readonly ConcurrentDictionary<string, CacheEntry> _entries = new();
-    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor;
+    private readonly ConcurrentDictionary<DnsCacheKey, CacheEntry> _entries = new();
+    private readonly ConcurrentQueue<DnsCacheKey> _evictionQueue = new();
+    private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
+    private readonly ILogger<DnsCache> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    public DnsCache(IOptionsMonitor<DnsEngineOptions> optionsMonitor)
+    /// <inheritdoc />
+    public bool TryGet(string domain, ushort qType, out ReadOnlyMemory<byte> payload)
     {
-        _optionsMonitor = optionsMonitor;
-    }
-
-    public bool TryGet(string domain, ushort qType, out byte[]? payload)
-    {
-        string key = $"{domain}:{qType}";
-        if (_entries.TryGetValue(key, out var entry))
+        payload = default;
+        if (string.IsNullOrWhiteSpace(domain))
         {
-            if (entry.ExpiresAt > DateTimeOffset.UtcNow)
+            return false;
+        }
+
+        var key = new DnsCacheKey(domain.Trim().TrimEnd('.'), qType);
+        if (_entries.TryGetValue(key, out CacheEntry? entry))
+        {
+            if (!entry.IsExpired)
             {
                 payload = entry.Payload;
                 return true;
@@ -31,24 +42,41 @@ public sealed class DnsCache : IDnsCache
             _entries.TryRemove(key, out _);
         }
 
-        payload = null;
         return false;
     }
 
-    public void Store(string domain, ushort qType, byte[] payload, TimeSpan ttl)
+    /// <inheritdoc />
+    public void Store(string domain, ushort qType, ReadOnlyMemory<byte> payload, TimeSpan ttl)
     {
-        if (_entries.Count >= _optionsMonitor.CurrentValue.MaxCacheEntries)
+        if (string.IsNullOrWhiteSpace(domain) || ttl <= TimeSpan.Zero)
         {
-            PurgeExpired();
+            return;
         }
 
-        string key = $"{domain}:{qType}";
-        _entries[key] = new CacheEntry(payload, DateTimeOffset.UtcNow.Add(ttl));
+        int maxEntries = _optionsMonitor.CurrentValue.MaxCacheEntries;
+        if (_entries.Count >= maxEntries)
+        {
+            PurgeExpiredOrLeastRecentlyUsed(maxEntries);
+        }
+
+        var key = new DnsCacheKey(domain.Trim().TrimEnd('.'), qType);
+        var entry = new CacheEntry(payload, DateTimeOffset.UtcNow.Add(ttl));
+
+        if (_entries.TryAdd(key, entry))
+        {
+            _evictionQueue.Enqueue(key);
+        }
+        else
+        {
+            _entries[key] = entry;
+        }
     }
 
-    private void PurgeExpired()
+    private void PurgeExpiredOrLeastRecentlyUsed(int maxEntries)
     {
-        var now = DateTimeOffset.UtcNow;
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        // Step 1: Remove expired items first
         foreach (var (key, entry) in _entries)
         {
             if (entry.ExpiresAt <= now)
@@ -56,5 +84,41 @@ public sealed class DnsCache : IDnsCache
                 _entries.TryRemove(key, out _);
             }
         }
+
+        // Step 2: Enforce strict capacity limit using LRU eviction queue if still over capacity
+        while (_entries.Count >= maxEntries && _evictionQueue.TryDequeue(out DnsCacheKey evictKey))
+        {
+            if (_entries.TryRemove(evictKey, out _))
+            {
+                LogCacheEvictedLru(_logger, evictKey.Domain, evictKey.QueryType);
+            }
+        }
+    }
+
+    [LoggerMessage(
+        EventId = 701,
+        Level = LogLevel.Debug,
+        Message = "DNS cache limit reached. LRU entry evicted: {Domain} (Type: {QueryType})")]
+    private static partial void LogCacheEvictedLru(ILogger logger, string domain, ushort queryType);
+
+    /// <summary>
+    /// Represents an allocation-friendly composite key for DNS cache queries.
+    /// </summary>
+    private readonly record struct DnsCacheKey
+    {
+        public string Domain { get; }
+        public ushort QueryType { get; }
+
+        public DnsCacheKey(string domain, ushort queryType)
+        {
+            Domain = domain;
+            QueryType = queryType;
+        }
+
+        public bool Equals(DnsCacheKey other) =>
+            QueryType == other.QueryType && string.Equals(Domain, other.Domain, StringComparison.OrdinalIgnoreCase);
+
+        public override int GetHashCode() =>
+            HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Domain), QueryType);
     }
 }
