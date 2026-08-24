@@ -36,6 +36,13 @@ public sealed partial class NtpServerEngine(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         NtpServerOptions options = _optionsMonitor.CurrentValue;
+
+        if (!options.ListenAddress.Enabled)
+        {
+            _logger.LogWarning("NTP Server is not enabled.");
+            return;
+        }
+
         IPAddress ipAddress = IPAddress.Parse(options.ListenAddress.Address);
         var localEndPoint = new IPEndPoint(ipAddress, options.ListenAddress.Port);
 
