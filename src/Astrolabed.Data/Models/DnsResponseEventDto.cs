@@ -13,5 +13,6 @@ public sealed record DnsResponseEventDto(
     string ClientEndpoint,
     string ClientName,
     string ResolutionSource,
-    double DurationMs
+    double DurationMs,
+    bool Blocked
 );

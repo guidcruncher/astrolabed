@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     client_endpoint VARCHAR(64) NOT NULL,
     client_name VARCHAR(255) NOT NULL,
     resolution_source VARCHAR(255) NOT NULL,
-    duration_ms DOUBLE PRECISION NOT NULL
+    duration_ms DOUBLE PRECISION NOT NULL,
+    blocked INT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_dns_events_start_time ON dns_response_events (start_time_utc);

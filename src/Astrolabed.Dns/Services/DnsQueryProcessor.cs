@@ -54,6 +54,7 @@ public sealed partial class DnsQueryProcessor(
     /// <inheritdoc />
     public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
+        bool blocked = false;
         IPAddress address = clientEndpoint.GetIPAddress();
         var context = new DnsContext(address);
         string clientName = "localhost";
@@ -93,6 +94,7 @@ public sealed partial class DnsQueryProcessor(
                 !_domainFilter.IsAllowed(request.QuestionName) &&
                 _domainFilter.IsBlocked(request.QuestionName, out string? reason))
             {
+                blocked = true;
                 var filterEde = new ExtendedDnsError
                 {
                     InfoCode = ExtendedDnsErrorCode.Filtered,
@@ -271,7 +273,8 @@ public sealed partial class DnsQueryProcessor(
                 clientEndpoint,
                 clientName,
                 resolutionSource,
-                elapsedMs
+                elapsedMs,
+            blocked
             );
 
             await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);

@@ -40,10 +40,10 @@ public sealed partial class DapperDnsResponseEventRepository(
         const string sql = """
             INSERT INTO dns_response_events (
                 id, start_time_utc, context_id, question_name, question_type,
-                client_endpoint, client_name, resolution_source, duration_ms
+                client_endpoint, client_name, resolution_source, duration_ms, blocked
             ) VALUES (
                 @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
-                @ClientEndpoint, @ClientName, @ResolutionSource, @DurationMs
+                @ClientEndpoint, @ClientName, @ResolutionSource, @DurationMs, @Blocked
             );
             """;
 
@@ -61,6 +61,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         parameters.Add("ClientName", entity.ClientName);
         parameters.Add("ResolutionSource", entity.ResolutionSource);
         parameters.Add("DurationMs", entity.DurationMs);
+        parameters.Add("Blocked", entity.Blocked);
 
         var command = new CommandDefinition(
             sql,
@@ -80,7 +81,7 @@ public sealed partial class DapperDnsResponseEventRepository(
 
         const string sql = """
             SELECT id, start_time_utc, context_id, question_name, question_type,
-                   client_endpoint, client_name, resolution_source, duration_ms
+                   client_endpoint, client_name, resolution_source, duration_ms, blocked
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -115,7 +116,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             SELECT COUNT(1) FROM dns_response_events;
 
             SELECT id, start_time_utc, context_id, question_name, question_type,
-                   client_endpoint, client_name, resolution_source, duration_ms
+                   client_endpoint, client_name, resolution_source, duration_ms, blocked
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;
