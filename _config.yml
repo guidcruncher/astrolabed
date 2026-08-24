@@ -1,0 +1,8 @@
+title: API Documentation
+theme: jekyll-theme-primer
+markdown: kramdown
+permalink: pretty
+exclude:
+  - "*.csproj"
+  - "bin/"
+  - "obj/"
