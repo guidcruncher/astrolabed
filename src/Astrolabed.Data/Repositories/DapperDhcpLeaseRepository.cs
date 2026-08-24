@@ -78,6 +78,17 @@ public sealed partial class DapperDhcpLeaseRepository(
     }
 
     /// <inheritdoc />
+    public async Task<DhcpLease?> GetLeaseByPtrAddressAsync(
+        string ptrAddress,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(ptrAddress);
+
+        var ipAddress = PtrConverter.ToIPAddress(ptrAddress);
+        return await GetLeaseByIpAsync(ipAddress, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public async Task<DhcpLease?> GetLeaseByIpAsync(
         IPAddress ipAddress,
         CancellationToken cancellationToken = default)
