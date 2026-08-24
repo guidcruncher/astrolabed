@@ -12,7 +12,7 @@ namespace Astrolabed.EventBus.Extensions;
 public static class ServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the root event broker and configures event options.
+    /// Registers the root event broker, hosting background wireup services, and configures event options.
     /// </summary>
     /// <param name="services">Target service collection.</param>
     /// <param name="configuration">Configuration provider instance.</param>
@@ -31,12 +31,13 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
 
         services.AddSingleton<IInProcEventBroker, InProcEventBroker>();
+        services.AddHostedService<SubHostEventListenerHostedService>();
 
         return services;
     }
 
     /// <summary>
-    /// Registers an event listener for a specific event type using a scoped lifetime.
+    /// Registers an event listener for a specific event type using a scoped lifetime and registers its discovery marker.
     /// </summary>
     /// <typeparam name="TEvent">The event type to listen for.</typeparam>
     /// <typeparam name="TListener">The listener implementation type.</typeparam>
@@ -49,12 +50,13 @@ public static class ServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<IEventListener<TEvent>, TListener>();
+        services.AddSingleton<IEventListenerMarker>(new EventListenerDescriptor(typeof(TEvent)));
 
         return services;
     }
 
     /// <summary>
-    /// Automatically registers all <see cref="IEventListener{TEvent}"/> interfaces implemented by <typeparamref name="TListener"/> using a scoped lifetime.
+    /// Automatically registers all <see cref="IEventListener{TEvent}"/> interfaces implemented by <typeparamref name="TListener"/> using a scoped lifetime and registers their discovery markers.
     /// </summary>
     /// <typeparam name="TListener">The concrete listener type to register.</typeparam>
     /// <param name="services">Target service collection.</param>
@@ -77,6 +79,10 @@ public static class ServiceCollectionExtensions
             if (iface.IsGenericType && iface.GetGenericTypeDefinition() == serviceInterfaceType)
             {
                 services.AddScoped(iface, listenerType);
+
+                Type messageType = iface.GetGenericArguments()[0];
+                services.AddSingleton<IEventListenerMarker>(new EventListenerDescriptor(messageType));
+
                 registered = true;
             }
         }
