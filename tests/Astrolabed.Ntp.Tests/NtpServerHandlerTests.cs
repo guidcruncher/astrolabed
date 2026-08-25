@@ -1,8 +1,10 @@
 using Astrolabed.Ntp.Options;
 using Astrolabed.Ntp.Protocol;
 using Astrolabed.Ntp.Services;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using Xunit;
 
 namespace Astrolabed.Ntp.Tests;

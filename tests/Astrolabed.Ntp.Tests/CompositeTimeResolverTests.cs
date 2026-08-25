@@ -1,7 +1,9 @@
 using Astrolabed.Ntp.Options;
 using Astrolabed.Ntp.Services;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+
 using Xunit;
 
 namespace Astrolabed.Ntp.Tests;
@@ -39,8 +41,8 @@ public class CompositeTimeResolverTests
     public async Task GetCurrentTimeAsync_WhenModeIsUpstreamAndServerUnreachable_FallsBackToLocalTime()
     {
         // Arrange
-        _optionsMonitor.CurrentValue = new NtpServerOptions 
-        { 
+        _optionsMonitor.CurrentValue = new NtpServerOptions
+        {
             ResolverMode = TimeResolverMode.Upstream
         };
 

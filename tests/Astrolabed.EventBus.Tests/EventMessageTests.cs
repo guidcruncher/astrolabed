@@ -1,7 +1,9 @@
 namespace Astrolabed.EventBus.Tests;
 
 using Astrolabed.EventBus;
+
 using Microsoft.Extensions.Time.Testing;
+
 using Xunit;
 
 public class EventMessageTests

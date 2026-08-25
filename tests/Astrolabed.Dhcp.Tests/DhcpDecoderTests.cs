@@ -1,5 +1,7 @@
 using System.Net;
+
 using Astrolabed.Dhcp.Protocol;
+
 using Xunit;
 
 namespace Astrolabed.Dhcp.Tests;
@@ -68,21 +70,23 @@ public class DhcpDecoderTests
     public void Decode_WithMagicCookieAndOptions_ParsesOptionsCorrectly()
     {
         // Arrange
-        byte[] buffer = new byte[240 + 5]; // MinimumHeader (236) + MagicCookie (4) + Option payload
-        buffer[0] = (byte)DhcpOpCode.BootRequest;
-
-        // Magic Cookie (bytes 236-239)
-        buffer[236] = 0x63; buffer[237] = 0x82; buffer[238] = 0x53; buffer[239] = 0x63;
-
-        // Option 53: DhcpMessageType = Discover (1)
         byte[] optionsPayload =
         [
             (byte)DhcpOptionCode.DhcpMessageType, 1, (byte)DhcpMessageType.Discover,
             (byte)DhcpOptionCode.End
         ];
 
+        // Allocate the complete full packet size directly (236-byte header + 4-byte magic cookie + options)
         byte[] fullPacket = new byte[240 + optionsPayload.Length];
-        buffer.CopyTo(fullPacket, 0);
+        fullPacket[0] = (byte)DhcpOpCode.BootRequest;
+
+        // Magic Cookie at offset 236
+        fullPacket[236] = 0x63;
+        fullPacket[237] = 0x82;
+        fullPacket[238] = 0x53;
+        fullPacket[239] = 0x63;
+
+        // Copy option payload starting at offset 240
         optionsPayload.CopyTo(fullPacket, 240);
 
         // Act

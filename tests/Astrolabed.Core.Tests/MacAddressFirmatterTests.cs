@@ -1,6 +1,7 @@
 namespace Astrolabed.Core.Tests.Network;
 
 using Astrolabed.Core.Network;
+
 using Xunit;
 
 public class MacAddressFormatterTests

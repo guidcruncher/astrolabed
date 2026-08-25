@@ -1,4 +1,5 @@
 using Astrolabed.Ntp.Protocol;
+
 using Xunit;
 
 namespace Astrolabed.Ntp.Tests;

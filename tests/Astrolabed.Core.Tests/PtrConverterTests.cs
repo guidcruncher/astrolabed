@@ -1,7 +1,9 @@
 namespace Astrolabed.Core.Tests.Network;
 
 using System.Net;
+
 using Astrolabed.Core.Network;
+
 using Xunit;
 
 public class PtrConverterTests

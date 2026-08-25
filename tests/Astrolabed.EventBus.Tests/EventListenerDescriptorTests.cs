@@ -1,6 +1,7 @@
 namespace Astrolabed.EventBus.Tests;
 
 using Astrolabed.EventBus;
+
 using Xunit;
 
 public class EventListenerDescriptorTests

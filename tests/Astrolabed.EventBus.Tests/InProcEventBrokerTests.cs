@@ -2,9 +2,11 @@ namespace Astrolabed.EventBus.Tests;
 
 using Astrolabed.EventBus;
 using Astrolabed.EventBus.Options;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Time.Testing;
+
 using Xunit;
 
 public class InProcEventBrokerTests

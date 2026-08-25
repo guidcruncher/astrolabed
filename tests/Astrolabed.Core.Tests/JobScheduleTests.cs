@@ -1,6 +1,7 @@
 namespace Astrolabed.Core.Tests.Scheduler;
 
 using Astrolabed.Core.Scheduler;
+
 using Xunit;
 
 public class JobScheduleTests

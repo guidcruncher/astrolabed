@@ -1,9 +1,10 @@
 namespace Astrolabed.Core.Tests.Scheduler;
 
 using Astrolabed.Core.Scheduler;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
-using Microsoft.Extensions.Time.Testing;
+
 using Xunit;
 
 public class ScheduledJobWorkerTests

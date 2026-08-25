@@ -2,7 +2,9 @@ namespace Astrolabed.Core.Tests.Network;
 
 using System.Net;
 using System.Net.Sockets;
+
 using Astrolabed.Core.Network;
+
 using Xunit;
 
 public class EndPointExtensionsTests

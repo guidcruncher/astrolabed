@@ -1,5 +1,5 @@
-using System.Net;
 using Astrolabed.Dhcp.Protocol;
+
 using Xunit;
 
 namespace Astrolabed.Dhcp.Tests;
@@ -19,7 +19,7 @@ public class DhcpDecoderAdvancedTests
         // Standard Options area (offset 240) -> OptionOverload = 3 (both file and sname contain options)
         buffer[240] = (byte)DhcpOptionCode.OptionOverload;
         buffer[241] = 1;
-        buffer[242] = 3; 
+        buffer[242] = 3;
         buffer[243] = (byte)DhcpOptionCode.End;
 
         // File field (offset 108, length 128) -> Subnet Mask option

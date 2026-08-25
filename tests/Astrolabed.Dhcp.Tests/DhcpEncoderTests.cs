@@ -1,5 +1,7 @@
 using System.Net;
+
 using Astrolabed.Dhcp.Protocol;
+
 using Xunit;
 
 namespace Astrolabed.Dhcp.Tests;
