@@ -1,4 +1,7 @@
 ## .NET build artifacts
+api/
+_site
+_site/
 bin/
 obj/
 out/
