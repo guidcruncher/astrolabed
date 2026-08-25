@@ -56,6 +56,7 @@ clean:
 	dotnet clean $(SOLUTION)
 	rm -rf ./publish
 	find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
+	rm -rf ./_site ./api
 
 format:
 	@for f in *.json; do \
