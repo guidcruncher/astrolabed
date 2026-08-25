@@ -6,12 +6,16 @@ IMAGE_NAME = guidcruncher/astrolabed
 
 .PHONY: all build run clean restore test publish format dev dns ntp dhcp benchmark \
         docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release \
-	db
+	db docs
 
 all: build
 
 db:
 	sqlite3 ../netdns-runtime/astrolabed.db
+
+docs:
+	dotnet tool update -g docfx
+	docfx docfx.json --server --hostname 0.0.0.0 --port 8000
 
 restore:
 	dotnet restore $(SOLUTION)
