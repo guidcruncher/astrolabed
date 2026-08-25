@@ -16,6 +16,7 @@ db:
 docs:
 	dotnet tool update -g docfx
 	docfx docfx.json --serve --hostname 0.0.0.0 --port 8000
+	rm -rf ./_site ./api
 
 restore:
 	dotnet restore $(SOLUTION)
