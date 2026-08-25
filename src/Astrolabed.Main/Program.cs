@@ -1,4 +1,5 @@
 using Astrolabed.Api.Extensions;
+using Astrolabed.Api.Options;
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
@@ -9,6 +10,7 @@ using Astrolabed.Ntp.Extensions;
 
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -52,8 +54,27 @@ public static class Program
             })
             .ConfigureWebHostDefaults(webBuilder =>
             {
+                webBuilder.ConfigureKestrel((context, options) =>
+                {
+                    options.AddServerHeader = false;
+
+                    var apiOptions = context.Configuration
+                        .GetSection(ApiOptions.SectionName)
+                        .Get<ApiOptions>();
+
+                    if (!string.IsNullOrWhiteSpace(apiOptions?.ApiEndpoint) &&
+                           Uri.TryCreate(apiOptions.ApiEndpoint, UriKind.Absolute, out var uri))
+                    {
+                        // Bind Kestrel only to Scheme + Host + Port (e.g., http://localhost:5000)
+                        string listenUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}";
+                        webBuilder.UseUrls(listenUrl);
+                    }
+                });
+
                 webBuilder.Configure(app =>
                 {
+                    app.UseSecurityHeaders();
+
                     app.UseRouting();
                     app.UseEndpoints(endpoints =>
                     {
