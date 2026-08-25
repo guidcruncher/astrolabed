@@ -1,4 +1,4 @@
-// File: src/Astrolabed.Main/Program.cs
+using Astrolabed.Api.Extensions;
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
@@ -7,6 +7,8 @@ using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
 using Astrolabed.Ntp.Extensions;
 
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -44,14 +46,28 @@ public static class Program
                 services.AddNtpServer(context.Configuration);
                 services.AddDhcpServer(context.Configuration);
                 services.AddDnsServer(context.Configuration);
+
+                // 5. API Module Registration
+                services.AddApi(context.Configuration);
+            })
+            .ConfigureWebHostDefaults(webBuilder =>
+            {
+                webBuilder.Configure(app =>
+                {
+                    app.UseRouting();
+                    app.UseEndpoints(endpoints =>
+                    {
+                        // Map controllers here on the web host endpoint route builder
+                        endpoints.MapControllers();
+                    });
+                });
             })
             .Build();
 
-        // Perform explicit database initialization after DI container build and before engine execution
+        // Perform explicit database initialization
         await host.InitializeDatabaseAsync().ConfigureAwait(false);
 
-        // Run application host asynchronously until process termination request
+        // Run application host
         await host.RunAsync().ConfigureAwait(false);
     }
 }
-
