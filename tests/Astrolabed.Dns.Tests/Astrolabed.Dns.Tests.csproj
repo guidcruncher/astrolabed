@@ -22,6 +22,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Astrolabed.Data\Astrolabed.Data.csproj" />
     <ProjectReference Include="..\..\src\Astrolabed.Dns\Astrolabed.Dns.csproj" />
   </ItemGroup>
 
