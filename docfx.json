@@ -1,10 +1,13 @@
 {
+  "$schema": "https://raw.githubusercontent.com/dotnet/docfx/main/schemas/docfx.schema.json",
   "metadata": [
     {
       "src": [
         {
-          "files": ["**/*.csproj"],
-          "exclude": ["**/bin/**", "**/obj/**", "**/*.Tests.csproj"]
+          "src": "./src",
+          "files": [
+            "**/*.csproj"
+          ]
         }
       ],
       "dest": "api"
@@ -14,26 +17,29 @@
     "content": [
       {
         "files": [
-          "api/**.yml",
-          "api/index.md"
-        ]
-      },
-      {
-        "files": [
-          "docs/**.md",
-          "docs/**/toc.yml",
-          "toc.yml"
+          "**/*.{md,yml}"
+        ],
+        "exclude": [
+          "_site/**"
         ]
       }
     ],
     "resource": [
       {
         "files": [
-          "docs/assets/**"
+          "images/**"
         ]
       }
     ],
     "output": "_site",
-    "template": ["default", "modern"]
+    "template": [
+      "default",
+      "modern"
+    ],
+    "globalMetadata": {
+      "_appName": "Astrolabed",
+      "_appTitle": "Astrolabed",
+      "_enableSearch": true
+    }
   }
 }
