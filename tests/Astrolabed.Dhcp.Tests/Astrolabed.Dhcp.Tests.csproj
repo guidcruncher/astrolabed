@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Astrolabed.Dhcp\Astrolabed.Dhcp.csproj" />
+    <ProjectReference Include="..\..\src\Astrolabed.Data\Astrolabed.Data.csproj" />
   </ItemGroup>
 
 </Project>
