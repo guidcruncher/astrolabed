@@ -1,9 +1,4 @@
-using Astrolabed.Ntp.Options;
 using Astrolabed.Ntp.Protocol;
-using Astrolabed.Ntp.Services;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
-using Moq;
 using Xunit;
 
 namespace Astrolabed.Ntp.Tests;
@@ -52,4 +47,3 @@ public class NtpTimestampTests
         Assert.Equal(original, restored);
     }
 }
-

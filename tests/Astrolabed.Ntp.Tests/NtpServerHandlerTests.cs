@@ -1,23 +1,16 @@
 using Astrolabed.Ntp.Options;
 using Astrolabed.Ntp.Protocol;
 using Astrolabed.Ntp.Services;
-using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 using Xunit;
 
 namespace Astrolabed.Ntp.Tests;
 
 public class NtpServerHandlerTests
 {
-    private readonly Mock<IOptionsMonitor<NtpServerOptions>> _optionsMonitorMock;
-    private readonly Mock<ILogger<NtpServerHandler>> _loggerMock;
-
-    public NtpServerHandlerTests()
-    {
-        _optionsMonitorMock = new Mock<IOptionsMonitor<NtpServerOptions>>();
-        _loggerMock = new Mock<ILogger<NtpServerHandler>>();
-    }
+    private readonly TestOptionsMonitor<NtpServerOptions> _optionsMonitor = new();
+    private readonly NullLogger<NtpServerHandler> _logger = NullLogger<NtpServerHandler>.Instance;
 
     [Fact]
     public void CreateResponse_ValidRequest_CraftsCorrectNtpResponse()
@@ -32,9 +25,9 @@ public class NtpServerHandlerTests
             ReferenceIdentifier = "LOCL"
         };
 
-        _optionsMonitorMock.Setup(o => o.CurrentValue).Returns(options);
+        _optionsMonitor.CurrentValue = options;
 
-        var handler = new NtpServerHandler(_optionsMonitorMock.Object, _loggerMock.Object);
+        var handler = new NtpServerHandler(_optionsMonitor, _logger);
 
         var request = new NtpPacket
         {
@@ -65,9 +58,18 @@ public class NtpServerHandlerTests
     public void CreateResponse_NullRequest_ThrowsArgumentNullException()
     {
         // Arrange
-        var handler = new NtpServerHandler(_optionsMonitorMock.Object, _loggerMock.Object);
+        var handler = new NtpServerHandler(_optionsMonitor, _logger);
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => handler.CreateResponse(null!, DateTimeOffset.UtcNow, DateTimeOffset.UtcNow));
+    }
+
+    private sealed class TestOptionsMonitor<T> : IOptionsMonitor<T> where T : class, new()
+    {
+        public T CurrentValue { get; set; } = new();
+
+        public T Get(string? name) => CurrentValue;
+
+        public IDisposable? OnChange(Action<T, string?> listener) => null;
     }
 }
