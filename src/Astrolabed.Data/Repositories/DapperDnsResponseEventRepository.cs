@@ -80,8 +80,16 @@ public sealed partial class DapperDnsResponseEventRepository(
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
 
         const string sql = """
-            SELECT id, start_time_utc, context_id, question_name, question_type,
-                   client_endpoint, client_name, resolution_source, duration_ms, blocked
+            SELECT id AS Id,
+                   start_time_utc AS StartTimeUtc,
+                   context_id AS ContextId,
+                   question_name AS QuestionName,
+                   question_type AS QuestionType,
+                   client_endpoint AS ClientEndpoint,
+                   client_name AS ClientName,
+                   resolution_source AS ResolutionSource,
+                   duration_ms AS DurationMs,
+                   blocked AS Blocked
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -115,8 +123,16 @@ public sealed partial class DapperDnsResponseEventRepository(
         const string sql = """
             SELECT COUNT(1) FROM dns_response_events;
 
-            SELECT id, start_time_utc, context_id, question_name, question_type,
-                   client_endpoint, client_name, resolution_source, duration_ms, blocked
+            SELECT id AS Id,
+                   start_time_utc AS StartTimeUtc,
+                   context_id AS ContextId,
+                   question_name AS QuestionName,
+                   question_type AS QuestionType,
+                   client_endpoint AS ClientEndpoint,
+                   client_name AS ClientName,
+                   resolution_source AS ResolutionSource,
+                   duration_ms AS DurationMs,
+                   blocked AS Blocked
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;

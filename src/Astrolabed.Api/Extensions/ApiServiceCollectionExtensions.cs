@@ -1,5 +1,6 @@
 namespace Astrolabed.Api.Extensions;
 
+using Astrolabed.Api.Converters;
 using Astrolabed.Api.Options;
 using Astrolabed.Api.Services;
 
@@ -30,7 +31,12 @@ public static class ApiServiceCollectionExtensions
         services.AddScoped<IAstrolabedService, AstrolabedService>();
 
         services.AddControllers()
-                .AddApplicationPart(typeof(ApiServiceCollectionExtensions).Assembly);
+                .AddApplicationPart(typeof(ApiServiceCollectionExtensions).Assembly)
+            .AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new IPAddressJsonConverter());
+        });
+
 
         // Register OpenAPI generator using passed configuration parameter
         services.AddAstrolabedOpenApi(configuration);
