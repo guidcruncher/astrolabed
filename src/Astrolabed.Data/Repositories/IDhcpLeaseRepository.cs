@@ -1,6 +1,7 @@
 using System.Net;
 
 using Astrolabed.Data.Models;
+using Astrolabed.Data.Pagination;
 
 namespace Astrolabed.Data.Repositories;
 
@@ -16,7 +17,6 @@ public interface IDhcpLeaseRepository
     /// <param name="clientId">The unique client identifier (e.g., DUID or Option 61 value).</param>
     /// <param name="macAddress">The hardware MAC address of the client interface.</param>
     /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
-
     /// <returns>
     /// A task representing the asynchronous operation, containing the matching <see cref="DhcpLease"/> if found; 
     /// otherwise, <see langword="null"/>.
@@ -53,6 +53,22 @@ public interface IDhcpLeaseRepository
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="ipAddress"/> is null.</exception>
     Task<DhcpLease?> GetLeaseByIpAsync(
         IPAddress ipAddress,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Asynchronously retrieves a paginated set of all DHCP leases.
+    /// </summary>
+    /// <param name="pageNumber">The 1-based page index to retrieve.</param>
+    /// <param name="pageSize">The maximum number of items per page.</param>
+    /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+    /// <returns>
+    /// A task representing the asynchronous operation, containing a <see cref="PagedResult{DhcpLease}"/> 
+    /// with the requested page of leases and total count metadata.
+    /// </returns>
+    /// <exception cref="ArgumentOutOfRangeException">Thrown when <paramref name="pageNumber"/> or <paramref name="pageSize"/> is less than 1.</exception>
+    Task<PagedResult<DhcpLease>> GetLeasesAsync(
+        int pageNumber,
+        int pageSize,
         CancellationToken cancellationToken = default);
 
     /// <summary>

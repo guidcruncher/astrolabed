@@ -1,6 +1,7 @@
 using System.Net;
 
 using Astrolabed.Data.Models;
+using Astrolabed.Data.Pagination;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Dhcp.Options;
 using Astrolabed.Dhcp.Protocol;
@@ -102,6 +103,9 @@ public class DhcpHandlerTests
 
         public Task<DhcpLease?> GetLeaseByPtrAddressAsync(string ptrAddress, CancellationToken cancellationToken = default) =>
             Task.FromResult<DhcpLease?>(null);
+
+        public Task<PagedResult<DhcpLease>> GetLeasesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PagedResult<DhcpLease>>(null);
 
         public Task<DhcpLease?> GetLeaseByIpAsync(IPAddress ipAddress, CancellationToken cancellationToken = default) =>
             Task.FromResult<DhcpLease?>(null);

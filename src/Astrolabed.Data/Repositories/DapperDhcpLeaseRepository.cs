@@ -4,6 +4,7 @@ using System.Net;
 using Astrolabed.Core.Network;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
+using Astrolabed.Data.Pagination;
 
 using Dapper;
 
@@ -280,6 +281,45 @@ public sealed partial class DapperDhcpLeaseRepository(
         {
             LogNoActiveLeaseFoundToRelease(_logger, clientId, formattedMac);
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<PagedResult<DhcpLease>> GetLeasesAsync(
+        int pageNumber,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageNumber, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(pageSize, 1);
+        int offset = (pageNumber - 1) * pageSize;
+        const string sql = """
+            SELECT COUNT(1)
+            FROM dhcp_leases;
+            SELECT client_id AS ClientId,
+                   client_name AS ClientName,
+                   mac_address AS MacAddress,
+                   ip_address AS IpAddress,
+                   lease_start_time AS LeaseStartTime,
+                   lease_end_time AS LeaseEndTime,
+                   is_active AS IsActive
+            FROM dhcp_leases
+            ORDER BY lease_end_time DESC
+            LIMIT @PageSize OFFSET @Offset;
+            """;
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+        var parameters = new DynamicParameters();
+        parameters.Add("PageSize", pageSize);
+        parameters.Add("Offset", offset);
+        var command = new CommandDefinition(
+            sql,
+            parameters,
+            commandTimeout: _databaseOptions.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+        await using SqlMapper.GridReader gridReader = await connection.QueryMultipleAsync(command);
+        int totalCount = await gridReader.ReadSingleAsync<int>();
+        IEnumerable<DhcpLeaseEntity> entities = await gridReader.ReadAsync<DhcpLeaseEntity>();
+        IReadOnlyCollection<DhcpLease> leases = entities.Select(entity => entity.ToDomain()).ToList().AsReadOnly();
+        return leases.ToPagedResult<DhcpLease>(pageNumber, pageSize);
     }
 
     [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Fetching DHCP lease for ClientID {ClientId} or MAC {MacAddress}")]
