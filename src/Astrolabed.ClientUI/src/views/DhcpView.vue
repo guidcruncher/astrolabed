@@ -10,64 +10,51 @@
       </button>
     </div>
 
-    <div class="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-      <table class="w-full text-left text-sm text-slate-300">
-        <thead class="bg-slate-700/50 text-slate-400 uppercase text-xs">
-          <tr>
-            <th class="p-4">Client Name</th>
-            <th class="p-4">IP Address</th>
-            <th class="p-4">MAC Address</th>
-            <th class="p-4">Status</th>
-            <th class="p-4">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="lease in leases" :key="lease.clientId" class="border-t border-slate-700">
-            <td class="p-4 font-medium text-white">{{ lease.clientName }}</td>
-            <td class="p-4">{{ formatIpAddress(lease.ipAddress) }}</td>
-            <td class="p-4 font-mono text-xs">{{ lease.macAddress }}</td>
-            <td class="p-4">
-              <span
-                :class="lease.isActive ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-400'"
-                class="px-2 py-1 text-xs rounded-full"
-              >
-                {{ lease.isActive ? 'Active' : 'Inactive' }}
-              </span>
-            </td>
-            <td class="p-4">
-              <button @click="handleRelease(lease)" class="text-xs text-rose-400 hover:text-rose-300">Release</button>
-            </td>
-          </tr>
-          <tr v-if="leases.length === 0">
-            <td colspan="5" class="p-4 text-center text-slate-500">No DHCP leases found.</td>
-          </tr>
-        </tbody>
-      </table>
+    <DataGrid
+      v-model:page="currentPage"
+      v-model:pageSize="pageSize"
+      :data="leases"
+      :columns="columns"
+      :total-count="totalCount"
+      @page-change="handlePageChange"
+      @page-size-change="handlePageSizeChange"
+      @row-select="handleRowSelect"
+      @loaded="handleGridLoaded"
+    >
+      <template #cell-clientName="{ value }">
+        <span class="font-medium text-white">{{ value }}</span>
+      </template>
 
-      <!-- Pagination Footer -->
-      <div class="p-4 bg-slate-800 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
-        <div>
-          Showing {{ totalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1 }} to {{ Math.min(currentPage * pageSize, totalCount) }} of {{ totalCount }} entries
-        </div>
-        <div class="flex items-center space-x-2">
-          <button
-            @click="fetchLeases(currentPage - 1)"
-            :disabled="currentPage <= 1"
-            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
-          >
-            Previous
-          </button>
-          <span class="px-2 py-1 text-slate-300">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button
-            @click="fetchLeases(currentPage + 1)"
-            :disabled="currentPage >= totalPages"
-            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
-          >
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
+      <template #cell-ipAddress="{ value }">
+        <span>{{ formatIpAddress(value) }}</span>
+      </template>
+
+      <template #cell-macAddress="{ value }">
+        <span class="font-mono text-xs">{{ value }}</span>
+      </template>
+
+      <template #cell-isActive="{ value }">
+        <span
+          :class="value ? 'bg-emerald-900/60 text-emerald-400' : 'bg-slate-700 text-slate-400'"
+          class="px-2 py-1 text-xs rounded-full"
+        >
+          {{ value ? 'Active' : 'Inactive' }}
+        </span>
+      </template>
+
+      <template #cell-actions="{ row }">
+        <button 
+          @click.stop="handleRelease(row)" 
+          class="text-xs text-rose-400 hover:text-rose-300"
+        >
+          Release
+        </button>
+      </template>
+
+      <template #empty>
+        No DHCP leases found.
+      </template>
+    </DataGrid>
 
     <div v-if="showModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
       <div class="bg-slate-800 rounded-lg p-6 max-w-md w-full border border-slate-700">
@@ -90,6 +77,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DhcpLease, AllocateOrUpdateDhcpLeaseRequest, IPAddress } from '../types/api'
 
@@ -97,8 +85,15 @@ const { getDhcpLeases, allocateDhcpLease, releaseDhcpLease } = useApi()
 const leases = ref<DhcpLease[]>([])
 const currentPage = ref<number>(1)
 const pageSize = ref<number>(10)
-const totalPages = ref<number>(1)
 const totalCount = ref<number>(0)
+
+const columns: Column[] = [
+  { key: 'clientName', label: 'Client Name' },
+  { key: 'ipAddress', label: 'IP Address' },
+  { key: 'macAddress', label: 'MAC Address' },
+  { key: 'isActive', label: 'Status' },
+  { key: 'actions', label: 'Actions' }
+]
 
 const showModal = ref<boolean>(false)
 const form = ref<AllocateOrUpdateDhcpLeaseRequest>({
@@ -115,26 +110,43 @@ const formatIpAddress = (ipAddress?: IPAddress | string): string => {
   return ipAddress.address ? String(ipAddress.address) : '-'
 }
 
-const fetchLeases = async (page = 1): Promise<void> => {
-  currentPage.value = page
+const fetchLeases = async (): Promise<void> => {
   const data = await getDhcpLeases(currentPage.value, pageSize.value)
   leases.value = data?.items || []
   totalCount.value = data?.totalCount || 0
-  totalPages.value = data?.totalPages || Math.ceil(totalCount.value / pageSize.value) || 1
+}
+
+const handlePageChange = (page: number): void => {
+  currentPage.value = page
+  fetchLeases()
+}
+
+const handlePageSizeChange = (size: number): void => {
+  pageSize.value = size
+  currentPage.value = 1
+  fetchLeases()
+}
+
+const handleRowSelect = (lease: DhcpLease): void => {
+  console.log('Selected DHCP Lease:', lease)
+}
+
+const handleGridLoaded = (): void => {
+  // Triggered when data source changes or grid mounts
 }
 
 const handleAllocate = async (): Promise<void> => {
   await allocateDhcpLease(form.value)
   showModal.value = false
-  await fetchLeases(currentPage.value)
+  await fetchLeases()
 }
 
 const handleRelease = async (lease: DhcpLease): Promise<void> => {
   if (confirm(`Release lease for ${lease.clientName}?`)) {
     await releaseDhcpLease({ clientId: lease.clientId, macAddress: lease.macAddress })
-    await fetchLeases(currentPage.value)
+    await fetchLeases()
   }
 }
 
-onMounted(() => fetchLeases(1))
+onMounted(() => fetchLeases())
 </script>
