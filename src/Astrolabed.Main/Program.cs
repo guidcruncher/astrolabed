@@ -78,6 +78,7 @@ public static class Program
         app.UseAstrolabedOpenApi(app.Configuration);
 
         app.MapControllers();
+	app.UseSpaHosting();
 
         // Perform explicit database initialization using WebApplication as IHost
         await app.InitializeDatabaseAsync().ConfigureAwait(false);
