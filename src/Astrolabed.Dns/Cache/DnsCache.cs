@@ -21,6 +21,11 @@ public sealed partial class DnsCache(
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
     private readonly ILogger<DnsCache> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    /// <summary>
+    /// Gets the number of items in the Cache
+    /// </summary>
+    public int Count { get { return _entries.Count; } }
+
     /// <inheritdoc />
     public bool TryGet(string domain, ushort qType, out ReadOnlyMemory<byte> payload)
     {
@@ -72,6 +77,12 @@ public sealed partial class DnsCache(
         }
     }
 
+    /// <inheritdoc />
+    public void Clear()
+    {
+        _entries.Clear();
+    }
+
     private void PurgeExpiredOrLeastRecentlyUsed(int maxEntries)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -121,4 +132,5 @@ public sealed partial class DnsCache(
         public override int GetHashCode() =>
             HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Domain), QueryType);
     }
+
 }

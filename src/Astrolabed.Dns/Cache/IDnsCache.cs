@@ -5,6 +5,12 @@ namespace Astrolabed.Dns.Cache;
 /// </summary>
 public interface IDnsCache
 {
+
+    /// <summary>
+    /// Gets the number of items in the Cache
+    /// </summary>
+    int Count { get; }
+
     /// <summary>
     /// Attempts to retrieve a cached DNS response payload for the specified domain and record type.
     /// </summary>
@@ -32,4 +38,9 @@ public interface IDnsCache
     /// <param name="payload">The binary DNS response payload to store.</param>
     /// <param name="ttl">The time-to-live duration before the cached entry expires.</param>
     void Store(string domain, ushort qType, ReadOnlyMemory<byte> payload, TimeSpan ttl);
+
+    /// <summary>
+    /// Clears the Cache
+    /// </summary>
+    void Clear();
 }
