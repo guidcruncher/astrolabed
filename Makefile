@@ -114,7 +114,7 @@ docker-release:
 	docker buildx create --name astrolabed-builder --use --bootstrap
 	-docker buildx build \
 		--builder astrolabed-builder \
-		--platform linux/amd64,linux/arm64 \
+		--platform linux/arm64 \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
 		--tag docker.io/$(IMAGE_NAME):dev \
