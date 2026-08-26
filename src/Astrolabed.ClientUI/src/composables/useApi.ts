@@ -12,7 +12,7 @@ import type {
   ProblemDetails
 } from '../types/api'
 
-const apiBaseUrl = ref<string>(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8002')
+const apiBaseUrl = '/';
 
 export function useApi() {
   const loading = ref<boolean>(false)
@@ -22,7 +22,7 @@ export function useApi() {
     loading.value = true
     error.value = null
     try {
-      const url = `${apiBaseUrl.value.replace(/\/$/, '')}${endpoint}`
+      const url = `${endpoint}`
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',

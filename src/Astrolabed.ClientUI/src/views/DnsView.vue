@@ -24,8 +24,35 @@
             <td class="p-4">{{ evt.clientName || evt.clientEndpoint }}</td>
             <td class="p-4 font-mono text-xs">{{ evt.durationMs }} ms</td>
           </tr>
+          <tr v-if="events.length === 0">
+            <td colspan="5" class="p-4 text-center text-slate-500">No DNS event logs found.</td>
+          </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Footer -->
+      <div class="p-4 bg-slate-800 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
+        <div>
+          Showing {{ totalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1 }} to {{ Math.min(currentPage * pageSize, totalCount) }} of {{ totalCount }} entries
+        </div>
+        <div class="flex items-center space-x-2">
+          <button
+            @click="loadLogs(currentPage - 1)"
+            :disabled="currentPage <= 1"
+            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+          >
+            Previous
+          </button>
+          <span class="px-2 py-1 text-slate-300">Page {{ currentPage }} of {{ totalPages }}</span>
+          <button
+            @click="loadLogs(currentPage + 1)"
+            :disabled="currentPage >= totalPages"
+            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -37,18 +64,25 @@ import type { DnsResponseEventEntity } from '../types/api'
 
 const { getDnsEvents, purgeDnsEvents } = useApi()
 const events = ref<DnsResponseEventEntity[]>([])
+const currentPage = ref<number>(1)
+const pageSize = ref<number>(10)
+const totalPages = ref<number>(1)
+const totalCount = ref<number>(0)
 
-const loadLogs = async (): Promise<void> => {
-  const data = await getDnsEvents()
+const loadLogs = async (page = 1): Promise<void> => {
+  currentPage.value = page
+  const data = await getDnsEvents(currentPage.value, pageSize.value)
   events.value = data?.items || []
+  totalCount.value = data?.totalCount || 0
+  totalPages.value = data?.totalPages || Math.ceil(totalCount.value / pageSize.value) || 1
 }
 
 const handlePurge = async (): Promise<void> => {
   if (confirm('Purge historical DNS event records?')) {
     await purgeDnsEvents()
-    await loadLogs()
+    await loadLogs(1)
   }
 }
 
-onMounted(loadLogs)
+onMounted(() => loadLogs(1))
 </script>

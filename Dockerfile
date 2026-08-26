@@ -1,3 +1,15 @@
+# Node.js Build Stage for Vue 3 Client UI
+FROM node:22-alpine AS ui-build
+WORKDIR /src/Astrolabed.ClientUI
+
+# Install dependencies first for efficient layer caching
+COPY src/Astrolabed.ClientUI/package*.json ./
+RUN npm install
+
+# Copy source code and build client assets
+COPY src/Astrolabed.ClientUI/ .
+RUN npm run build
+
 # Multi-stage Dockerfile for Astrolabed DNS Engine (.NET 10)
 # Force SDK stage to run natively on the build host platform to cross-compile fast
 FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -10,7 +22,6 @@ COPY ["src/Astrolabed.Data/Astrolabed.Data.csproj", "Astrolabed.Data/"]
 COPY ["src/Astrolabed.Dns/Astrolabed.Dns.csproj", "Astrolabed.Dns/"]
 COPY ["src/Astrolabed.Core/Astrolabed.Core.csproj", "Astrolabed.Core/"]
 COPY ["src/Astrolabed.Main/Astrolabed.Main.csproj", "Astrolabed.Main/"]
-
 COPY src/ .
 WORKDIR "/src/Astrolabed.Main"
 
@@ -47,7 +58,11 @@ ENV DOCKER=true \
     DOTNET_GCDynamicAdaptationForMinMem=0 \
     DOTNET_SYSTEM_NET_SOCKETS_PERTHREAD_COMPLETION_PORT=1
 
+# Copy published .NET application binaries
 COPY --from=build /app/publish .
-RUN rm /app/publish/appsettings*.* -rf
 
+# Copy compiled Client UI assets to wwwroot for static serving
+COPY --from=ui-build /src/Astrolabed.ClientUI/dist /app/wwwroot
+
+RUN rm -f /app/appsettings*.*
 ENTRYPOINT ["dotnet", "Astrolabed.Main.dll"]

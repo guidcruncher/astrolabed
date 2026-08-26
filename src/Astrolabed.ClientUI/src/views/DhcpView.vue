@@ -38,8 +38,35 @@
               <button @click="handleRelease(lease)" class="text-xs text-rose-400 hover:text-rose-300">Release</button>
             </td>
           </tr>
+          <tr v-if="leases.length === 0">
+            <td colspan="5" class="p-4 text-center text-slate-500">No DHCP leases found.</td>
+          </tr>
         </tbody>
       </table>
+
+      <!-- Pagination Footer -->
+      <div class="p-4 bg-slate-800 border-t border-slate-700 flex items-center justify-between text-xs text-slate-400">
+        <div>
+          Showing {{ totalCount === 0 ? 0 : ((currentPage - 1) * pageSize) + 1 }} to {{ Math.min(currentPage * pageSize, totalCount) }} of {{ totalCount }} entries
+        </div>
+        <div class="flex items-center space-x-2">
+          <button
+            @click="fetchLeases(currentPage - 1)"
+            :disabled="currentPage <= 1"
+            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+          >
+            Previous
+          </button>
+          <span class="px-2 py-1 text-slate-300">Page {{ currentPage }} of {{ totalPages }}</span>
+          <button
+            @click="fetchLeases(currentPage + 1)"
+            :disabled="currentPage >= totalPages"
+            class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
 
     <div v-if="showModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
@@ -68,6 +95,11 @@ import type { DhcpLease, AllocateOrUpdateDhcpLeaseRequest, IPAddress } from '../
 
 const { getDhcpLeases, allocateDhcpLease, releaseDhcpLease } = useApi()
 const leases = ref<DhcpLease[]>([])
+const currentPage = ref<number>(1)
+const pageSize = ref<number>(10)
+const totalPages = ref<number>(1)
+const totalCount = ref<number>(0)
+
 const showModal = ref<boolean>(false)
 const form = ref<AllocateOrUpdateDhcpLeaseRequest>({
   clientId: '',
@@ -83,23 +115,26 @@ const formatIpAddress = (ipAddress?: IPAddress | string): string => {
   return ipAddress.address ? String(ipAddress.address) : '-'
 }
 
-const fetchLeases = async (): Promise<void> => {
-  const data = await getDhcpLeases()
+const fetchLeases = async (page = 1): Promise<void> => {
+  currentPage.value = page
+  const data = await getDhcpLeases(currentPage.value, pageSize.value)
   leases.value = data?.items || []
+  totalCount.value = data?.totalCount || 0
+  totalPages.value = data?.totalPages || Math.ceil(totalCount.value / pageSize.value) || 1
 }
 
 const handleAllocate = async (): Promise<void> => {
   await allocateDhcpLease(form.value)
   showModal.value = false
-  await fetchLeases()
+  await fetchLeases(currentPage.value)
 }
 
 const handleRelease = async (lease: DhcpLease): Promise<void> => {
   if (confirm(`Release lease for ${lease.clientName}?`)) {
     await releaseDhcpLease({ clientId: lease.clientId, macAddress: lease.macAddress })
-    await fetchLeases()
+    await fetchLeases(currentPage.value)
   }
 }
 
-onMounted(fetchLeases)
+onMounted(() => fetchLeases(1))
 </script>
