@@ -32,7 +32,7 @@ build: build-app build-client
 run: build
 	dotnet run --project $(PROJECT) -c $(CONFIG) --no-build
 
-dev:
+dev: build
 	dotnet run --project $(PROJECT) -c Development -- --environment Development
 
 benchmark:

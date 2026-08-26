@@ -16,7 +16,7 @@ export default defineConfig({
   ],
   build: {
     // Output static assets directly to the .NET project's wwwroot directory
-    outDir: path.resolve(__dirname, '../Astrolabed.Api/wwwroot'),
+    outDir: path.resolve(__dirname, '../../wwwroot'),
     emptyOutDir: true
   },
   server: {
