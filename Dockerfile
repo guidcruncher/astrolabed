@@ -62,7 +62,7 @@ ENV DOCKER=true \
 COPY --from=build /app/publish .
 
 # Copy compiled Client UI assets to wwwroot for static serving
-COPY --from=ui-build /src/Astrolabed.ClientUI/dist /app/wwwroot
+COPY --from=ui-build /wwwroot /app/wwwroot
 
 RUN rm -f /app/appsettings*.*
 ENTRYPOINT ["dotnet", "Astrolabed.Main.dll"]
