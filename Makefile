@@ -6,7 +6,7 @@ IMAGE_NAME = guidcruncher/astrolabed
 
 .PHONY: all build run clean restore test publish format dev dns ntp dhcp benchmark \
         docker-build docker-run docker-shell docker-run-dev docker-stop docker-publish docker-release \
-	db docs
+	db docs build-client build-app
 
 all: build
 
@@ -21,13 +21,18 @@ docs:
 restore:
 	dotnet restore $(SOLUTION)
 
-build: restore
+build-client:
+	cd ./src/Astrolabed.ClientUI && npm install && npm run build
+
+build-app: restore
 	dotnet build $(SOLUTION) -c $(CONFIG) --no-restore
+
+build: build-app build-client
 
 run: build
 	dotnet run --project $(PROJECT) -c $(CONFIG) --no-build
 
-dev:
+dev: build
 	dotnet run --project $(PROJECT) -c Development -- --environment Development
 
 benchmark:
@@ -57,6 +62,8 @@ clean:
 	rm -rf ./publish
 	find . -type d \( -name bin -o -name obj \) -exec rm -rf {} +
 	rm -rf ./_site ./api
+	rm -rf ./src/Astrolabed.Api/wwwwroot
+	rm -rf ./src/Astrolabed.ClientUI/node_modules
 
 format:
 	@for f in *.json; do \
@@ -107,7 +114,7 @@ docker-release:
 	docker buildx create --name astrolabed-builder --use --bootstrap
 	-docker buildx build \
 		--builder astrolabed-builder \
-		--platform linux/amd64,linux/arm64 \
+		--platform linux/arm64 \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
 		--tag docker.io/$(IMAGE_NAME):dev \

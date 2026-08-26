@@ -13,7 +13,6 @@ using Astrolabed.Ntp.Extensions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 /// <summary>
@@ -71,20 +70,15 @@ public static class Program
         WebApplication app = builder.Build();
 
         // Configure HTTP middleware pipeline
-        if (app.Environment.IsDevelopment())
-        {
-            app.UseSecurityHeaders();
-        }
+        app.UseSecurityHeaders();
 
         app.UseRouting();
 
-        if (app.Environment.IsDevelopment())
-        {
-            // Enable OpenAPI endpoints and Scalar UI in development
-            app.UseAstrolabedOpenApi(app.Configuration);
-        }
+        // Enable OpenAPI endpoints and Scalar UI in development
+        app.UseAstrolabedOpenApi(app.Configuration);
 
         app.MapControllers();
+        app.UseSpaHosting();
 
         // Perform explicit database initialization using WebApplication as IHost
         await app.InitializeDatabaseAsync().ConfigureAwait(false);
