@@ -52,7 +52,7 @@ public sealed class SecurityHeadersMiddleware
             headers.Append("Referrer-Policy", "strict-origin-when-cross-origin");
 
             // 6. Basic Content-Security-Policy restricting script/frame execution
-            headers.Append("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none';");
+            // headers.Append("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'; object-src 'none';");
 
             return Task.CompletedTask;
         });

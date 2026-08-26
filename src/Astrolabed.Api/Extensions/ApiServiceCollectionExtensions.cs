@@ -1,7 +1,10 @@
+namespace Astrolabed.Api.Extensions;
+
 using Astrolabed.Api.Options;
 using Astrolabed.Api.Services;
 
-namespace Astrolabed.Api.Extensions;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Extension methods for setting up Astrolabed API services in an <see cref="IServiceCollection"/>.
@@ -28,6 +31,9 @@ public static class ApiServiceCollectionExtensions
 
         services.AddControllers()
                 .AddApplicationPart(typeof(ApiServiceCollectionExtensions).Assembly);
+
+        // Register OpenAPI generator using passed configuration parameter
+        services.AddAstrolabedOpenApi(configuration);
 
         return services;
     }
