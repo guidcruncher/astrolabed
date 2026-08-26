@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 
+using Astrolabed.Data.Pagination;
 using Astrolabed.Dns.Options;
 
 using Microsoft.Extensions.Logging;
@@ -20,6 +21,19 @@ public sealed partial class DnsCache(
     private readonly ConcurrentQueue<DnsCacheKey> _evictionQueue = new();
     private readonly IOptionsMonitor<DnsEngineOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
     private readonly ILogger<DnsCache> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+    /// <summary>
+    /// Gets the number of items in the Cache
+    /// </summary>
+    public int Count { get { return _entries.Count; } }
+
+    /// <inheritdoc />
+    public PagedResult<CacheEntry> ToPagedResult(
+        int pageNumber,
+        int pageSize)
+    {
+        return _entries.ToPagedResult(pageNumber, pageSize);
+    }
 
     /// <inheritdoc />
     public bool TryGet(string domain, ushort qType, out ReadOnlyMemory<byte> payload)
@@ -72,6 +86,12 @@ public sealed partial class DnsCache(
         }
     }
 
+    /// <inheritdoc />
+    public void Clear()
+    {
+        _entries.Clear();
+    }
+
     private void PurgeExpiredOrLeastRecentlyUsed(int maxEntries)
     {
         DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -121,4 +141,5 @@ public sealed partial class DnsCache(
         public override int GetHashCode() =>
             HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Domain), QueryType);
     }
+
 }

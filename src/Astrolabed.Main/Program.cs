@@ -1,4 +1,7 @@
-// File: src/Astrolabed.Main/Program.cs
+namespace Astrolabed.Main;
+
+using Astrolabed.Api.Extensions;
+using Astrolabed.Api.Options;
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
 using Astrolabed.Dns.Events;
@@ -7,10 +10,11 @@ using Astrolabed.EventBus.Events;
 using Astrolabed.EventBus.Extensions;
 using Astrolabed.Ntp.Extensions;
 
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-
-namespace Astrolabed.Main;
 
 /// <summary>
 /// Application entry point and bootstrapping host builder for Astrolabed services.
@@ -23,35 +27,69 @@ public static class Program
     /// <param name="args">Command-line arguments.</param>
     public static async Task Main(string[] args)
     {
-        IHost host = Host.CreateDefaultBuilder(args)
-            .ConfigureLogging(logging =>
+        WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
+
+        // Logging configuration
+        builder.Logging.ClearProviders();
+        builder.Logging.AddConsole();
+
+        // Configure Kestrel web server
+        builder.WebHost.ConfigureKestrel((context, options) =>
+        {
+            options.AddServerHeader = false;
+
+            ApiOptions? apiOptions = context.Configuration
+                .GetSection(ApiOptions.SectionName)
+                .Get<ApiOptions>();
+
+            if (!string.IsNullOrWhiteSpace(apiOptions?.ApiEndpoint) &&
+                Uri.TryCreate(apiOptions.ApiEndpoint, UriKind.Absolute, out Uri? uri))
             {
-                logging.ClearProviders();
-                logging.AddConsole();
-            })
-            .ConfigureServices((context, services) =>
-            {
-                // 1. Unified Data Layer & Persistence Setup
-                services.AddAstrolabedData(context.Configuration);
+                // Bind Kestrel only to Scheme + Host + Port (e.g., http://localhost:5000)
+                string listenUrl = $"{uri.Scheme}://{uri.Host}:{uri.Port}";
+                builder.WebHost.UseUrls(listenUrl);
+            }
+        });
 
-                // 2. Event Broker Setup
-                services.AddRootEventBroker(context.Configuration);
+        // 1. Unified Data Layer & Persistence Setup
+        builder.Services.AddAstrolabedData(builder.Configuration);
 
-                // 3. Event Listeners
-                services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
+        // 2. Event Broker Setup
+        builder.Services.AddRootEventBroker(builder.Configuration);
 
-                // 4. Protocol Servers & Network Engines
-                services.AddNtpServer(context.Configuration);
-                services.AddDhcpServer(context.Configuration);
-                services.AddDnsServer(context.Configuration);
-            })
-            .Build();
+        // 3. Event Listeners
+        builder.Services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
-        // Perform explicit database initialization after DI container build and before engine execution
-        await host.InitializeDatabaseAsync().ConfigureAwait(false);
+        // 4. Protocol Servers & Network Engines
+        builder.Services.AddNtpServer(builder.Configuration);
+        builder.Services.AddDhcpServer(builder.Configuration);
+        builder.Services.AddDnsServer(builder.Configuration);
 
-        // Run application host asynchronously until process termination request
-        await host.RunAsync().ConfigureAwait(false);
+        // 5. API Module Registration
+        builder.Services.AddApi(builder.Configuration);
+
+        WebApplication app = builder.Build();
+
+        // Configure HTTP middleware pipeline
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSecurityHeaders();
+        }
+
+        app.UseRouting();
+
+        if (app.Environment.IsDevelopment())
+        {
+            // Enable OpenAPI endpoints and Scalar UI in development
+            app.UseAstrolabedOpenApi(app.Configuration);
+        }
+
+        app.MapControllers();
+
+        // Perform explicit database initialization using WebApplication as IHost
+        await app.InitializeDatabaseAsync().ConfigureAwait(false);
+
+        // Run application host
+        await app.RunAsync().ConfigureAwait(false);
     }
 }
-

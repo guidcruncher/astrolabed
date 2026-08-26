@@ -1,3 +1,5 @@
+using Astrolabed.Data.Pagination;
+
 namespace Astrolabed.Dns.Cache;
 
 /// <summary>
@@ -5,6 +7,22 @@ namespace Astrolabed.Dns.Cache;
 /// </summary>
 public interface IDnsCache
 {
+
+    /// <summary>
+    /// Gets the number of items in the Cache
+    /// </summary>
+    int Count { get; }
+
+    /// <summary>
+    /// Converts into a <see cref="PagedResult{CacheEntry}"/>.
+    /// </summary>
+    /// <param name="pageNumber">1-based page index.</param>
+    /// <param name="pageSize">Number of items per page.</param>
+    /// <returns>A populated <see cref="PagedResult{CacheEntry}"/> instance.</returns>
+    PagedResult<CacheEntry> ToPagedResult(
+        int pageNumber,
+        int pageSize);
+
     /// <summary>
     /// Attempts to retrieve a cached DNS response payload for the specified domain and record type.
     /// </summary>
@@ -32,4 +50,9 @@ public interface IDnsCache
     /// <param name="payload">The binary DNS response payload to store.</param>
     /// <param name="ttl">The time-to-live duration before the cached entry expires.</param>
     void Store(string domain, ushort qType, ReadOnlyMemory<byte> payload, TimeSpan ttl);
+
+    /// <summary>
+    /// Clears the Cache
+    /// </summary>
+    void Clear();
 }

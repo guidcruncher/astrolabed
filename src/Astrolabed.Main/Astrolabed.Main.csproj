@@ -32,6 +32,7 @@
     <ProjectReference Include="..\Astrolabed.Dhcp\Astrolabed.Dhcp.csproj" />
     <ProjectReference Include="..\Astrolabed.Ntp\Astrolabed.Ntp.csproj" />
     <ProjectReference Include="..\Astrolabed.EventBus\Astrolabed.EventBus.csproj" />
+    <ProjectReference Include="..\Astrolabed.Api\Astrolabed.Api.csproj" />
   </ItemGroup>
 
 </Project>

@@ -29,7 +29,7 @@ RUN case "${TARGETARCH}" in \
         /p:PublishReadyToRun=true
 
 # Runtime Stage automatically pulls the platform matching TARGETPLATFORM
-FROM mcr.microsoft.com/dotnet/runtime:10.0 AS final
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
 # Ensure directories exist for hosts and blocklist volumes
