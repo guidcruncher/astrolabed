@@ -118,7 +118,7 @@ const formatDate = (dateValue?: unknown): string => {
 
 const formatDnsType = (type?: number): string => {
   if (type === undefined || type === null) return 'UNKNOWN'
-  export const dnsTypeMap: Record<number, string> = {
+  const dnsTypeMap: Record<number, string> = {
     1: 'A',
     2: 'NS',
     3: 'MD',
