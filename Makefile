@@ -71,6 +71,7 @@ format:
 		echo "$$f"; \
 		tmp=$$(mktemp) && { jq '.' "$$f" > "$$tmp" && mv "$$tmp" "$$f" || rm -f "$$tmp"; }; \
 	done
+	cd ./src/Astrolabed.ClientUI && npm run format
 	dotnet format $(SOLUTION)
 
 docker-build:

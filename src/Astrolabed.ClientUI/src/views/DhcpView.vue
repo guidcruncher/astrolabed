@@ -2,12 +2,7 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DHCP Leases</h2>
-      <button
-        @click="showModal = true"
-        class="bg-sky-600 hover:bg-sky-500 text-white px-4 py-2 rounded-md text-sm font-medium"
-      >
-        Allocate / Renew Lease
-      </button>
+      <AppButton variant="primary" @click="showModal = true"> Allocate / Renew Lease </AppButton>
     </div>
 
     <DataGrid
@@ -43,30 +38,57 @@
       </template>
 
       <template #cell-actions="{ row }">
-        <button 
-          @click.stop="handleRelease(row)" 
-          class="text-xs text-rose-400 hover:text-rose-300"
-        >
+        <button @click.stop="handleRelease(row)" class="text-xs text-rose-400 hover:text-rose-300">
           Release
         </button>
       </template>
 
-      <template #empty>
-        No DHCP leases found.
-      </template>
+      <template #empty> No DHCP leases found. </template>
     </DataGrid>
 
     <div v-if="showModal" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4">
       <div class="bg-slate-800 rounded-lg p-6 max-w-md w-full border border-slate-700">
         <h3 class="text-lg font-bold mb-4">Allocate DHCP Lease</h3>
         <form @submit.prevent="handleAllocate" class="space-y-4">
-          <input v-model="form.clientId" placeholder="Client ID (e.g. DUID)" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" required />
-          <input v-model="form.clientName" placeholder="Client Hostname" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" required />
-          <input v-model="form.macAddress" placeholder="MAC Address" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" required />
-          <input v-model="form.requestedIp" placeholder="Requested IP" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" required />
-          <input v-model.number="form.durationInSeconds" type="number" placeholder="Duration (seconds)" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white" required />
+          <input
+            v-model="form.clientId"
+            placeholder="Client ID (e.g. DUID)"
+            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white"
+            required
+          />
+          <input
+            v-model="form.clientName"
+            placeholder="Client Hostname"
+            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white"
+            required
+          />
+          <input
+            v-model="form.macAddress"
+            placeholder="MAC Address"
+            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white"
+            required
+          />
+          <input
+            v-model="form.requestedIp"
+            placeholder="Requested IP"
+            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white"
+            required
+          />
+          <input
+            v-model.number="form.durationInSeconds"
+            type="number"
+            placeholder="Duration (seconds)"
+            class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-white"
+            required
+          />
           <div class="flex justify-end space-x-2">
-            <button type="button" @click="showModal = false" class="px-4 py-2 bg-slate-700 text-sm rounded">Cancel</button>
+            <button
+              type="button"
+              @click="showModal = false"
+              class="px-4 py-2 bg-slate-700 text-sm rounded"
+            >
+              Cancel
+            </button>
             <button type="submit" class="px-4 py-2 bg-sky-600 text-sm rounded">Save</button>
           </div>
         </form>
@@ -92,7 +114,7 @@ const columns: Column[] = [
   { key: 'ipAddress', label: 'IP Address' },
   { key: 'macAddress', label: 'MAC Address' },
   { key: 'isActive', label: 'Status' },
-  { key: 'actions', label: 'Actions' }
+  { key: 'actions', label: 'Actions' },
 ]
 
 const showModal = ref<boolean>(false)
@@ -101,7 +123,7 @@ const form = ref<AllocateOrUpdateDhcpLeaseRequest>({
   clientName: '',
   macAddress: '',
   requestedIp: '',
-  durationInSeconds: 86400
+  durationInSeconds: 86400,
 })
 
 const formatIpAddress = (ipAddress?: IPAddress | string): string => {

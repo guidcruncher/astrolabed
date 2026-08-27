@@ -2,12 +2,7 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Discovered LAN Devices</h2>
-      <button 
-        @click="handleCleanup" 
-        class="bg-amber-600 hover:bg-amber-500 text-white px-3 py-1.5 rounded text-sm transition-colors"
-      >
-        Purge Stale Devices
-      </button>
+      <AppButton variant="warn" @click="handleCleanup"> Purge Stale Devices </AppButton>
     </div>
 
     <DataGrid
@@ -35,13 +30,11 @@
 
       <template #cell-lastSeen="{ value }">
         <span class="text-xs text-slate-400">
-          {{ value ? new Date(value).toLocaleString() : '-' }}
+          {{ value ? formatDate(value) : '-' }}
         </span>
       </template>
 
-      <template #empty>
-        No discovered LAN devices found.
-      </template>
+      <template #empty> No discovered LAN devices found. </template>
     </DataGrid>
   </div>
 </template>
@@ -63,8 +56,19 @@ const columns: Column[] = [
   { key: 'hostName', label: 'Host Name' },
   { key: 'ipAddress', label: 'IP Address' },
   { key: 'macAddress', label: 'MAC Address' },
-  { key: 'lastSeen', label: 'Last Seen' }
+  { key: 'lastSeen', label: 'Last Seen' },
 ]
+
+const formatDate = (dateValue?: unknown): string => {
+  if (
+    !dateValue ||
+    (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))
+  ) {
+    return 'N/A'
+  }
+  const parsed = new Date(dateValue)
+  return isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleString()
+}
 
 const loadDevices = async (): Promise<void> => {
   const res = await getNetworkDevices(currentPage.value, pageSize.value)

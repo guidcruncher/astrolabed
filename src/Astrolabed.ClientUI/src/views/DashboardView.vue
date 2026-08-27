@@ -5,7 +5,10 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h3 class="text-sm font-semibold text-slate-400 uppercase">Operational Status</h3>
-        <p class="text-2xl font-bold mt-2" :class="status?.status === 'Healthy' ? 'text-emerald-400' : 'text-amber-400'">
+        <p
+          class="text-2xl font-bold mt-2"
+          :class="status?.status === 'Healthy' ? 'text-emerald-400' : 'text-amber-400'"
+        >
           {{ status?.status || 'Loading...' }}
         </p>
         <span class="text-xs text-slate-500 mt-4 block">
@@ -15,13 +18,10 @@
 
       <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h3 class="text-sm font-semibold text-slate-400 uppercase">Cached DNS Items</h3>
-        <p class="text-3xl font-bold mt-2 text-sky-400">{{ cacheCount !== null ? cacheCount : '-' }}</p>
-        <button
-          @click="handleClearCache"
-          class="mt-4 text-xs bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded transition"
-        >
-          Purge DNS Cache
-        </button>
+        <p class="text-3xl font-bold mt-2 text-sky-400">
+          {{ cacheCount !== null ? cacheCount : '-' }}
+        </p>
+        <AppButton variant="danger" @click="handleClearCache"> Purge DNS Cache </AppButton>
       </div>
     </div>
   </div>
