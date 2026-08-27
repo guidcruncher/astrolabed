@@ -16,25 +16,13 @@ export interface CacheCountResponse {
   timestamp: string;
 }
 
-export interface CacheEntry {
-  payload?: string;
-  expiresAt: string;
-  isExpired?: boolean;
-}
-
-export interface PagedResult<T> {
-  items: T[];
-  totalCount: number;
-  pageSize: number;
-  totalPages?: number;
-  pageNumber?: number;
-  currentPage?: number;
-  hasPreviousPage?: boolean;
-  hasNextPage?: boolean;
-}
+export type AddressFamily = number;
+export type DnsOpCode = number;
+export type DnsResponseCode = number;
+export type DnsType = number;
 
 export interface IPAddress {
-  addressFamily?: number;
+  addressFamily?: AddressFamily;
   scopeId?: number;
   isIPv6Multicast?: boolean;
   isIPv6LinkLocal?: boolean;
@@ -45,11 +33,57 @@ export interface IPAddress {
   address?: number;
 }
 
+export interface EdnsOptionCode {
+  code?: number;
+  data?: string;
+}
+
+export interface EdnsOptions {
+  udpPayloadSize?: number;
+  extendedRCode?: number;
+  version?: number;
+  dnssecOk?: boolean;
+  options?: EdnsOptionCode[] | null;
+}
+
+export interface DnsResourceRecord {
+  name?: string;
+  type?: DnsType;
+  class?: number;
+  ttl?: number;
+  data?: string;
+  parsedIp?: IPAddress | null;
+}
+
+export interface DnsWireMessage {
+  transactionId?: number;
+  isResponse?: boolean;
+  opCode?: DnsOpCode;
+  authoritativeAnswer?: boolean;
+  truncated?: boolean;
+  recursionDesired?: boolean;
+  recursionAvailable?: boolean;
+  responseCode?: DnsResponseCode;
+  questionName?: string;
+  questionType?: DnsType;
+  questionClass?: number;
+  answers?: DnsResourceRecord[] | null;
+  authorities?: DnsResourceRecord[] | null;
+  additionals?: DnsResourceRecord[] | null;
+  edns?: EdnsOptions | null;
+}
+
+export interface CacheEntryView {
+  payload: DnsWireMessage;
+  expiresAt: string;
+  isExpired?: boolean;
+}
+
 export interface DhcpLease {
   clientId: string;
   clientName: string;
   macAddress: string;
-  ipAddress?: IPAddress | string;
+  ipAddress: IPAddress;
   leaseStartTime?: string;
   leaseEndTime?: string;
   isActive?: boolean;
@@ -90,4 +124,44 @@ export interface DiscoveredLanDeviceDto {
 
 export interface CleanupStaleDevicesRequest {
   cutoff: string;
+}
+
+export interface PagedResultDtoOfDhcpLease {
+  items: DhcpLease[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+export interface PagedResultOfCacheEntryView {
+  items: CacheEntryView[];
+  totalCount: number;
+  pageSize: number;
+  totalPages?: number;
+  currentPage?: number;
+  hasPreviousPage?: boolean;
+  hasNextPage?: boolean;
+}
+
+export interface PagedResultOfDiscoveredLanDeviceDto {
+  items: DiscoveredLanDeviceDto[];
+  totalCount: number;
+  pageSize: number;
+  totalPages?: number;
+  currentPage?: number;
+  hasPreviousPage?: boolean;
+  hasNextPage?: boolean;
+}
+
+export interface PagedResultOfDnsResponseEventEntity {
+  items: DnsResponseEventEntity[];
+  totalCount: number;
+  pageSize: number;
+  totalPages?: number;
+  currentPage?: number;
+  hasPreviousPage?: boolean;
+  hasNextPage?: boolean;
 }

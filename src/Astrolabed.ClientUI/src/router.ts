@@ -11,6 +11,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('./views/DashboardView.vue')
       },
       {
+        path: 'cache',
+        name: 'Cache',
+        component: () => import('./views/CacheListView.vue')
+      },
+      {
         path: 'dhcp',
         name: 'DHCP',
         component: () => import('./views/DhcpView.vue')

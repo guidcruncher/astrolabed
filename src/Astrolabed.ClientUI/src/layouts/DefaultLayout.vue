@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
   { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
   { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
+  { label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
   { label: 'Network Devices', shortLabel: 'NET', to: '/network' }
 ]
 

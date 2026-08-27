@@ -78,12 +78,12 @@ public sealed class CacheController : ControllerBase
     /// </remarks>
     /// <param name="pageNumber">1-based page index. Must be greater than or equal to 1. Defaults to 1.</param>
     /// <param name="pageSize">Number of items per page. Clamped between 1 and 100. Defaults to 10.</param>
-    /// <returns>A paged result container holding <see cref="CacheEntry"/> items.</returns>
+    /// <returns>A paged result container holding <see cref="CacheEntryView"/> items.</returns>
     /// <response code="200">Successfully retrieved the requested page of cache entries.</response>
     /// <response code="400">The provided page number or page size was invalid.</response>
     /// <response code="500">An unexpected internal error occurred.</response>
     [HttpGet]
-    [ProducesResponseType(typeof(PagedResult<CacheEntry>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(PagedResult<CacheEntryView>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public ActionResult<PagedResult<KeyValuePair<string, CacheEntryView>>> GetCachedRecords(
