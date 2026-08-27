@@ -15,7 +15,7 @@ import type {
   ProblemDetails,
 } from '../types/api'
 
-const apiBaseUrl = ref<string>('http://192.168.1.202:8001/')
+const apiBaseUrl = ref<string>('')
 
 export function useApi() {
   const loading = ref<boolean>(false)
