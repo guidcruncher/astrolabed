@@ -27,8 +27,8 @@
               class="p-4"
               :class="col.cellClass"
             >
-              <slot :name="`cell-${col.key}`" :row="item" :value="item[col.key]">
-                {{ item[col.key] }}
+              <slot :name="getSlotName(col.key)" :row="item" :value="getNestedValue(item, col.key)">
+                  {{ getNestedValue(item, col.key) ?? '-' }}
               </slot>
             </td>
           </tr>
@@ -113,6 +113,17 @@ const emit = defineEmits<{
 }>()
 
 const totalPages = computed(() => Math.ceil(props.totalCount / props.pageSize) || 1)
+
+// Resolve deep property paths (e.g., 'f.g' -> item.f.g)
+const getNestedValue = (obj: Record<string, any>, path: string) => {
+  if (!obj || !path) return undefined
+  return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj)
+}
+
+// Normalize slot names so paths like 'payload.questionName' become 'payload-questionName'
+const getSlotName = (key: string) => {
+  return `cell-${key.replace(/\./g, '-')}`
+}
 
 const changePage = (newPage: number) => {
   if (newPage >= 1 && newPage <= totalPages.value) {

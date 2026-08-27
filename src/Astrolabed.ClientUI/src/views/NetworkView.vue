@@ -34,7 +34,7 @@
 
       <template #cell-lastSeen="{ value }">
         <span class="text-xs text-slate-400">
-          {{ value ? new Date(value).toLocaleString() : '-' }}
+          {{ value ? formatDate(value) : '-' }}
         </span>
       </template>
 
@@ -64,6 +64,14 @@ const columns: Column[] = [
   { key: 'macAddress', label: 'MAC Address' },
   { key: 'lastSeen', label: 'Last Seen' }
 ]
+
+const formatDate = (dateValue?: unknown): string => {
+  if (!dateValue || (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))) {
+    return 'N/A'
+  }
+  const parsed = new Date(dateValue)
+  return isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleString()
+}
 
 const loadDevices = async (): Promise<void> => {
   const res = await getNetworkDevices(currentPage.value, pageSize.value)

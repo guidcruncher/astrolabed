@@ -18,26 +18,30 @@
       @row-select="handleRowSelect"
       @loaded="handleGridLoaded"
     >
-      <template #cell-questionName="{ row }">
-        <span class="font-medium text-white">{{ row.payload?.questionName || 'N/A' }}</span>
-      </template>
-
-      <template #cell-questionType="{ row }">
-        <span class="bg-slate-700 text-xs px-2 py-0.5 rounded">
-          {{ formatDnsType(row.payload?.questionType) }}
+      <template #cell-value-payload-questionName="{ row, value }">
+        <span class="font-medium text-white">
+          {{ typeof value === 'string' ? value : row.payload?.questionName || 'N/A' }}
         </span>
       </template>
 
-      <template #cell-expiresAt="{ value }">
-        <span class="font-mono text-xs">{{ formatDate(value) }}</span>
+      <template #cell-value-payload-questionType="{ row, value }">
+        <span class="bg-slate-700 text-xs px-2 py-0.5 rounded">
+          {{ formatDnsType(typeof value === 'number' ? value : row.payload?.questionType) }}
+        </span>
       </template>
 
-      <template #cell-status="{ row }">
+      <template #cell-value-expiresAt="{ row, value }">
+        <span class="font-mono text-xs">
+          {{ formatDate(value ?? row.expiresAt) }}
+        </span>
+      </template>
+
+      <template #cell-value-isExpired="{ row, value }">
         <span
           class="text-xs px-2 py-0.5 rounded font-medium"
-          :class="row.isExpired ? 'bg-red-900/50 text-red-300' : 'bg-green-900/50 text-green-300'"
+          :class="(value ?? row.isExpired) ? 'bg-red-900/50 text-red-300' : 'bg-green-900/50 text-green-300'"
         >
-          {{ row.isExpired ? 'Expired' : 'Active' }}
+          {{ (value ?? row.isExpired) ? 'Expired' : 'Active' }}
         </span>
       </template>
 
@@ -62,10 +66,10 @@ const pageSize = ref<number>(10)
 const totalCount = ref<number>(0)
 
 const columns: Column[] = [
-  { key: 'questionName', label: 'Domain Question' },
-  { key: 'questionType', label: 'Type' },
-  { key: 'expiresAt', label: 'Expiration' },
-  { key: 'status', label: 'Status' }
+  { key: 'value.payload.questionName', label: 'Domain Question' },
+  { key: 'value.payload.questionType', label: 'Type' },
+  { key: 'value.expiresAt', label: 'Expiration' },
+  { key: 'value.isExpired', label: 'Status' }
 ]
 
 const loadCache = async (): Promise<void> => {
@@ -101,9 +105,12 @@ const handleClear = async (): Promise<void> => {
   }
 }
 
-const formatDate = (dateString?: string): string => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleString()
+const formatDate = (dateValue?: unknown): string => {
+  if (!dateValue || (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))) {
+    return 'N/A'
+  }
+  const parsed = new Date(dateValue)
+  return isNaN(parsed.getTime()) ? 'N/A' : parsed.toLocaleString()
 }
 
 const formatDnsType = (type?: number): string => {
