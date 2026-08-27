@@ -38,7 +38,7 @@ public sealed partial class DnsCache(
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
 
         KeyValuePair<DnsCacheKey, CacheEntry>[] snapshot = _entries.ToArray();
-        int totalCount = snapshot.Length;
+        int totalCount = _entries.Count;
 
         int skip = (pageNumber - 1) * pageSize;
         if (skip >= totalCount)
@@ -73,9 +73,9 @@ public sealed partial class DnsCache(
 
         return new PagedResult<KeyValuePair<string, CacheEntryView>>(
             pageItems,
+            totalCount,
             pageNumber,
-            pageSize,
-            totalCount);
+            pageSize);
     }
 
     /// <inheritdoc />
