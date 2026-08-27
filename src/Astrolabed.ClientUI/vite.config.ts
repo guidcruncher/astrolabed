@@ -11,16 +11,16 @@ export default defineConfig({
       dirs: ['src/components', 'src/layouts', 'src/views'],
       extensions: ['vue'],
       deep: true,
-      dts: 'src/components.d.ts' // Generates TypeScript declarations automatically
-    })
+      dts: 'src/components.d.ts', // Generates TypeScript declarations automatically
+    }),
   ],
   build: {
     // Output static assets directly to the .NET project's wwwroot directory
     outDir: path.resolve(__dirname, '../../wwwroot'),
-    emptyOutDir: true
+    emptyOutDir: true,
   },
   server: {
     port: 8002,
-    host: true
-  }
+    host: true,
+  },
 })

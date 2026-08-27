@@ -2,17 +2,12 @@
   <aside
     :class="[
       'bg-slate-800 border-b md:border-b-0 md:border-r border-slate-700 p-4 transition-all duration-300 flex flex-col',
-      isCollapsed ? 'w-full md:w-20' : 'w-full md:w-64'
+      isCollapsed ? 'w-full md:w-20' : 'w-full md:w-64',
     ]"
   >
     <!-- Header & Collapse Toggle -->
     <div class="flex items-center justify-between">
-      <h1
-        v-if="!isCollapsed"
-        class="text-xl font-bold text-sky-400 truncate"
-      >
-        Astrolabed UI
-      </h1>
+      <h1 v-if="!isCollapsed" class="text-xl font-bold text-sky-400 truncate">Astrolabed UI</h1>
       <button
         type="button"
         class="hidden md:flex items-center justify-center p-1.5 rounded-md text-slate-400 hover:text-white hover:bg-slate-700 transition-colors"
@@ -67,9 +62,9 @@ const props = withDefaults(defineProps<Props>(), {
     { label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
     { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
     { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
-    { label: 'Network Devices', shortLabel: 'NET', to: '/network' }
+    { label: 'Network Devices', shortLabel: 'NET', to: '/network' },
   ],
-  defaultCollapsed: false
+  defaultCollapsed: false,
 })
 
 const emit = defineEmits<{

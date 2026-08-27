@@ -2,9 +2,7 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DNS Cache Entries</h2>
-      <AppButton variant="danger" @click="handleClear">
-        Clear DNS Cache
-      </AppButton>
+      <AppButton variant="danger" @click="handleClear"> Clear DNS Cache </AppButton>
     </div>
 
     <DataGrid
@@ -39,15 +37,17 @@
       <template #cell-value-isExpired="{ row, value }">
         <span
           class="text-xs px-2 py-0.5 rounded font-medium"
-          :class="(value ?? row.isExpired) ? 'bg-red-900/50 text-red-300' : 'bg-green-900/50 text-green-300'"
+          :class="
+            (value ?? row.isExpired)
+              ? 'bg-red-900/50 text-red-300'
+              : 'bg-green-900/50 text-green-300'
+          "
         >
           {{ (value ?? row.isExpired) ? 'Expired' : 'Active' }}
         </span>
       </template>
 
-      <template #empty>
-        No cached DNS entries found.
-      </template>
+      <template #empty> No cached DNS entries found. </template>
     </DataGrid>
   </div>
 </template>
@@ -69,7 +69,7 @@ const columns: Column[] = [
   { key: 'value.payload.questionName', label: 'Domain Question' },
   { key: 'value.payload.questionType', label: 'Type' },
   { key: 'value.expiresAt', label: 'Expiration' },
-  { key: 'value.isExpired', label: 'Status' }
+  { key: 'value.isExpired', label: 'Status' },
 ]
 
 const loadCache = async (): Promise<void> => {
@@ -106,7 +106,10 @@ const handleClear = async (): Promise<void> => {
 }
 
 const formatDate = (dateValue?: unknown): string => {
-  if (!dateValue || (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))) {
+  if (
+    !dateValue ||
+    (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))
+  ) {
     return 'N/A'
   }
   const parsed = new Date(dateValue)
@@ -125,7 +128,7 @@ const formatDnsType = (type?: number): string => {
     16: 'TXT',
     28: 'AAAA',
     33: 'SRV',
-    41: 'OPT'
+    41: 'OPT',
   }
   return dnsTypeMap[type] || `TYPE_${type}`
 }

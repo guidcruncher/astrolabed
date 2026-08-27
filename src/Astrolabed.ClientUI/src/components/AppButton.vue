@@ -4,7 +4,7 @@
     :disabled="disabled"
     :class="[
       'px-4 py-2 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2',
-      disabled ? disabledClasses : variantClasses[variant]
+      disabled ? disabledClasses : variantClasses[variant],
     ]"
     @click="handleClick"
   >
@@ -24,7 +24,7 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   variant: 'default',
   disabled: false,
-  type: 'button'
+  type: 'button',
 })
 
 const emit = defineEmits<{
@@ -38,7 +38,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   default: 'bg-slate-700 hover:bg-slate-600 text-white focus:ring-slate-500',
   okay: 'bg-emerald-600 hover:bg-emerald-500 text-white focus:ring-emerald-500',
   warn: 'bg-amber-600 hover:bg-amber-500 text-white focus:ring-amber-500',
-  danger: 'bg-rose-600 hover:bg-rose-500 text-white focus:ring-rose-500'
+  danger: 'bg-rose-600 hover:bg-rose-500 text-white focus:ring-rose-500',
 }
 
 function handleClick(event: MouseEvent): void {
@@ -47,4 +47,3 @@ function handleClick(event: MouseEvent): void {
   }
 }
 </script>
-

@@ -2,11 +2,7 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Discovered LAN Devices</h2>
-      <AppButton variant="warn" 
-        @click="handleCleanup" 
-      >
-        Purge Stale Devices
-      </AppButton>
+      <AppButton variant="warn" @click="handleCleanup"> Purge Stale Devices </AppButton>
     </div>
 
     <DataGrid
@@ -38,9 +34,7 @@
         </span>
       </template>
 
-      <template #empty>
-        No discovered LAN devices found.
-      </template>
+      <template #empty> No discovered LAN devices found. </template>
     </DataGrid>
   </div>
 </template>
@@ -62,11 +56,14 @@ const columns: Column[] = [
   { key: 'hostName', label: 'Host Name' },
   { key: 'ipAddress', label: 'IP Address' },
   { key: 'macAddress', label: 'MAC Address' },
-  { key: 'lastSeen', label: 'Last Seen' }
+  { key: 'lastSeen', label: 'Last Seen' },
 ]
 
 const formatDate = (dateValue?: unknown): string => {
-  if (!dateValue || (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))) {
+  if (
+    !dateValue ||
+    (typeof dateValue !== 'string' && typeof dateValue !== 'number' && !(dateValue instanceof Date))
+  ) {
     return 'N/A'
   }
   const parsed = new Date(dateValue)

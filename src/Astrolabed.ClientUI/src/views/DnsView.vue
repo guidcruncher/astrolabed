@@ -2,11 +2,7 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DNS Event Logs</h2>
-      <AppButton variant="danger" 
-        @click="handlePurge" 
-      >
-        Purge Log History
-      </AppButton>
+      <AppButton variant="danger" @click="handlePurge"> Purge Log History </AppButton>
     </div>
 
     <DataGrid
@@ -40,9 +36,7 @@
         <span class="font-mono text-xs">{{ value }} ms</span>
       </template>
 
-      <template #empty>
-        No DNS event logs found.
-      </template>
+      <template #empty> No DNS event logs found. </template>
     </DataGrid>
   </div>
 </template>
@@ -65,7 +59,7 @@ const columns: Column[] = [
   { key: 'questionType', label: 'Type' },
   { key: 'resolutionSource', label: 'Source' },
   { key: 'client', label: 'Client' },
-  { key: 'durationMs', label: 'Latency' }
+  { key: 'durationMs', label: 'Latency' },
 ]
 
 const loadLogs = async (): Promise<void> => {

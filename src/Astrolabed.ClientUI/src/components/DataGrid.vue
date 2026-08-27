@@ -4,31 +4,21 @@
       <table class="w-full text-left text-sm text-slate-300">
         <thead class="bg-slate-700/50 text-slate-400 uppercase text-xs">
           <tr>
-            <th 
-              v-for="col in columns" 
-              :key="col.key" 
-              class="p-4"
-              :class="col.headerClass"
-            >
+            <th v-for="col in columns" :key="col.key" class="p-4" :class="col.headerClass">
               {{ col.label }}
             </th>
           </tr>
         </thead>
         <tbody>
-          <tr 
-            v-for="(item, index) in data" 
-            :key="item.id ?? index" 
+          <tr
+            v-for="(item, index) in data"
+            :key="item.id ?? index"
             @click="handleRowClick(item)"
             class="border-t border-slate-700 hover:bg-slate-750/50 transition-colors cursor-pointer"
           >
-            <td 
-              v-for="col in columns" 
-              :key="col.key" 
-              class="p-4"
-              :class="col.cellClass"
-            >
+            <td v-for="col in columns" :key="col.key" class="p-4" :class="col.cellClass">
               <slot :name="getSlotName(col.key)" :row="item" :value="getNestedValue(item, col.key)">
-                  {{ getNestedValue(item, col.key) ?? '-' }}
+                {{ getNestedValue(item, col.key) ?? '-' }}
               </slot>
             </td>
           </tr>
@@ -41,12 +31,15 @@
       </table>
     </div>
 
-    <div class="p-4 bg-slate-800 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400">
+    <div
+      class="p-4 bg-slate-800 border-t border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-400"
+    >
       <div class="flex items-center space-x-4">
         <div>
-          Showing {{ totalCount === 0 ? 0 : ((page - 1) * pageSize) + 1 }} to {{ Math.min(page * pageSize, totalCount) }} of {{ totalCount }} entries
+          Showing {{ totalCount === 0 ? 0 : (page - 1) * pageSize + 1 }} to
+          {{ Math.min(page * pageSize, totalCount) }} of {{ totalCount }} entries
         </div>
-        
+
         <div class="flex items-center space-x-2">
           <label for="pageSizeSelect" class="text-slate-400">Per page:</label>
           <select
@@ -117,7 +110,9 @@ const totalPages = computed(() => Math.ceil(props.totalCount / props.pageSize) |
 // Resolve deep property paths (e.g., 'f.g' -> item.f.g)
 const getNestedValue = (obj: Record<string, any>, path: string) => {
   if (!obj || !path) return undefined
-  return path.split('.').reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj)
+  return path
+    .split('.')
+    .reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), obj)
 }
 
 // Normalize slot names so paths like 'payload.questionName' become 'payload-questionName'
@@ -155,4 +150,3 @@ onMounted(() => {
   emit('loaded')
 })
 </script>
-

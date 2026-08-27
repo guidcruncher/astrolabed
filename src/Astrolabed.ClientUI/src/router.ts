@@ -8,35 +8,35 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: '',
         name: 'Dashboard',
-        component: () => import('./views/DashboardView.vue')
+        component: () => import('./views/DashboardView.vue'),
       },
       {
         path: 'cache',
         name: 'Cache',
-        component: () => import('./views/CacheListView.vue')
+        component: () => import('./views/CacheListView.vue'),
       },
       {
         path: 'dhcp',
         name: 'DHCP',
-        component: () => import('./views/DhcpView.vue')
+        component: () => import('./views/DhcpView.vue'),
       },
       {
         path: 'dns',
         name: 'DNS',
-        component: () => import('./views/DnsView.vue')
+        component: () => import('./views/DnsView.vue'),
       },
       {
         path: 'network',
         name: 'Network',
-        component: () => import('./views/NetworkView.vue')
-      }
-    ]
-  }
+        component: () => import('./views/NetworkView.vue'),
+      },
+    ],
+  },
 ]
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
 })
 
 export default router

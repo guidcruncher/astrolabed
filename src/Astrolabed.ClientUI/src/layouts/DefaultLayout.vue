@@ -14,18 +14,16 @@
 
 <script setup lang="ts">
 import { type NavItem } from '../types/types'
- 
+
 const navItems: NavItem[] = [
   { label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
   { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
   { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
   { label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
-  { label: 'Network Devices', shortLabel: 'NET', to: '/network' }
+  { label: 'Network Devices', shortLabel: 'NET', to: '/network' },
 ]
 
-function onSidebarCollapse(isCollapsed: boolean): void {
-}
+function onSidebarCollapse(isCollapsed: boolean): void {}
 
-function onNavItemClick(item: NavItem): void {
-}
+function onNavItemClick(item: NavItem): void {}
 </script>

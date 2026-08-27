@@ -12,7 +12,7 @@ import type {
   ReleaseDhcpLeaseRequest,
   DnsResponseEventEntity,
   DiscoveredLanDeviceDto,
-  ProblemDetails
+  ProblemDetails,
 } from '../types/api'
 
 const apiBaseUrl = ref<string>('http://192.168.1.202:8001/')
@@ -25,21 +25,25 @@ export function useApi() {
     loading.value = true
     error.value = null
     try {
-      const baseUrl = apiBaseUrl.value.endsWith('/') ? apiBaseUrl.value.slice(0, -1) : apiBaseUrl.value
+      const baseUrl = apiBaseUrl.value.endsWith('/')
+        ? apiBaseUrl.value.slice(0, -1)
+        : apiBaseUrl.value
       const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
       const url = `${baseUrl}${path}`
 
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers
+          ...options.headers,
         },
-        ...options
+        ...options,
       })
 
       if (!response.ok) {
         const problem: ProblemDetails | null = await response.json().catch(() => null)
-        throw new Error(problem?.detail || problem?.title || `HTTP ${response.status}: ${response.statusText}`)
+        throw new Error(
+          problem?.detail || problem?.title || `HTTP ${response.status}: ${response.statusText}`
+        )
       }
 
       if (response.status === 204) {
@@ -67,12 +71,13 @@ export function useApi() {
   const getCacheEntries = (pageNumber = 1, pageSize = 10): Promise<PagedResultOfCacheEntryView> =>
     request<PagedResultOfCacheEntryView>(`/api/Cache?pageNumber=${pageNumber}&pageSize=${pageSize}`)
 
-  const clearCache = (): Promise<void> =>
-    request<void>('/api/Cache', { method: 'DELETE' })
+  const clearCache = (): Promise<void> => request<void>('/api/Cache', { method: 'DELETE' })
 
   // --- DHCP ---
   const getDhcpLeases = (pageNumber = 1, pageSize = 10): Promise<PagedResultDtoOfDhcpLease> =>
-    request<PagedResultDtoOfDhcpLease>(`/api/Dhcp/leases?pageNumber=${pageNumber}&pageSize=${pageSize}`)
+    request<PagedResultDtoOfDhcpLease>(
+      `/api/Dhcp/leases?pageNumber=${pageNumber}&pageSize=${pageSize}`
+    )
 
   const getDhcpLease = (params: { clientId?: string; macAddress?: string }): Promise<DhcpLease> => {
     const query = new URLSearchParams()
@@ -88,7 +93,9 @@ export function useApi() {
     request<DhcpLease>(`/api/Dhcp/lease/ip/${encodeURIComponent(ipAddress)}`)
 
   const checkDhcpAvailability = (ipAddress: string, clientId: string): Promise<boolean> =>
-    request<boolean>(`/api/Dhcp/availability?ipAddress=${encodeURIComponent(ipAddress)}&clientId=${encodeURIComponent(clientId)}`)
+    request<boolean>(
+      `/api/Dhcp/availability?ipAddress=${encodeURIComponent(ipAddress)}&clientId=${encodeURIComponent(clientId)}`
+    )
 
   const allocateDhcpLease = (payload: AllocateOrUpdateDhcpLeaseRequest): Promise<DhcpLease> =>
     request<DhcpLease>('/api/Dhcp/lease', { method: 'POST', body: JSON.stringify(payload) })
@@ -97,18 +104,27 @@ export function useApi() {
     request<void>('/api/Dhcp/lease/release', { method: 'POST', body: JSON.stringify(payload) })
 
   // --- DNS ---
-  const getDnsEvents = (pageNumber = 1, pageSize = 10): Promise<PagedResultOfDnsResponseEventEntity> =>
-    request<PagedResultOfDnsResponseEventEntity>(`/api/Dns?pageNumber=${pageNumber}&pageSize=${pageSize}`)
+  const getDnsEvents = (
+    pageNumber = 1,
+    pageSize = 10
+  ): Promise<PagedResultOfDnsResponseEventEntity> =>
+    request<PagedResultOfDnsResponseEventEntity>(
+      `/api/Dns?pageNumber=${pageNumber}&pageSize=${pageSize}`
+    )
 
   const getDnsEventById = (id: string): Promise<DnsResponseEventEntity> =>
     request<DnsResponseEventEntity>(`/api/Dns/${encodeURIComponent(id)}`)
 
-  const purgeDnsEvents = (): Promise<void> =>
-    request<void>('/api/Dns', { method: 'DELETE' })
+  const purgeDnsEvents = (): Promise<void> => request<void>('/api/Dns', { method: 'DELETE' })
 
   // --- Network ---
-  const getNetworkDevices = (pageNumber = 1, pageSize = 10): Promise<PagedResultOfDiscoveredLanDeviceDto> =>
-    request<PagedResultOfDiscoveredLanDeviceDto>(`/api/Network/devices?pageNumber=${pageNumber}&pageSize=${pageSize}`)
+  const getNetworkDevices = (
+    pageNumber = 1,
+    pageSize = 10
+  ): Promise<PagedResultOfDiscoveredLanDeviceDto> =>
+    request<PagedResultOfDiscoveredLanDeviceDto>(
+      `/api/Network/devices?pageNumber=${pageNumber}&pageSize=${pageSize}`
+    )
 
   const getNetworkDeviceByMac = (macAddress: string): Promise<DiscoveredLanDeviceDto> =>
     request<DiscoveredLanDeviceDto>(`/api/Network/devices/mac/${encodeURIComponent(macAddress)}`)
@@ -117,12 +133,14 @@ export function useApi() {
     request<DiscoveredLanDeviceDto>(`/api/Network/devices/ip/${encodeURIComponent(ipAddress)}`)
 
   const getNetworkDeviceByPtr = (ptrAddress: string): Promise<DiscoveredLanDeviceDto> =>
-    request<DiscoveredLanDeviceDto>(`/api/Network/devices/ptr?ptrAddress=${encodeURIComponent(ptrAddress)}`)
+    request<DiscoveredLanDeviceDto>(
+      `/api/Network/devices/ptr?ptrAddress=${encodeURIComponent(ptrAddress)}`
+    )
 
   const cleanupStaleDevices = (cutoffIsoDate: string): Promise<void> =>
     request<void>('/api/Network/devices/cleanup', {
       method: 'POST',
-      body: JSON.stringify({ cutoff: cutoffIsoDate })
+      body: JSON.stringify({ cutoff: cutoffIsoDate }),
     })
 
   return {
@@ -147,6 +165,6 @@ export function useApi() {
     getNetworkDeviceByMac,
     getNetworkDeviceByIp,
     getNetworkDeviceByPtr,
-    cleanupStaleDevices
+    cleanupStaleDevices,
   }
 }
