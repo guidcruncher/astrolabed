@@ -7,12 +7,22 @@
     >
       <span class="flex items-center gap-2.5">
         <svg class="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+          ></path>
         </svg>
         <span>{{ displayDateText }}</span>
       </span>
       <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="2"
+          d="M19 9l-7 7-7-7"
+        ></path>
       </svg>
     </button>
 
@@ -28,10 +38,15 @@
             class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-700 transition-colors"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M15 19l-7-7 7-7"
+              ></path>
             </svg>
           </button>
-          
+
           <span class="text-xs font-semibold text-slate-200 uppercase tracking-wide">
             {{ currentMonthName }} {{ currentYear }}
           </span>
@@ -42,13 +57,22 @@
             class="p-1 rounded text-slate-400 hover:text-slate-100 hover:bg-slate-700 transition-colors"
           >
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9 5l7 7-7 7"
+              ></path>
             </svg>
           </button>
         </div>
 
         <div class="grid grid-cols-7 gap-1 text-center mb-1">
-          <span v-for="day in weekDays" :key="day" class="text-[10px] font-medium text-slate-400 uppercase">
+          <span
+            v-for="day in weekDays"
+            :key="day"
+            class="text-[10px] font-medium text-slate-400 uppercase"
+          >
             {{ day }}
           </span>
         </div>
@@ -64,8 +88,10 @@
               'h-8 w-8 mx-auto flex items-center justify-center rounded transition-colors',
               !dayObj.isCurrentMonth ? 'text-slate-600 cursor-not-allowed' : 'text-slate-200',
               dayObj.isSelected ? 'bg-sky-600 text-white font-semibold' : '',
-              dayObj.isToday && !dayObj.isSelected ? 'border border-sky-500/50 text-sky-400 font-medium' : '',
-              dayObj.isCurrentMonth && !dayObj.isSelected ? 'hover:bg-slate-700' : ''
+              dayObj.isToday && !dayObj.isSelected
+                ? 'border border-sky-500/50 text-sky-400 font-medium'
+                : '',
+              dayObj.isCurrentMonth && !dayObj.isSelected ? 'hover:bg-slate-700' : '',
             ]"
           >
             {{ dayObj.dayNumber }}
@@ -110,7 +136,7 @@ const props = withDefaults(
     modelValue?: Date | null
   }>(),
   {
-    modelValue: null
+    modelValue: null,
   }
 )
 
@@ -152,17 +178,17 @@ const displayDateText = computed(() => {
   return selectedDate.value.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
-    year: 'numeric'
+    year: 'numeric',
   })
 })
 
 const calendarDays = computed(() => {
   const year = currentDate.value.getFullYear()
   const month = currentDate.value.getMonth()
-  
+
   const firstDayOfMonth = new Date(year, month, 1)
   const lastDayOfMonth = new Date(year, month + 1, 0)
-  
+
   const startingDayOfWeek = firstDayOfMonth.getDay()
   const totalDays = lastDayOfMonth.getDate()
 
@@ -200,7 +226,7 @@ function createDayObject(date: Date, isCurrentMonth: boolean, today: Date) {
     dayNumber: date.getDate(),
     isCurrentMonth,
     isSelected,
-    isToday
+    isToday,
   }
 }
 
