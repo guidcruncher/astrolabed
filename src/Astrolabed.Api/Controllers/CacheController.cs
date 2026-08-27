@@ -86,7 +86,7 @@ public sealed class CacheController : ControllerBase
     [ProducesResponseType(typeof(PagedResult<CacheEntry>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
-    public ActionResult<PagedResult<CacheEntry>> GetCachedRecords(
+    public ActionResult<PagedResult<KeyValuePair<string, CacheEntryView>>> GetCachedRecords(
         [FromQuery] int pageNumber = 1,
         [FromQuery] int pageSize = 10)
     {
@@ -108,7 +108,7 @@ public sealed class CacheController : ControllerBase
             pageNumber,
             normalizedPageSize);
 
-        PagedResult<CacheEntry> result = _dnsCache.ToPagedResult(pageNumber, normalizedPageSize);
+        PagedResult<KeyValuePair<string, CacheEntryView>> result = _dnsCache.ToPagedResult(pageNumber, normalizedPageSize);
 
         return Ok(result);
     }

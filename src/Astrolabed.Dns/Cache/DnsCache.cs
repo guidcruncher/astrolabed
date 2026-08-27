@@ -1,7 +1,9 @@
 using System.Collections.Concurrent;
 
 using Astrolabed.Data.Pagination;
+using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Options;
+using Astrolabed.Dns.Serialization;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -25,14 +27,55 @@ public sealed partial class DnsCache(
     /// <summary>
     /// Gets the number of items in the Cache
     /// </summary>
-    public int Count { get { return _entries.Count; } }
+    public int Count => _entries.Count;
 
     /// <inheritdoc />
-    public PagedResult<CacheEntry> ToPagedResult(
+    public PagedResult<KeyValuePair<string, CacheEntryView>> ToPagedResult(
         int pageNumber,
         int pageSize)
     {
-        return _entries.ToPagedResult(pageNumber, pageSize);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageNumber);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(pageSize);
+
+        KeyValuePair<DnsCacheKey, CacheEntry>[] snapshot = _entries.ToArray();
+        int totalCount = snapshot.Length;
+
+        int skip = (pageNumber - 1) * pageSize;
+        if (skip >= totalCount)
+        {
+            return new PagedResult<KeyValuePair<string, CacheEntryView>>(
+                Array.Empty<KeyValuePair<string, CacheEntryView>>(),
+                pageNumber,
+                pageSize,
+                totalCount);
+        }
+
+        int countToTake = Math.Min(pageSize, totalCount - skip);
+        List<KeyValuePair<string, CacheEntryView>> pageItems = new(countToTake);
+
+        ReadOnlySpan<KeyValuePair<DnsCacheKey, CacheEntry>> pagedSlice = snapshot.AsSpan(skip, countToTake);
+
+        foreach (KeyValuePair<DnsCacheKey, CacheEntry> kvp in pagedSlice)
+        {
+            if (DnsWireParser.TryParse(kvp.Value.Payload.Span, out DnsWireMessage? parsedMessage) && parsedMessage is not null)
+            {
+                var view = new CacheEntryView(parsedMessage, kvp.Value.ExpiresAt);
+                pageItems.Add(new KeyValuePair<string, CacheEntryView>(kvp.Key.Domain, view));
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Failed to parse DNS wire message for domain {Domain} and type {QueryType} during paged retrieval.",
+                    kvp.Key.Domain,
+                    kvp.Key.QueryType);
+            }
+        }
+
+        return new PagedResult<KeyValuePair<string, CacheEntryView>>(
+            pageItems,
+            pageNumber,
+            pageSize,
+            totalCount);
     }
 
     /// <inheritdoc />
@@ -141,5 +184,4 @@ public sealed partial class DnsCache(
         public override int GetHashCode() =>
             HashCode.Combine(StringComparer.OrdinalIgnoreCase.GetHashCode(Domain), QueryType);
     }
-
 }

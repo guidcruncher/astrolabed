@@ -18,8 +18,8 @@ public interface IDnsCache
     /// </summary>
     /// <param name="pageNumber">1-based page index.</param>
     /// <param name="pageSize">Number of items per page.</param>
-    /// <returns>A populated <see cref="PagedResult{CacheEntry}"/> instance.</returns>
-    PagedResult<CacheEntry> ToPagedResult(
+    /// <returns>A populated result</returns>
+    PagedResult<KeyValuePair<string, CacheEntryView>> ToPagedResult(
         int pageNumber,
         int pageSize);
 

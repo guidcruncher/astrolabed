@@ -8,6 +8,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     DashboardView: typeof import('./views/DashboardView.vue')['default']
+    DataGrid: typeof import('./components/DataGrid.vue')['default']
     DefaultLayout: typeof import('./layouts/DefaultLayout.vue')['default']
     DhcpView: typeof import('./views/DhcpView.vue')['default']
     DnsView: typeof import('./views/DnsView.vue')['default']
