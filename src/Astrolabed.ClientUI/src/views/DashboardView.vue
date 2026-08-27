@@ -16,12 +16,11 @@
       <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
         <h3 class="text-sm font-semibold text-slate-400 uppercase">Cached DNS Items</h3>
         <p class="text-3xl font-bold mt-2 text-sky-400">{{ cacheCount !== null ? cacheCount : '-' }}</p>
-        <button
+        <AppButton variant="danger"
           @click="handleClearCache"
-          class="mt-4 text-xs bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded transition"
         >
           Purge DNS Cache
-        </button>
+        </AppButton>
       </div>
     </div>
   </div>

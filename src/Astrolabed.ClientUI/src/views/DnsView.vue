@@ -2,12 +2,11 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DNS Event Logs</h2>
-      <button 
+      <AppButton variant="danger" 
         @click="handlePurge" 
-        class="bg-rose-600 hover:bg-rose-500 text-white px-3 py-1.5 rounded text-sm transition-colors"
       >
         Purge Log History
-      </button>
+      </AppButton>
     </div>
 
     <DataGrid
