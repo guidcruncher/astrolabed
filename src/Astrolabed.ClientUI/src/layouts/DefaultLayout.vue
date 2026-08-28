@@ -18,6 +18,7 @@ import { type NavItem } from '../types/types'
 const navItems: NavItem[] = [
   { label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
   { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
+  { label: 'DNS Bench', shortLabel: 'BNH', to: '/benchmark' },
   { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
   { label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
   { label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },

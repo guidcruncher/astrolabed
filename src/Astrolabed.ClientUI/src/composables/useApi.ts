@@ -127,7 +127,7 @@ export function useApi() {
     request<DnsResponseEventEntity>(`/api/Dns/${encodeURIComponent(id)}`)
 
   const getDnsBenchmarks = (): Promise<DnsBenchmark[]> =>
-    request<DnsBenchmark[]>(`/api/Dns/benchmarks/metrics`)
+    request<DnsBenchmark[]>(`/api/benchmarks/metrics`)
 
   const purgeDnsEvents = (): Promise<void> => request<void>('/api/Dns', { method: 'DELETE' })
 
