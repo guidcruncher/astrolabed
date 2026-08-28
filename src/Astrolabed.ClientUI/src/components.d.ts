@@ -14,6 +14,7 @@ declare module 'vue' {
     AppButton: typeof import('./components/AppButton.vue')['default']
     AppDatePicker: typeof import('./components/AppDatePicker.vue')['default']
     AppSidebar: typeof import('./components/AppSidebar.vue')['default']
+    BaseModal: typeof import('./components/BaseModal.vue')['default']
     CacheListView: typeof import('./views/CacheListView.vue')['default']
     DashboardView: typeof import('./views/DashboardView.vue')['default']
     DataGrid: typeof import('./components/DataGrid.vue')['default']

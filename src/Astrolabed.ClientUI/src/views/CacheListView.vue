@@ -2,7 +2,13 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DNS Cache Entries</h2>
-      <AppButton variant="danger" @click="handleClear"> Clear DNS Cache </AppButton>
+      <AppButton
+        variant="danger"
+        @click="handleClear"
+        class="inline-flex items-center gap-2 whitespace-nowrap"
+      >
+        <Trash2 /> Clear DNS Cache
+      </AppButton>
     </div>
 
     <DataGrid
@@ -57,6 +63,7 @@ import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { CacheEntryView } from '../types/api'
+import { Trash2 } from '@lucide/vue'
 
 const { getCacheEntries, clearCache } = useApi()
 

@@ -2,7 +2,12 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">DNS Event Logs</h2>
-      <AppButton variant="danger" @click="handlePurge"> Purge Log History </AppButton>
+      <AppButton
+        variant="danger"
+        @click="handlePurge"
+        class="inline-flex items-center gap-2 whitespace-nowrap"
+        ><Trash2 /> Purge Log History
+      </AppButton>
     </div>
 
     <DataGrid
@@ -46,6 +51,7 @@ import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DnsResponseEventEntity } from '../types/api'
+import { Trash2 } from '@lucide/vue'
 
 const { getDnsEvents, purgeDnsEvents } = useApi()
 

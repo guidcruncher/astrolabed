@@ -1,3 +1,5 @@
+export type ModalAction = 'confirm' | 'cancel' | 'close' | string
+
 export interface NavItem {
   label: string
   shortLabel: string

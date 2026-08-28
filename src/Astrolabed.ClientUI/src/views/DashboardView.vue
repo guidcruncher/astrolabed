@@ -21,7 +21,12 @@
         <p class="text-3xl font-bold mt-2 text-sky-400">
           {{ cacheCount !== null ? cacheCount : '-' }}
         </p>
-        <AppButton variant="danger" @click="handleClearCache"> Purge DNS Cache </AppButton>
+        <AppButton
+          variant="danger"
+          @click="handleClearCache"
+          class="inline-flex items-center gap-2 whitespace-nowrap"
+          ><Trash2 /> Purge DNS Cache
+        </AppButton>
       </div>
     </div>
   </div>
@@ -31,6 +36,7 @@
 import { ref, onMounted } from 'vue'
 import { useApi } from '../composables/useApi'
 import type { AstrolabedStatusResponse } from '../types/api'
+import { Trash2 } from '@lucide/vue'
 
 const { getStatus, getCacheCount, clearCache } = useApi()
 const status = ref<AstrolabedStatusResponse | null>(null)
