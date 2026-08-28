@@ -31,6 +31,8 @@ public static class DnsBenchmarkerServiceCollectionExtensions
         services.ConfigureOptions<DnsBenchmarkOptionsSetup>();
         services.AddSingleton<IDnsBenchmarker, DnsBenchmarker>();
 
+        services.AddSingleton<IDnsMetricProcessor, DnsMetricProcessor>();
+
         return services;
     }
 

@@ -14,21 +14,25 @@ using Microsoft.AspNetCore.Mvc;
 /// Exposes API endpoints for initiating and retrieving DNS benchmark diagnostics.
 /// </summary>
 [ApiController]
-[Route("api/v1/benchmarks")]
+[Route("api/benchmarks")]
 [Produces("application/json")]
 public class DnsBenchmarkController : ControllerBase
 {
     private readonly IDnsBenchmarker _benchmarker;
+    private readonly IDnsMetricProcessor _metricProcessor;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DnsBenchmarkController"/> class.
     /// </summary>
     /// <param name="benchmarker">The injected DNS benchmarking service.</param>
+    /// <param name="metricProcessor">The DNS metric processor service used to aggregate and rank metrics.</param>
     /// <exception cref="ArgumentNullException">Thrown if the benchmarker dependency is null.</exception>
-    public DnsBenchmarkController(IDnsBenchmarker benchmarker)
+    public DnsBenchmarkController(IDnsBenchmarker benchmarker, IDnsMetricProcessor metricProcessor)
     {
         ArgumentNullException.ThrowIfNull(benchmarker);
+        ArgumentNullException.ThrowIfNull(metricProcessor);
         _benchmarker = benchmarker;
+        _metricProcessor = metricProcessor;
     }
 
     /// <summary>
@@ -43,6 +47,34 @@ public class DnsBenchmarkController : ControllerBase
     {
         DnsBenchmarkResult result = await _benchmarker.BenchmarkAllAsync(cancellationToken);
         return Ok(result);
+    }
+
+    /// <summary>
+    /// Performs a Benchmark and returns a batch of structured DNS endpoint metrics and returns provider speed rankings.
+    /// </summary>
+    /// <returns>An <see cref="ActionResult{T}"/> containing the list of ranked DNS providers.</returns>
+    /// <response code="200">Returns the ranked list of DNS service providers ordered from fastest to slowest.</response>
+    /// <response code="500">If an unhandled exception occurs while processing the metrics.</response>
+    [HttpGet("metrics")]
+    [ProducesResponseType(typeof(IReadOnlyList<DnsServiceRanking>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<IReadOnlyList<DnsServiceRanking>>> ProcessMetrics(CancellationToken cancellationToken)
+    {
+        DnsBenchmarkResult result = await _benchmarker.BenchmarkAllAsync(cancellationToken);
+        try
+        {
+            var rankings = _metricProcessor.ProcessAndRank(result);
+            return Ok(rankings);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError, new ProblemDetails
+            {
+                Title = "Processing Error " + ex.Message,
+                Detail = "An unexpected error occurred while processing DNS benchmark telemetry.",
+                Status = StatusCodes.Status500InternalServerError
+            });
+        }
     }
 
     /// <summary>
