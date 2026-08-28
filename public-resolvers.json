@@ -98,6 +98,15 @@
         "64.6.65.6"
       ],
       "ipv6": []
+    },
+    {
+      "name": "StormyDns",
+      "homepage": "https://www.stormycloud.org/dns/",
+      "ipv4": [
+        "23.128.248.2",
+        "23.128.248.4"
+      ],
+      "ipv6": []
     }
   ]
 }
