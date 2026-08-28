@@ -4,6 +4,7 @@ using Astrolabed.Api.Extensions;
 using Astrolabed.Api.Options;
 using Astrolabed.Data.Extensions;
 using Astrolabed.Dhcp.Extensions;
+using Astrolabed.Dns.Benchmarking.Extensions;
 using Astrolabed.Dns.Events;
 using Astrolabed.Dns.Extensions;
 using Astrolabed.EventBus.Events;
@@ -64,7 +65,10 @@ public static class Program
         builder.Services.AddDhcpServer(builder.Configuration);
         builder.Services.AddDnsServer(builder.Configuration);
 
-        // 5. API Module Registration
+        // 5. DNS Benchmarker
+        builder.Services.AddDnsBenchmarker(builder.Configuration);
+
+        // 6. API Module Registration
         builder.Services.AddApi(builder.Configuration);
 
         WebApplication app = builder.Build();

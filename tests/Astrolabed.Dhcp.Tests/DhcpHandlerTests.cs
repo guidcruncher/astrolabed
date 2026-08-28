@@ -1,4 +1,10 @@
+// File: DhcpHandlerTests.cs
+namespace Astrolabed.Dhcp.Tests;
+
+using System;
 using System.Net;
+using System.Threading;
+using System.Threading.Tasks;
 
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Pagination;
@@ -11,8 +17,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 using Xunit;
-
-namespace Astrolabed.Dhcp.Tests;
 
 public class DhcpHandlerTests
 {
@@ -105,7 +109,7 @@ public class DhcpHandlerTests
             Task.FromResult<DhcpLease?>(null);
 
         public Task<PagedResult<DhcpLease>> GetLeasesAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default) =>
-            Task.FromResult<PagedResult<DhcpLease>>(null);
+            Task.FromResult<PagedResult<DhcpLease>>(null!);
 
         public Task<DhcpLease?> GetLeaseByIpAsync(IPAddress ipAddress, CancellationToken cancellationToken = default) =>
             Task.FromResult<DhcpLease?>(null);
@@ -132,3 +136,4 @@ public class DhcpHandlerTests
         }
     }
 }
+
