@@ -20,6 +20,7 @@ const navItems: NavItem[] = [
   { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
   { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
   { label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
+  { label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },
   { label: 'Network Devices', shortLabel: 'NET', to: '/network' },
 ]
 
