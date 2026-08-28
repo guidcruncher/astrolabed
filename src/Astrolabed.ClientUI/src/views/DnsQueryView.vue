@@ -38,90 +38,36 @@
       </AppButton>
     </div>
 
-    <!-- Query Header Info -->
+    <!-- Dig Format Output Terminal -->
     <div
-      v-if="wireMessage"
-      class="bg-slate-900/50 p-4 rounded-lg mb-6 border border-slate-800 text-sm grid grid-cols-2 md:grid-cols-4 gap-4"
+      class="bg-slate-950 border border-slate-800 rounded-lg p-4 font-mono text-xs text-slate-200 overflow-x-auto"
     >
-      <div>
-        <span class="text-slate-400 block text-xs">Transaction ID</span>
-        <span class="font-mono text-white"
-          >0x{{ wireMessage.transactionId?.toString(16).toUpperCase() ?? '0' }}</span
+      <div
+        class="flex justify-between items-center pb-2 mb-3 border-b border-slate-800 text-slate-500"
+      >
+        <span>Output Format: dig</span>
+        <button
+          v-if="digOutput"
+          class="hover:text-white transition-colors"
+          @click="copyToClipboard"
         >
+          {{ copied ? 'Copied' : 'Copy Output' }}
+        </button>
       </div>
-      <div>
-        <span class="text-slate-400 block text-xs">Response Code</span>
-        <span class="font-mono text-white">{{ formatResponseCode(wireMessage.responseCode) }}</span>
-      </div>
-      <div>
-        <span class="text-slate-400 block text-xs">Authoritative</span>
-        <span
-          class="font-medium"
-          :class="wireMessage.authoritativeAnswer ? 'text-green-400' : 'text-slate-400'"
-        >
-          {{ wireMessage.authoritativeAnswer ? 'Yes' : 'No' }}
-        </span>
-      </div>
-      <div>
-        <span class="text-slate-400 block text-xs">Truncated</span>
-        <span
-          class="font-medium"
-          :class="wireMessage.truncated ? 'text-red-400' : 'text-slate-400'"
-        >
-          {{ wireMessage.truncated ? 'Yes' : 'No' }}
-        </span>
+
+      <pre v-if="digOutput" class="whitespace-pre text-emerald-400 leading-relaxed">{{
+        digOutput
+      }}</pre>
+      <div v-else-if="loading" class="text-slate-500 py-8 text-center">Executing DNS query...</div>
+      <div v-else class="text-slate-500 py-8 text-center">
+        {{ hasQueried ? 'No response received.' : 'Enter a domain to execute a DNS query.' }}
       </div>
     </div>
-
-    <!-- Results DataGrid -->
-    <DataGrid
-      v-model:page="currentPage"
-      v-model:pageSize="pageSize"
-      :data="paginatedAnswers"
-      :columns="columns"
-      :total-count="answers.length"
-      @page-change="handlePageChange"
-      @page-size-change="handlePageSizeChange"
-      @row-select="handleRowSelect"
-      @loaded="handleGridLoaded"
-    >
-      <template #cell-value-name="{ row, value }">
-        <span class="font-medium text-white">
-          {{ typeof value === 'string' ? value : row.name || 'N/A' }}
-        </span>
-      </template>
-
-      <template #cell-value-type="{ row, value }">
-        <span class="bg-slate-700 text-xs px-2 py-0.5 rounded">
-          {{ formatDnsType(typeof value === 'number' ? value : row.type) }}
-        </span>
-      </template>
-
-      <template #cell-value-ttl="{ row, value }">
-        <span class="font-mono text-xs"> {{ value ?? row.ttl ?? 0 }}s </span>
-      </template>
-
-      <template #cell-value-data="{ row, value }">
-        <span class="font-mono text-xs text-slate-300 break-all">
-          {{ typeof value === 'string' ? value : row.data || 'N/A' }}
-          <span v-if="row.parsedIp" class="bg-slate-700 text-xs px-2 py-0.5 rounded">
-            {{ row.parsedIp }}
-          </span>
-        </span>
-      </template>
-
-      <template #empty>
-        {{
-          hasQueried ? 'No DNS answer records returned.' : 'Enter a domain to execute a DNS query.'
-        }}
-      </template>
-    </DataGrid>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DnsResourceRecord, DnsWireMessage, DnsType } from '../types/api'
 
@@ -130,12 +76,10 @@ const { queryDns, loading } = useApi()
 const domain = ref<string>('')
 const selectedType = ref<DnsType>(1)
 const hasQueried = ref<boolean>(false)
+const copied = ref<boolean>(false)
 
 const wireMessage = ref<DnsWireMessage | null>(null)
 const answers = ref<DnsResourceRecord[]>([])
-
-const currentPage = ref<number>(1)
-const pageSize = ref<number>(10)
 
 const commonDnsTypes: Record<number, string> = {
   1: 'A',
@@ -150,43 +94,69 @@ const commonDnsTypes: Record<number, string> = {
   255: 'ANY',
 }
 
-const columns: Column[] = [
-  { key: 'value.name', label: 'Name' },
-  { key: 'value.type', label: 'Type' },
-  { key: 'value.ttl', label: 'TTL' },
-  { key: 'value.data', label: 'Data / Value' },
-]
-
-const paginatedAnswers = computed(() => {
-  const start = (currentPage.value - 1) * pageSize.value
-  return answers.value.slice(start, start + pageSize.value)
-})
-
 const handleQuery = async (): Promise<void> => {
   if (!domain.value.trim()) return
 
   hasQueried.value = true
   wireMessage.value = await queryDns(domain.value.trim(), selectedType.value)
   answers.value = wireMessage.value?.answers || []
-  currentPage.value = 1
 }
 
-const handlePageChange = (newPage: number): void => {
-  currentPage.value = newPage
+const copyToClipboard = async (): Promise<void> => {
+  if (!digOutput.value) return
+  await navigator.clipboard.writeText(digOutput.value)
+  copied.value = true
+  setTimeout(() => {
+    copied.value = false
+  }, 2000)
 }
 
-const handlePageSizeChange = (newSize: number): void => {
-  pageSize.value = newSize
-  currentPage.value = 1
-}
+const digOutput = computed<string>(() => {
+  if (!wireMessage.value) return ''
 
-const handleRowSelect = (row: DnsResourceRecord): void => {
-  console.log('Selected DNS Resource Record:', row)
-}
+  const queryDomain = domain.value.trim()
+  const formattedDomain = queryDomain.endsWith('.') ? queryDomain : `${queryDomain}.`
+  const recordTypeName = formatDnsType(selectedType.value)
+  const status = formatResponseCode(wireMessage.value.responseCode)
+  const txId = wireMessage.value.transactionId ?? 0
 
-const handleGridLoaded = (): void => {
-  // Executed on grid initialization and data updates
-}
+  const flags: string[] = []
+  if (wireMessage.value.authoritativeAnswer) flags.push('aa')
+  if (wireMessage.value.truncated) flags.push('tc')
+  if (wireMessage.value.recursionDesired) flags.push('rd')
+  if (wireMessage.value.recursionAvailable) flags.push('ra')
+
+  const flagStr = flags.length > 0 ? flags.join(' ') : 'none'
+  const answerCount = answers.value.length
+  const authorityCount = wireMessage.value.authorities?.length ?? 0
+  const additionalCount = wireMessage.value.additionals?.length ?? 0
+
+  let output = `; <<>> DiG <<>> ${queryDomain} ${recordTypeName}\n`
+  output += `;; global options: +cmd\n`
+  output += `;; Got answer:\n`
+  output += `;; ->>HEADER<<- opcode: QUERY, status: ${status}, id: ${txId}\n`
+  output += `;; flags: ${flagStr}; QUERY: 1, ANSWER: ${answerCount}, AUTHORITY: ${authorityCount}, ADDITIONAL: ${additionalCount}\n\n`
+
+  output += `;; QUESTION SECTION:\n`
+  output += `;${formattedDomain.padEnd(24)} IN\t${recordTypeName}\n\n`
+
+  if (answerCount > 0) {
+    output += `;; ANSWER SECTION:\n`
+    answers.value.forEach((rr) => {
+      const rrName = rr.name ? (rr.name.endsWith('.') ? rr.name : `${rr.name}.`) : formattedDomain
+      const ttl = rr.ttl ?? 0
+      const rrType = formatDnsType(rr.type)
+      var rrData = rr.data || rr.parsedIp || 'N/A'
+      if (rr.parsedIp && rr.data) {
+        rrData = `${rr.parsedIp.padEnd(16)} ${rr.data}`
+      }
+
+      output += `${rrName.padEnd(24)} ${ttl}\tIN\t${rrType}\t${rrData}\n`
+    })
+  }
+
+  return output
+})
 
 const formatResponseCode = (code?: number): string => {
   if (code === undefined || code === null) return 'UNKNOWN'

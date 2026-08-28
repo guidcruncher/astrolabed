@@ -26,6 +26,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('./views/DnsView.vue'),
       },
       {
+        path: 'benchmark',
+        name: 'Benchmark',
+        component: () => import('./views/DnsBenchmarksView.vue'),
+      },
+      {
         path: 'dnsquery',
         name: 'DNSQuery',
         component: () => import('./views/DnsQueryView.vue'),

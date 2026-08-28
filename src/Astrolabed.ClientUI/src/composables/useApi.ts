@@ -7,6 +7,7 @@ import type {
   PagedResultDtoOfDhcpLease,
   PagedResultOfDnsResponseEventEntity,
   PagedResultOfDiscoveredLanDeviceDto,
+  DnsBenchmark,
   DhcpLease,
   AllocateOrUpdateDhcpLeaseRequest,
   ReleaseDhcpLeaseRequest,
@@ -111,7 +112,7 @@ export function useApi() {
     if (type !== undefined) {
       query.append('type', type.toString())
     }
-    return request<DnsWireMessage>(`/api/v1/dns/query?${query.toString()}`)
+    return request<DnsWireMessage>(`/api/dns/query?${query.toString()}`)
   }
 
   const getDnsEvents = (
@@ -124,6 +125,9 @@ export function useApi() {
 
   const getDnsEventById = (id: string): Promise<DnsResponseEventEntity> =>
     request<DnsResponseEventEntity>(`/api/Dns/${encodeURIComponent(id)}`)
+
+  const getDnsBenchmarks = (): Promise<DnsBenchmark[]> =>
+    request<DnsBenchmark[]>(`/api/benchmarks/metrics`)
 
   const purgeDnsEvents = (): Promise<void> => request<void>('/api/Dns', { method: 'DELETE' })
 
@@ -181,5 +185,6 @@ export function useApi() {
     getNetworkDeviceByPtr,
     cleanupStaleDevices,
     getCurrentTime,
+    getDnsBenchmarks,
   }
 }

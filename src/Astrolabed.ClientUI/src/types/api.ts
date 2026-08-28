@@ -1,3 +1,13 @@
+export interface DnsBenchmark {
+  rank: number
+  serverName: string
+  combinedAverageLatencyMs: number
+  minLatencyMs: number
+  maxLatencyMs: number
+  combinedPacketLossPercentage: number
+  endpointsCount: number
+}
+
 export interface ProblemDetails {
   type?: string | null
   title?: string | null
@@ -52,7 +62,7 @@ export interface DnsResourceRecord {
   class?: number
   ttl?: number
   data?: string
-  parsedIp?: IPAddress | null
+  parsedIp?: string | null
 }
 
 export interface DnsWireMessage {

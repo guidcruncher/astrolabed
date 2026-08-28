@@ -15,7 +15,7 @@ namespace Astrolabed.Dns.Api.Controllers;
 /// <param name="dnsQueryProcessor">The DNS query processing service.</param>
 /// <param name="logger">Structured logger instance.</param>
 [ApiController]
-[Route("api/v1/dns")]
+[Route("api/dns")]
 [Produces("application/json")]
 public sealed partial class DnsQueryController(
     IDnsQueryProcessor dnsQueryProcessor,
