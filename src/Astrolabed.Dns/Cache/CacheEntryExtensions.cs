@@ -1,9 +1,12 @@
+// File: CacheEntryExtensions.cs
+namespace Astrolabed.Dns.Cache;
+
+using System;
+
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Serialization;
 
 using Microsoft.Extensions.Logging;
-
-namespace Astrolabed.Dns.Cache;
 
 /// <summary>
 /// Provides extension methods for converting binary cache entries to parsed DNS wire message cache entries.
@@ -24,7 +27,7 @@ public static class CacheEntryExtensions
     {
         ArgumentNullException.ThrowIfNull(binaryEntry);
 
-        if (DnsWireParser.TryParse(binaryEntry.Payload.Span, out DnsWireMessage message))
+        if (DnsWireParser.TryParse(binaryEntry.Payload.Span, out DnsWireMessage? message) && message is not null)
         {
             parsedEntry = new CacheEntryView(message, binaryEntry.ExpiresAt);
             return true;
