@@ -106,6 +106,8 @@ docker-publish:
 		--builder astrolabed-builder \
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):dev \
+		--tag ghcr.io/$(IMAGE_NAME):latest \
+		--tag ghcr.io/$(IMAGE_NAME):dev \
 		--progress=plain \
 		--push \
 		.
@@ -119,6 +121,8 @@ docker-release:
 		--file ./Dockerfile \
 		--tag docker.io/$(IMAGE_NAME):latest \
 		--tag docker.io/$(IMAGE_NAME):dev \
+		--tag ghcr.io/$(IMAGE_NAME):latest \
+		--tag ghcr.io/$(IMAGE_NAME):dev \
 		--progress=plain \
 		--push \
 		.

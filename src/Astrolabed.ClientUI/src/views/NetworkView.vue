@@ -2,7 +2,12 @@
   <div>
     <div class="flex justify-between items-center mb-6">
       <h2 class="text-2xl font-bold">Discovered LAN Devices</h2>
-      <AppButton variant="warn" @click="handleCleanup"> Purge Stale Devices </AppButton>
+      <AppButton
+        variant="warn"
+        @click="handleCleanup"
+        class="inline-flex items-center gap-2 whitespace-nowrap"
+        ><Trash2 /> Purge Stale Devices
+      </AppButton>
     </div>
 
     <DataGrid
@@ -44,6 +49,7 @@ import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DiscoveredLanDeviceDto } from '../types/api'
+import { Trash2 } from '@lucide/vue'
 
 const { getNetworkDevices, cleanupStaleDevices } = useApi()
 

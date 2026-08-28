@@ -57,11 +57,18 @@
 
       <div class="flex items-center space-x-2">
         <button
+          @click="changePage(1)"
+          :disabled="page <= 1"
+          class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+        >
+          <ChevronFirst />
+        </button>
+        <button
           @click="changePage(page - 1)"
           :disabled="page <= 1"
           class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
         >
-          Previous
+          <ChevronLeft />
         </button>
         <span class="px-2 py-1 text-slate-300">Page {{ page }} of {{ totalPages }}</span>
         <button
@@ -69,7 +76,14 @@
           :disabled="page >= totalPages"
           class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
         >
-          Next
+          <ChevronRight />
+        </button>
+        <button
+          @click="changePage(totalPages)"
+          :disabled="page >= totalPages"
+          class="px-3 py-1 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 disabled:cursor-not-allowed rounded text-slate-200"
+        >
+          <ChevronLast />
         </button>
       </div>
     </div>
@@ -79,6 +93,7 @@
 <script setup lang="ts" generic="T extends Record<string, any>">
 import { computed, watch, onMounted } from 'vue'
 import { type Column } from '../types/types'
+import { ChevronLeft, ChevronRight, ChevronFirst, ChevronLast } from '@lucide/vue'
 
 const props = withDefaults(
   defineProps<{

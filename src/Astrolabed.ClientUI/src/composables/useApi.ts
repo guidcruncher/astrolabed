@@ -12,6 +12,8 @@ import type {
   ReleaseDhcpLeaseRequest,
   DnsResponseEventEntity,
   DiscoveredLanDeviceDto,
+  DnsWireMessage,
+  DnsType,
   ProblemDetails,
 } from '../types/api'
 
@@ -104,6 +106,14 @@ export function useApi() {
     request<void>('/api/Dhcp/lease/release', { method: 'POST', body: JSON.stringify(payload) })
 
   // --- DNS ---
+  const queryDns = (domain: string, type?: DnsType): Promise<DnsWireMessage> => {
+    const query = new URLSearchParams({ domain })
+    if (type !== undefined) {
+      query.append('type', type.toString())
+    }
+    return request<DnsWireMessage>(`/api/v1/dns/query?${query.toString()}`)
+  }
+
   const getDnsEvents = (
     pageNumber = 1,
     pageSize = 10
@@ -143,6 +153,9 @@ export function useApi() {
       body: JSON.stringify({ cutoff: cutoffIsoDate }),
     })
 
+  // --- Time ---
+  const getCurrentTime = (): Promise<string> => request<string>('/api/Time')
+
   return {
     apiBaseUrl,
     loading,
@@ -158,6 +171,7 @@ export function useApi() {
     checkDhcpAvailability,
     allocateDhcpLease,
     releaseDhcpLease,
+    queryDns,
     getDnsEvents,
     getDnsEventById,
     purgeDnsEvents,
@@ -166,5 +180,6 @@ export function useApi() {
     getNetworkDeviceByIp,
     getNetworkDeviceByPtr,
     cleanupStaleDevices,
+    getCurrentTime,
   }
 }

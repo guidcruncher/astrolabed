@@ -14,7 +14,10 @@
         :title="isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'"
         @click="handleToggleCollapse"
       >
-        <span class="text-xs font-bold">{{ isCollapsed ? '>' : '<' }}</span>
+        <span class="text-xs font-bold">
+          <ArrowRightToLine v-if="isCollapsed" />
+          <ArrowLeftToLine v-else />
+        </span>
       </button>
     </div>
 
@@ -51,6 +54,7 @@
 import { ref } from 'vue'
 import { useApi } from '../composables/useApi'
 import { type NavItem } from '../types/types'
+import { ArrowRightToLine, ArrowLeftToLine } from '@lucide/vue'
 
 interface Props {
   items?: NavItem[]

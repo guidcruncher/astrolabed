@@ -286,7 +286,7 @@ public sealed partial class DnsQueryProcessor(
                     request.QuestionType.ToString().ToUpperInvariant(),
                     clientEndpoint,
                     clientName,
-                    resolutionSource,
+                  resolutionSource,
                     elapsedMs,
                     blocked
                 );
@@ -294,6 +294,36 @@ public sealed partial class DnsQueryProcessor(
                 await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);
             }
         }
+    }
+
+    /// <inheritdoc />
+    public async Task<DnsWireMessage?> ProcessQueryAsync(
+        string domain,
+        DnsType type,
+        EndPoint clientEndpoint,
+        CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(domain);
+        ArgumentNullException.ThrowIfNull(clientEndpoint);
+
+        // 1. Transaction ID (random or arbitrary for generated packet)
+        ushort transactionId = (ushort)Random.Shared.Next(0, ushort.MaxValue + 1);
+
+        var rawPacket = QuestionBuilder.BuildQuery(domain, type, transactionId);
+
+        var res = await ProcessRequestAsync(rawPacket, clientEndpoint, ct);
+
+        if (res == null)
+        {
+            return null;
+        }
+
+        if (DnsWireParser.TryParse(res, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
     }
 
     [LoggerMessage(
