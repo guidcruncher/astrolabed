@@ -25,5 +25,5 @@ public sealed record DnsResponseEvent(
     string ResolutionSource,
     double DurationMs,
     bool Blocked,
-    strimg Upstream
+    string Upstream
 );

@@ -58,6 +58,6 @@ public sealed class DnsResponseEventEntity
     /// <summary>
     /// Gets or sets a value to indicate the resolving upstream
     /// </summary>
-    public string Upstream { get; set; }
+    public required string Upstream { get; set; }
 
 }
