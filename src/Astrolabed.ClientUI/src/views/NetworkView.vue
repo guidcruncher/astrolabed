@@ -25,8 +25,13 @@
         ><span class="font-medium text-white"><DeviceType :deviceType="row.deviceType" /></span
       ></template>
 
-      <template #cell-hostName="{ value }">
-        <span class="font-medium text-white">{{ value || 'Unknown' }}</span>
+      <template #cell-hostName="{ row, value }">
+        <div class="flex flex-col items-start gap-1">
+          <span class="font-medium text-white">{{ value || 'Unknown' }}</span>
+          <span class="bg-slate-700 text-xs px-2 py-0.5 rounded">
+            {{ row.deviceType || 'Unknown' }}
+          </span>
+        </div>
       </template>
 
       <template #cell-ipAddress="{ value }">
