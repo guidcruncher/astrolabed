@@ -54,7 +54,7 @@ public static class Program
 
         // 1. Unified Data Layer & Persistence Setup
         builder.Services.AddAstrolabedData(builder.Configuration);
-        builder.Services.AddMacVendorLookup();
+        builder.Services.AddMacVendorLookup(builder.Configuration);
 
         // 2. Event Broker Setup
         builder.Services.AddRootEventBroker(builder.Configuration);

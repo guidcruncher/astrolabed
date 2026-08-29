@@ -9,7 +9,7 @@ import { useApi } from '../composables/useApi'
 const { getDnsBenchmarks } = useApi()
 
 const benchmarks = ref<DnsBenchmark[]>([])
-const isLoading = ref<boolean>(true)
+const isLoading = ref<boolean>(false)
 const errorMessage = ref<string | null>(null)
 
 /**
@@ -52,7 +52,7 @@ const getPacketLossBadgeClass = (lossPercentage: number): string => {
 }
 
 onMounted(() => {
-  fetchBenchmarks()
+  //fetchBenchmarks()
 })
 </script>
 
@@ -74,7 +74,7 @@ onMounted(() => {
         @click="fetchBenchmarks"
         :disabled="isLoading"
       >
-        <Timer /> Refresh Rankings
+        <Timer /> Fetch Rankings
       </AppButton>
     </div>
 

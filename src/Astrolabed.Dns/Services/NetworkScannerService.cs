@@ -8,6 +8,7 @@ using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
 using Astrolabed.Core.Network;
+using Astrolabed.Core.Options;
 using Astrolabed.Data.Models;
 
 using Microsoft.Extensions.Logging;
@@ -19,16 +20,22 @@ namespace Astrolabed.Dns.Services;
 /// Scans the local network segment by warming OS ARP/Neighbor caches via UDP probes and parsing platform ARP tables.
 /// </summary>
 /// <param name="options">Configuration options controlling scanning parameters.</param>
-/// <param name="macVendor">The Mac Address  Vendor database</param>
+/// <param name="macVendor">The Mac Address Vendor database lookup service.</param>
+/// <param name="deviceClassifier">Service used to classify network device types from probe signatures.</param>
+/// <param name="probeService">Service used to actively probe hosts for network telemetry.</param>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class NetworkScannerService(
     IOptions<NetworkScannerOptions> options,
     IMacVendorLookupService macVendor,
+    INetworkDeviceClassifier deviceClassifier,
+    INetworkDeviceProbeService probeService,
     ILogger<NetworkScannerService> logger) : INetworkScannerService
 {
     private readonly NetworkScannerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     private readonly ILogger<NetworkScannerService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly IMacVendorLookupService _macVendor = macVendor ?? throw new ArgumentNullException(nameof(macVendor));
+    private readonly INetworkDeviceClassifier _deviceClassifier = deviceClassifier ?? throw new ArgumentNullException(nameof(deviceClassifier));
+    private readonly INetworkDeviceProbeService _probeService = probeService ?? throw new ArgumentNullException(nameof(probeService));
 
     [GeneratedRegex(@"(?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?<mac>([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})")]
     private static partial Regex WindowsArpRegex();
@@ -78,7 +85,6 @@ public sealed partial class NetworkScannerService(
 
                 DateTimeOffset now = DateTimeOffset.UtcNow;
                 string vendor = "";
-                string deviceType = "";
 
                 if (MacAddressFormatter.IsRandomizedOui(macAddress))
                 {
@@ -92,6 +98,18 @@ public sealed partial class NetworkScannerService(
                         vendor = vendorInfo.VendorName;
                     }
                 }
+
+                PhysicalAddress physicalMac = PhysicalAddress.Parse(macAddress.Replace(':', '-'));
+
+                NetworkDeviceProbeResult probeResult = await _probeService.ProbeDeviceAsync(
+                    targetIp,
+                    physicalMac,
+                    hostName,
+                    dhcpVendorClass: null,
+                    cancellationToken: cancellationToken).ConfigureAwait(false);
+
+                DeviceType determinedType = _deviceClassifier.ClassifyDevice(probeResult);
+                string deviceType = determinedType.ToString();
 
                 var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now, vendor, deviceType);
                 results.Add(device);
@@ -283,4 +301,3 @@ public sealed partial class NetworkScannerService(
         Message = "LAN ARP Scan complete. Discovered {Count} active devices.")]
     private static partial void LogScanCompleted(ILogger logger, int count);
 }
-
