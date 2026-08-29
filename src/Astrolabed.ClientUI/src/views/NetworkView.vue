@@ -21,7 +21,9 @@
       @row-select="handleRowSelect"
       @loaded="handleGridLoaded"
     >
-      <template #cell-deviceType="{ value }"> <CircleQuestionMark />{{ value }} </template>
+      <template #cell-deviceType="{ row, value }"
+        ><span class="font-medium text-white"><DeviceType :deviceType="row.deviceType" /></span
+      ></template>
 
       <template #cell-hostName="{ value }">
         <span class="font-medium text-white">{{ value || 'Unknown' }}</span>
@@ -65,7 +67,7 @@ const pageSize = ref<number>(10)
 const totalCount = ref<number>(0)
 
 const columns: Column[] = [
-  { key: 'deviceType', label: '' },
+  { key: 'deviceType', label: ' ' },
   { key: 'hostName', label: 'Host Name' },
   { key: 'ipAddress', label: 'IP Address' },
   { key: 'macAddress', label: 'MAC Address' },
