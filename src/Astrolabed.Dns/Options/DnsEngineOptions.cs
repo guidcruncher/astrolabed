@@ -1,6 +1,9 @@
 // File: src/Astrolabed.Dns/Options/DnsEngineOptions.cs
 namespace Astrolabed.Dns.Options;
 
+using System;
+using System.Collections.Generic;
+
 using Astrolabed.Core.Options;
 
 /// <summary>
@@ -36,12 +39,12 @@ public sealed class DnsEngineOptions
     /// <summary>
     /// Gets or sets the list of upstream DNS resolver IP addresses used for forwarding external queries.
     /// </summary>
-    public List<string> UpstreamResolvers { get; set; } = new() { "1.1.1.1", "8.8.8.8" };
+    public List<string> UpstreamResolvers { get; set; } = [];
 
     /// <summary>
     /// Gets or sets static hosts mapping entries (similar to a standard hosts file).
     /// </summary>
-    public List<string> Hosts { get; set; } = new();
+    public List<string> Hosts { get; set; } = [];
 
     /// <summary>
     /// Gets or sets explicit PTR reverse DNS lookup mapping entries.
@@ -51,7 +54,7 @@ public sealed class DnsEngineOptions
     /// <summary>
     /// Gets or sets conditional forwarding rules for targeted PTR record lookups.
     /// </summary>
-    public List<PtrConditionalRule> ConditionalPtrRules { get; set; } = new();
+    public List<PtrConditionalRule> ConditionalPtrRules { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the response mode executed when an incoming query matches a blocking filter rule.

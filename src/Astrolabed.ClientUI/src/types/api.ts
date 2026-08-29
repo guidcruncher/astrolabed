@@ -123,6 +123,7 @@ export interface DnsResponseEventEntity {
   resolutionSource?: string
   durationMs?: number
   blocked?: number
+  upstream: string
 }
 
 export interface DiscoveredLanDeviceDto {
@@ -130,6 +131,8 @@ export interface DiscoveredLanDeviceDto {
   ipAddress: string
   hostName: string | null
   lastSeen: string
+  vendor: string
+  deviceType: string
 }
 
 export interface CleanupStaleDevicesRequest {

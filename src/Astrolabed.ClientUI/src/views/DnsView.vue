@@ -65,6 +65,7 @@ const columns: Column[] = [
   { key: 'questionType', label: 'Type' },
   { key: 'resolutionSource', label: 'Source' },
   { key: 'client', label: 'Client' },
+  { key: 'upstream', label: 'Upstream' },
   { key: 'durationMs', label: 'Latency' },
 ]
 

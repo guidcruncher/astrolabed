@@ -73,8 +73,8 @@ public sealed partial class NetworkScannerService(
                 }
 
                 DateTimeOffset now = DateTimeOffset.UtcNow;
-		string vendor = "";
-		string deviceType = "";
+                string vendor = "";
+                string deviceType = "";
                 var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now, vendor, deviceType);
                 results.Add(device);
 

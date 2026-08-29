@@ -31,8 +31,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             ClientName = dto.ClientName,
             ResolutionSource = dto.ResolutionSource,
             DurationMs = dto.DurationMs,
-	    Blocked = dto.Blocked ? 1 : 0,
-	    Upstream = dto.Upstream 
+            Blocked = dto.Blocked ? 1 : 0,
+            Upstream = dto.Upstream
         };
 
     }
@@ -59,7 +59,7 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             ResolutionSource = domainEvent.ResolutionSource,
             DurationMs = domainEvent.DurationMs,
             Blocked = domainEvent.Blocked ? 1 : 0,
-	    Upstream = domainEvent.Upstream
+            Upstream = domainEvent.Upstream
         };
     }
 
@@ -84,7 +84,7 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             entity.ResolutionSource,
             entity.DurationMs,
             entity.Blocked == 1,
-	    entity.Upstream
+        entity.Upstream
         );
     }
 

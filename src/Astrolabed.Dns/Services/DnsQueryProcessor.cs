@@ -61,7 +61,7 @@ public sealed partial class DnsQueryProcessor(
         IPAddress address = clientEndpoint.GetIPAddress();
         var context = new DnsContext(address);
         string clientName = "localhost";
-	string upstreamSource = "";
+        string upstreamSource = "";
         DateTimeOffset startTime = DateTimeOffset.UtcNow;
 
         if (!isNestedQuery && !IPAddress.IsLoopback(address))
@@ -226,7 +226,7 @@ public sealed partial class DnsQueryProcessor(
 
                     if (upstreamMessage is not null)
                     {
-			upstreamSource = targetResolverIp.ToString();
+                        upstreamSource = targetResolverIp.ToString();
                         upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                         resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
@@ -254,7 +254,7 @@ public sealed partial class DnsQueryProcessor(
                             responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                             resolutionSource = "UPSTREAM";
                             _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
-			    upstreamSource = upstream;
+                            upstreamSource = upstream;
                             return responseBytes;
                         }
                     }
@@ -292,7 +292,7 @@ public sealed partial class DnsQueryProcessor(
                     resolutionSource,
                     elapsedMs,
                     blocked,
-		    upstreamSource
+            upstreamSource
                 );
 
                 await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);

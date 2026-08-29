@@ -69,8 +69,8 @@ public sealed class DiscoveredLanDeviceEntity
             HostName = domain.HostName,
             LastSeen = domain.LastSeen.ToUnixTimeSeconds(),
             FirstSeen = domain.FirstSeen.ToUnixTimeSeconds(),
-	    Vendor = domain.Vendor,
-	    DeviceType = domain.DeviceType
+            Vendor = domain.Vendor,
+            DeviceType = domain.DeviceType
         };
     }
 
@@ -87,8 +87,8 @@ public sealed class DiscoveredLanDeviceEntity
             HostName,
             DateTimeOffset.FromUnixTimeSeconds(LastSeen),
             DateTimeOffset.FromUnixTimeSeconds(FirstSeen),
-	    Vendor,
-	    DeviceType
+        Vendor,
+        DeviceType
         );
     }
 }
