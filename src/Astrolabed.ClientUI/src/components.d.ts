@@ -19,6 +19,7 @@ declare module 'vue' {
     DashboardView: typeof import('./views/DashboardView.vue')['default']
     DataGrid: typeof import('./components/DataGrid.vue')['default']
     DefaultLayout: typeof import('./layouts/DefaultLayout.vue')['default']
+    DeviceType: typeof import('./components/DeviceType.vue')['default']
     DhcpView: typeof import('./views/DhcpView.vue')['default']
     DnsBenchmarksView: typeof import('./views/DnsBenchmarksView.vue')['default']
     DnsQueryView: typeof import('./views/DnsQueryView.vue')['default']

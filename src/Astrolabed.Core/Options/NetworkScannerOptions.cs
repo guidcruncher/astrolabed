@@ -1,7 +1,6 @@
-// File: src/Astrolabed.Dns/Services/NetworkScannerOptions.cs
 using System.ComponentModel.DataAnnotations;
 
-namespace Astrolabed.Dns.Services;
+namespace Astrolabed.Core.Options;
 
 /// <summary>
 /// Configuration options for controlling local area network (LAN) scanning parameters.
@@ -24,4 +23,9 @@ public sealed class NetworkScannerOptions
     /// </summary>
     [Range(10, 30000)]
     public int PingTimeoutMs { get; init; } = 200;
+
+    /// <summary>
+    ///  The default gateway for the network
+    /// </summary>
+    public string Gateway { get; set; } = "";
 }

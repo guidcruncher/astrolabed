@@ -21,8 +21,14 @@
       @row-select="handleRowSelect"
       @loaded="handleGridLoaded"
     >
-      <template #cell-questionName="{ value }">
-        <span class="font-medium text-white">{{ value }}</span>
+      <template #cell-questionName="{ row, value }">
+        <span class="inline-flex items-center gap-1 whitespace-nowrap"
+          ><ShieldAlert class="text-rose-600" v-if="row.blocked" /><Check
+            class="text-emerald-600"
+            v-else
+          />
+          <span class="font-medium text-white">{{ value }}</span></span
+        >
       </template>
 
       <template #cell-questionType="{ value }">
@@ -30,7 +36,7 @@
       </template>
 
       <template #cell-resolutionSource="{ value }">
-        <span class="text-xs">{{ value }}</span>
+        <span class="text-xs">{{ formatResolution(value) }}</span>
       </template>
 
       <template #cell-client="{ row }">
@@ -51,7 +57,7 @@ import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DnsResponseEventEntity } from '../types/api'
-import { Trash2 } from '@lucide/vue'
+import { Check, ShieldAlert, Trash2 } from '@lucide/vue'
 
 const { getDnsEvents, purgeDnsEvents } = useApi()
 
@@ -65,6 +71,7 @@ const columns: Column[] = [
   { key: 'questionType', label: 'Type' },
   { key: 'resolutionSource', label: 'Source' },
   { key: 'client', label: 'Client' },
+  { key: 'upstream', label: 'Upstream' },
   { key: 'durationMs', label: 'Latency' },
 ]
 
@@ -99,6 +106,13 @@ const handlePurge = async (): Promise<void> => {
     currentPage.value = 1
     await loadLogs()
   }
+}
+
+const formatResolution = (value: any) => {
+  if (value) {
+    return value.replace('BLOCKED_', '').replace('CONDITIONAL_PTR_', '')
+  }
+  return ''
 }
 
 onMounted(() => {

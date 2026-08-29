@@ -1,5 +1,6 @@
 <!-- File: DnsBenchmarksView.vue -->
 <script setup lang="ts">
+import { Timer } from '@lucide/vue'
 import { ref, onMounted } from 'vue'
 import { type DnsBenchmark } from '../types/api'
 import { useApi } from '../composables/useApi'
@@ -8,7 +9,7 @@ import { useApi } from '../composables/useApi'
 const { getDnsBenchmarks } = useApi()
 
 const benchmarks = ref<DnsBenchmark[]>([])
-const isLoading = ref<boolean>(true)
+const isLoading = ref<boolean>(false)
 const errorMessage = ref<string | null>(null)
 
 /**
@@ -51,7 +52,7 @@ const getPacketLossBadgeClass = (lossPercentage: number): string => {
 }
 
 onMounted(() => {
-  fetchBenchmarks()
+  //fetchBenchmarks()
 })
 </script>
 
@@ -68,13 +69,13 @@ onMounted(() => {
         </p>
       </div>
 
-      <button
+      <AppButton
+        class="inline-flex items-center gap-2 whitespace-nowrap"
         @click="fetchBenchmarks"
         :disabled="isLoading"
-        class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors shadow-sm"
       >
-        Refresh Rankings
-      </button>
+        <Timer /> Fetch Rankings
+      </AppButton>
     </div>
 
     <!-- Loading State -->
@@ -98,12 +99,9 @@ onMounted(() => {
       <div class="flex items-center space-x-3">
         <span class="font-medium text-rose-800 dark:text-rose-200">{{ errorMessage }}</span>
       </div>
-      <button
-        @click="fetchBenchmarks"
-        class="text-sm font-semibold text-rose-700 hover:text-rose-900 dark:text-rose-300 dark:hover:text-rose-100 underline"
-      >
-        Try Again
-      </button>
+      <AppButton class="inline-flex items-center gap-2 whitespace-nowrap" @click="fetchBenchmarks">
+        <Timer /> Try Again
+      </AppButton>
     </div>
 
     <!-- Empty State -->

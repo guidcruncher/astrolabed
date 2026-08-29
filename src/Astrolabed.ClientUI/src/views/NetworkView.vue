@@ -21,8 +21,17 @@
       @row-select="handleRowSelect"
       @loaded="handleGridLoaded"
     >
-      <template #cell-hostName="{ value }">
-        <span class="font-medium text-white">{{ value || 'Unknown' }}</span>
+      <template #cell-deviceType="{ row, value }"
+        ><span class="font-medium text-white"><DeviceType :deviceType="row.deviceType" /></span
+      ></template>
+
+      <template #cell-hostName="{ row, value }">
+        <div class="flex flex-col items-start gap-1">
+          <span class="font-medium text-white">{{ value || 'Unknown' }}</span>
+          <span class="bg-slate-700 text-xs px-2 py-0.5 rounded">
+            {{ row.deviceType || 'Unknown' }}
+          </span>
+        </div>
       </template>
 
       <template #cell-ipAddress="{ value }">
@@ -31,6 +40,10 @@
 
       <template #cell-macAddress="{ value }">
         <span class="font-mono text-xs">{{ value }}</span>
+      </template>
+
+      <template #cell-vendor="{ value }">
+        <span>{{ value }}</span>
       </template>
 
       <template #cell-lastSeen="{ value }">
@@ -49,7 +62,7 @@ import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
 import type { DiscoveredLanDeviceDto } from '../types/api'
-import { Trash2 } from '@lucide/vue'
+import { CircleQuestionMark, Trash2 } from '@lucide/vue'
 
 const { getNetworkDevices, cleanupStaleDevices } = useApi()
 
@@ -59,9 +72,11 @@ const pageSize = ref<number>(10)
 const totalCount = ref<number>(0)
 
 const columns: Column[] = [
+  { key: 'deviceType', label: ' ' },
   { key: 'hostName', label: 'Host Name' },
   { key: 'ipAddress', label: 'IP Address' },
   { key: 'macAddress', label: 'MAC Address' },
+  { key: 'vendor', label: 'Vendor' },
   { key: 'lastSeen', label: 'Last Seen' },
 ]
 

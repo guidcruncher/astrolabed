@@ -1,4 +1,5 @@
 // File: src/Astrolabed.Dns/Extensions/ServiceCollectionExtensions.cs
+using Astrolabed.Core.Options;
 using Astrolabed.Core.Scheduler;
 using Astrolabed.Dns.Cache;
 using Astrolabed.Dns.Filtering;
