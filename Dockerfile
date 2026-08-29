@@ -61,6 +61,7 @@ ENV DOCKER=true \
 # Copy published .NET application binaries
 COPY --from=build /app/publish .
 COPY ./public-resolvers.json .
+COPY ./mac-vendors-export.csv .
 
 # Copy compiled Client UI assets to wwwroot for static serving
 COPY --from=ui-build /wwwroot /app/wwwroot

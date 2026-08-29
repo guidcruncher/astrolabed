@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 
+using Astrolabed.Core.Network;
 using Astrolabed.Data.Models;
 
 using Microsoft.Extensions.Logging;
@@ -18,13 +19,16 @@ namespace Astrolabed.Dns.Services;
 /// Scans the local network segment by warming OS ARP/Neighbor caches via UDP probes and parsing platform ARP tables.
 /// </summary>
 /// <param name="options">Configuration options controlling scanning parameters.</param>
+/// <param name="macVendor">The Mac Address  Vendor database</param>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class NetworkScannerService(
     IOptions<NetworkScannerOptions> options,
+    IMacVendorLookupService macVendor,
     ILogger<NetworkScannerService> logger) : INetworkScannerService
 {
     private readonly NetworkScannerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     private readonly ILogger<NetworkScannerService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IMacVendorLookupService _macVendor = macVendor ?? throw new ArgumentNullException(nameof(macVendor));
 
     [GeneratedRegex(@"(?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?<mac>([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})")]
     private static partial Regex WindowsArpRegex();
@@ -75,6 +79,20 @@ public sealed partial class NetworkScannerService(
                 DateTimeOffset now = DateTimeOffset.UtcNow;
                 string vendor = "";
                 string deviceType = "";
+
+                if (MacAddressFormatter.IsRandomizedOui(macAddress))
+                {
+                    vendor = "<<randomized>>";
+                }
+                else
+                {
+                    MacVendorInfo? vendorInfo = _macVendor.FindVendor(macAddress);
+                    if (vendorInfo != null)
+                    {
+                        vendor = vendorInfo.VendorName;
+                    }
+                }
+
                 var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now, vendor, deviceType);
                 results.Add(device);
 
