@@ -40,10 +40,10 @@ public sealed partial class DapperDnsResponseEventRepository(
         const string sql = """
             INSERT INTO dns_response_events (
                 id, start_time_utc, context_id, question_name, question_type,
-                client_endpoint, client_name, resolution_source, duration_ms, blocked
+                client_endpoint, client_name, resolution_source, duration_ms, blocked, upstream
             ) VALUES (
                 @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
-                @ClientEndpoint, @ClientName, @ResolutionSource, @DurationMs, @Blocked
+                @ClientEndpoint, @ClientName, @ResolutionSource, @DurationMs, @Blocked, @Upstream
             );
             """;
 
@@ -62,6 +62,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         parameters.Add("ResolutionSource", entity.ResolutionSource);
         parameters.Add("DurationMs", entity.DurationMs);
         parameters.Add("Blocked", entity.Blocked);
+        parameters.Add("Upstream", entity.Upstream);
 
         var command = new CommandDefinition(
             sql,
@@ -89,7 +90,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
                    duration_ms AS DurationMs,
-                   blocked AS Blocked
+                   blocked AS Blocked,
+                   upstream AS Upstream
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -132,7 +134,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
                    duration_ms AS DurationMs,
-                   blocked AS Blocked
+                   blocked AS Blocked,
+                   upstream AS Upstream
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;
