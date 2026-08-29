@@ -43,6 +43,12 @@ RUN case "${TARGETARCH}" in \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
+# Switch to root to install system dependencies
+USER root
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
 # Ensure directories exist for hosts and blocklist volumes
 USER root
 RUN mkdir -p /etc/astrolabed/dns-hosts /etc/astrolabed/dns-lists /var/lib/astrolabed && \
