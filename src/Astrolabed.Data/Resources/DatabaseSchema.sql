@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     client_name VARCHAR(255) NOT NULL,
     resolution_source VARCHAR(255) NOT NULL,
     duration_ms DOUBLE PRECISION NOT NULL,
-    blocked INT NOT NULL
+    blocked INT NOT NULL,
+    upstream VARCHAR(64) NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_dns_events_start_time ON dns_response_events (start_time_utc);
@@ -21,6 +22,8 @@ CREATE TABLE IF NOT EXISTS discovered_lan_devices (
     ip_address  VARCHAR(45) NOT NULL,
     ptr_address VARCHAR(64) NOT NULL,
     host_name   VARCHAR(255) NULL,
+    vendor      VARCHAR(255) NOT NULL,
+    device_type VARCHAR(32) NOT NULL,
     first_seen  BIGINT NOT NULL,
     last_seen   BIGINT NOT NULL,
 

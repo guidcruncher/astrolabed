@@ -40,15 +40,17 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen
+                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen, vendor, device_type
             ) VALUES (
-                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen
+                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen, @Vendor, @DeviceType
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
                 ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
-                last_seen = EXCLUDED.last_seen;
+                last_seen = EXCLUDED.last_seen,
+                vendor = EXCLUDED.vendor,
+                device_type = EXCLUDED.device_type;
             """;
 
         long firstSeenEpoch = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
@@ -65,6 +67,8 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
         parameters.Add("HostName", entity.HostName);
         parameters.Add("LastSeen", entity.LastSeen);
         parameters.Add("FirstSeen", firstSeenEpoch);
+        parameters.Add("Vendor", entity.Vendor);
+        parameters.Add("DeviceType", entity.DeviceType);
 
         var command = new CommandDefinition(
             sql,
@@ -108,20 +112,24 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             param.Add("HostName", entity.HostName);
             param.Add("LastSeen", entity.LastSeen);
             param.Add("FirstSeen", firstSeenEpoch);
+            param.Add("Vendor", entity.Vendor);
+            param.Add("DeviceType", entity.DeviceType);
             parameterBatch[i] = param;
         }
 
         const string sql = """
             INSERT INTO discovered_lan_devices (
-                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen
+                mac_address, ip_address, ptr_address, host_name, last_seen, first_seen, vendor, device_type
             ) VALUES (
-                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen
+                @MacAddress, @IpAddress, @PtrAddress, @HostName, @LastSeen, @FirstSeen, @Vendor, @DeviceType
             )
             ON CONFLICT (mac_address) DO UPDATE SET
                 ip_address = EXCLUDED.ip_address,
                 ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
-                last_seen = EXCLUDED.last_seen;
+                last_seen = EXCLUDED.last_seen,
+                vendor = EXCLUDED.vendor,
+                device_type = EXCLUDED.device_type;
             """;
 
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
@@ -149,7 +157,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                    mac_address AS MacAddress,
                    host_name AS HostName,
                    last_seen AS LastSeen,
-                   first_seen AS FirstSeen
+                   first_seen AS FirstSeen,
+                   vendor AS Vendor,
+                   device_type AS DeviceType
             FROM discovered_lan_devices
             WHERE ptr_address = @PtrAddress;
             """;
@@ -182,7 +192,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                    mac_address AS MacAddress,
                    host_name AS HostName,
                    last_seen AS LastSeen,
-                   first_seen AS FirstSeen
+                   first_seen AS FirstSeen,
+                   vendor AS Vendor,
+                   device_type AS DeviceType
             FROM discovered_lan_devices
             WHERE mac_address = @MacAddress;
             """;
@@ -215,7 +227,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                    mac_address AS MacAddress,
                    host_name AS HostName,
                    last_seen AS LastSeen,
-                   first_seen AS FirstSeen
+                   first_seen AS FirstSeen,
+                   vendor AS Vendor,
+                   device_type AS DeviceType
             FROM discovered_lan_devices
             WHERE ip_address = @IpAddress;
             """;
@@ -256,7 +270,9 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                    mac_address AS MacAddress,
                    host_name AS HostName,
                    last_seen AS LastSeen,
-                   first_seen AS FirstSeen
+                   first_seen AS FirstSeen,
+                   vendor AS Vendor,
+                   device_type AS DeviceType
             FROM discovered_lan_devices
             ORDER BY last_seen DESC
             LIMIT @PageSize OFFSET @Offset;

@@ -54,4 +54,10 @@ public sealed class DnsResponseEventEntity
     /// Gets or sets a value to indicate if this response was blocked
     /// </summary>
     public int Blocked { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value to indicate the resolving upstream
+    /// </summary>
+    public required string Upstream { get; set; }
+
 }
