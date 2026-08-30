@@ -1,3 +1,9 @@
+export interface DnsHourlyEventSummary {
+  eventHour: number
+  blocked: number
+  allowed: number
+}
+
 export interface DnsBenchmark {
   rank: number
   serverName: string

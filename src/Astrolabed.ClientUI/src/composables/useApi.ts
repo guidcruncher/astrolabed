@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import type {
   AstrolabedStatusResponse,
+  DnsHourlyEventSummary,
   CacheCountResponse,
   CacheEntryView,
   PagedResultOfCacheEntryView,
@@ -66,6 +67,10 @@ export function useApi() {
   // --- Astrolabed ---
   const getStatus = (): Promise<AstrolabedStatusResponse> =>
     request<AstrolabedStatusResponse>('/api/Astrolabed/status')
+
+  // --- Stats ---
+  const getDnsHourlyEventSummary = (): Promise<DnsHourlyEventSummary[]> =>
+    request<DnsHourlyEventSummary[]>('/api/stats/dns/hourly')
 
   // --- Cache ---
   const getCacheCount = (): Promise<CacheCountResponse> =>
@@ -186,5 +191,6 @@ export function useApi() {
     cleanupStaleDevices,
     getCurrentTime,
     getDnsBenchmarks,
+    getDnsHourlyEventSummary,
   }
 }

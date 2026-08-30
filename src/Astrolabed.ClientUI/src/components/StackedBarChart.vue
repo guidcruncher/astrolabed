@@ -5,7 +5,7 @@
     <!-- Header (Conditional) -->
     <div
       v-if="showTitle"
-      class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4"
+      class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4 flex-shrink-0"
     >
       <div>
         <h2 class="text-xl font-bold text-white tracking-tight">{{ title }}</h2>
@@ -18,13 +18,14 @@
       </div>
     </div>
 
-    <!-- Main Content Area (Dynamic Layout based on Legend Position) -->
-    <div class="flex flex-1 w-full gap-8 items-center" :class="layoutClasses">
+    <!-- Main Content Area -->
+    <div class="flex flex-1 w-full gap-8 items-stretch min-h-0" :class="layoutClasses">
       <!-- SVG Chart Container -->
-      <div class="relative w-full h-full min-h-[240px] flex-1 flex items-center justify-center">
+      <div class="relative w-full h-full flex-1 flex items-center justify-center min-h-[240px]">
         <svg
           viewBox="0 0 400 320"
-          class="w-full h-full overflow-visible drop-shadow-xl max-h-[320px]"
+          preserveAspectRatio="none"
+          class="w-full h-full overflow-visible drop-shadow-xl"
         >
           <!-- Grid Lines -->
           <g class="stroke-slate-800 stroke-1">
@@ -83,7 +84,7 @@
       </div>
 
       <!-- Legend (Conditional) -->
-      <div v-if="showLegend" class="flex gap-2.5" :class="legendClasses">
+      <div v-if="showLegend" class="flex gap-2.5 flex-shrink-0" :class="legendClasses">
         <div
           v-for="series in seriesList"
           :key="series.id"
@@ -108,7 +109,7 @@
       </div>
     </div>
 
-    <!-- Floating Tooltip with Slot -->
+    <!-- Floating Tooltip -->
     <div
       class="fixed opacity-0 pointer-events-none transition-opacity duration-150 ease-out bg-slate-800/90 backdrop-blur-md border border-slate-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-xl z-50"
       :class="{ 'opacity-100': activeSegment !== null }"
@@ -290,10 +291,6 @@ const computedBars = computed<ComputedBar[]>(() => {
     }
   })
 })
-
-function getSeriesTotal(seriesId: string | number): number {
-  return props.modelValue.reduce((sum, bar) => sum + (bar.values[seriesId] || 0), 0)
-}
 
 function isSegmentActive(barId: string | number, seriesId: string | number): boolean {
   if (activeSegment.value) {
