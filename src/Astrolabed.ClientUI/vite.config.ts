@@ -18,6 +18,7 @@ export default defineConfig({
     // Output static assets directly to the .NET project's wwwroot directory
     outDir: path.resolve(import.meta.dirname, '../../wwwroot'),
     emptyOutDir: true,
+    chunkSizeWarningLimit: 900,
   },
   server: {
     port: 8002,

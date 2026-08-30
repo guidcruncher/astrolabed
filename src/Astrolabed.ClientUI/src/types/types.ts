@@ -41,6 +41,7 @@ export interface ActiveSliceData extends PieChartItem {
 export type ModalAction = 'confirm' | 'cancel' | 'close' | string
 
 export interface NavItem {
+  icon?: string
   label: string
   shortLabel: string
   to: string

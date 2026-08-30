@@ -9,7 +9,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
-
 /// <summary>
 /// Provides API endpoints for querying system statistics and analytical metrics.
 /// </summary>
@@ -55,9 +54,43 @@ public sealed partial class StatsController(
         return Ok(summaries);
     }
 
+    /// <summary>
+    /// Retrieves a breakdown of DNS queries aggregated by their question type.
+    /// </summary>
+    /// <remarks>
+    /// Returns a collection of records indicating total query volume categorized by individual DNS record types (for example: A, AAAA, MX, CNAME).
+    /// </remarks>
+    /// <param name="cancellationToken">Cancellation token for the async operation.</param>
+    /// <returns>A collection of DNS question type summary records.</returns>
+    /// <response code="200">DNS question type summaries retrieved successfully.</response>
+    /// <response code="500">An unhandled server error occurred while retrieving question type statistics.</response>
+    [HttpGet("dns/question-types")]
+    [EndpointSummary("Get DNS Question Type Metrics")]
+    [EndpointDescription("Fetches aggregate DNS query counts grouped by their question type.")]
+    [ProducesResponseType(typeof(IEnumerable<DnsQuestionTypeSummary>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<IEnumerable<DnsQuestionTypeSummary>>> GetQuestionTypeSummariesAsync(
+        CancellationToken cancellationToken)
+    {
+        LogExecutingGetQuestionTypeSummaries(_logger);
+
+        IEnumerable<DnsQuestionTypeSummary> summaries =
+            await _statsRepository.GetQuestionTypeSummary(cancellationToken);
+
+        LogFetchedQuestionTypeSummaries(_logger);
+
+        return Ok(summaries);
+    }
+
     [LoggerMessage(EventId = 1, Level = LogLevel.Information, Message = "Received request to fetch hourly DNS event summaries.")]
     private static partial void LogExecutingGetHourlyDnsEventSummaries(ILogger logger);
 
     [LoggerMessage(EventId = 2, Level = LogLevel.Debug, Message = "Successfully retrieved {Count} hourly DNS event summary records.")]
     private static partial void LogFetchedHourlyDnsEventSummaries(ILogger logger, int count);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Information, Message = "Received request to fetch DNS question type summaries.")]
+    private static partial void LogExecutingGetQuestionTypeSummaries(ILogger logger);
+
+    [LoggerMessage(EventId = 4, Level = LogLevel.Debug, Message = "Successfully retrieved DNS question type summary records.")]
+    private static partial void LogFetchedQuestionTypeSummaries(ILogger logger);
 }

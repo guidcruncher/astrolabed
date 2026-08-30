@@ -44,7 +44,11 @@
         :title="isCollapsed ? item.label : undefined"
         @click="handleItemClick(item)"
       >
-        {{ isCollapsed ? item.shortLabel : item.label }}
+        <span v-if="isCollapsed">
+          <component v-if="item.icon" :is="getIconRef(item.icon)" :size="24" :stroke-width="2" />
+          <span v-else>{{ item.shortLabel }}</span>
+        </span>
+        <span v-else>{{ item.label }}</span>
       </router-link>
     </nav>
   </aside>
@@ -55,10 +59,21 @@ import { ref } from 'vue'
 import { useApi } from '../composables/useApi'
 import { type NavItem } from '../types/types'
 import { ArrowRightToLine, ArrowLeftToLine } from '@lucide/vue'
+import * as icons from '@lucide/vue'
 
 interface Props {
   items?: NavItem[]
   defaultCollapsed?: boolean
+}
+
+const getIconRef = (name: string) => {
+  const icon = (icons as Record<string, any>)[name]
+
+  if (!icon) {
+    return null
+  }
+
+  return icon
 }
 
 const props = withDefaults(defineProps<Props>(), {

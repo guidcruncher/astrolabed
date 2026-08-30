@@ -54,7 +54,7 @@
       <!-- Legend (Conditional) -->
       <div v-if="showLegend" class="flex flex-col gap-2.5">
         <div
-          v-for="item in modelValue"
+          v-for="(item, index) in modelValue"
           :key="item.id"
           class="flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer"
           :class="[
@@ -67,7 +67,10 @@
           @click="handleLegendClick(item.id)"
         >
           <div class="flex items-center gap-3">
-            <span class="w-3 h-3 rounded-full" :style="{ backgroundColor: item.color }"></span>
+            <span
+              class="w-3 h-3 rounded-full"
+              :style="{ backgroundColor: getItemColor(item, index) }"
+            ></span>
             <span class="text-sm font-medium text-slate-300">{{ item.label }}</span>
           </div>
           <span class="text-sm font-bold text-slate-100">{{ item.value }}</span>
@@ -134,6 +137,26 @@ const cx = 160
 const cy = 160
 const radius = 120
 
+const DEFAULT_SLATE_PALETTE: readonly string[] = [
+  '#38bdf8', // Sky 400
+  '#818cf8', // Indigo 400
+  '#c084fc', // Purple 400
+  '#34d399', // Emerald 400
+  '#fbbf24', // Amber 400
+  '#f472b6', // Pink 400
+  '#2dd4bf', // Teal 400
+  '#fb923c', // Orange 400
+  '#a78bfa', // Violet 400
+  '#f87171', // Red 400
+]
+
+function getItemColor(item: PieChartItem, index: number): string {
+  if (item.color && item.color.trim() !== '') {
+    return item.color
+  }
+  return DEFAULT_SLATE_PALETTE[index % DEFAULT_SLATE_PALETTE.length]
+}
+
 const totalValue = computed<number>(() => {
   return props.modelValue.reduce((sum: number, item: PieChartItem) => sum + item.value, 0)
 })
@@ -144,7 +167,7 @@ const computedSlices = computed<ComputedSlice[]>(() => {
 
   let cumulativeAngle = -Math.PI / 2
 
-  return props.modelValue.map((item: PieChartItem): ComputedSlice => {
+  return props.modelValue.map((item: PieChartItem, index: number): ComputedSlice => {
     const percentage = (item.value / total) * 100
     const sliceAngle = (item.value / total) * 2 * Math.PI
     const startAngle = cumulativeAngle
@@ -164,8 +187,11 @@ const computedSlices = computed<ComputedSlice[]>(() => {
     const dx = Math.cos(midAngle) * offsetDistance
     const dy = Math.sin(midAngle) * offsetDistance
 
+    const resolvedColor = getItemColor(item, index)
+
     return {
       ...item,
+      color: resolvedColor,
       percentage,
       pathData,
       dx,
