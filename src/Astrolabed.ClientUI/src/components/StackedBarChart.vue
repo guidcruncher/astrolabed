@@ -1,7 +1,10 @@
 <template>
   <div class="w-full h-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 md:p-8 flex flex-col">
-    <!-- Header -->
-    <div class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+    <!-- Header (Conditional) -->
+    <div 
+      v-if="showTitle" 
+      class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4"
+    >
       <div>
         <h2 class="text-xl font-bold text-white tracking-tight">{{ title }}</h2>
         <p v-if="subtitle" class="text-xs text-slate-400 mt-1">{{ subtitle }}</p>
@@ -11,13 +14,17 @@
       </div>
     </div>
 
-    <!-- Main Content Area -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-center flex-1">
-      <!-- SVG Chart Container -->
+    <!-- Main Content Area (Dynamic Grid Layout) -->
+    <div 
+      class="grid gap-8 items-center flex-1 w-full"
+      :class="showLegend ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'"
+    >
+      <!-- SVG Chart Container (Expands when legend is hidden) -->
       <div class="relative w-full h-full min-h-[240px] flex items-center justify-center">
         <svg 
           viewBox="0 0 400 320" 
-          class="w-full h-full max-h-[320px] overflow-visible drop-shadow-xl"
+          class="w-full h-full overflow-visible drop-shadow-xl"
+          :class="showLegend ? 'max-h-[320px]' : 'max-h-[420px]'"
         >
           <!-- Grid Lines -->
           <g class="stroke-slate-800 stroke-1">
@@ -73,11 +80,10 @@
             </text>
           </g>
         </svg>
-
       </div>
 
-      <!-- Legend -->
-      <div class="flex flex-col gap-2.5">
+      <!-- Legend (Conditional) -->
+      <div v-if="showLegend" class="flex flex-col gap-2.5">
         <div
           v-for="series in seriesList"
           :key="series.id"
@@ -156,11 +162,15 @@ interface Props {
   seriesList: StackedBarSeries[];
   title?: string;
   subtitle?: string;
+  showTitle?: boolean;
+  showLegend?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: 'Stacked Distribution',
-  subtitle: ''
+  subtitle: '',
+  showTitle: true,
+  showLegend: true
 });
 
 const emit = defineEmits<{

@@ -32,7 +32,7 @@
 
       <!-- Pie Chart Instance -->
       <div class="h-[480px]">
-        <PieChart 
+        <PieChart :show-legend="false" :show-title="false"
           v-model="pieData" 
           title="Revenue Breakdown (Pie)" 
           subtitle="Q3 Performance Metrics"
@@ -57,7 +57,7 @@
 
       <!-- Stacked Bar Chart Instance -->
       <div class="h-[480px]">
-        <StackedBarChart 
+        <StackedBarChart :show-legend="false" :show-title="false" 
           v-model="barData" 
           :series-list="barSeries"
           title="Quarterly Sales (Stacked Bar)" 
