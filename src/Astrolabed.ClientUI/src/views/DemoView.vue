@@ -122,7 +122,7 @@
             v-if="lastClickedPoint"
             class="bg-slate-950 p-3 rounded-lg border border-slate-800 flex items-center justify-between"
           >
-            <span class="font-bold text-white">{{ lastClickedPoint.month }}</span>
+            <span class="font-bold text-white">{{ lastClickedPoint.label }}</span>
             <span class="text-slate-400"
               >Value:
               <strong class="text-emerald-400"
@@ -281,7 +281,7 @@ function addCategory(): void {
   // Add new point to Line Chart
   const nextMonth = monthNames[lineData.value.length - 8] || `M${lineData.value.length + 1}`
   lineData.value.push({
-    month: nextMonth,
+    label: nextMonth,
     value: Math.floor(Math.random() * 70000) + 20000,
   })
 

@@ -30,7 +30,6 @@ declare module 'vue' {
     PieChart: typeof import('./components/PieChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
-    StackedBar: typeof import('./components/StackedBar.vue')['default']
     StackedBarChart: typeof import('./components/StackedBarChart.vue')['default']
   }
 }

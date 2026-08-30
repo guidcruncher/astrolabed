@@ -130,7 +130,7 @@ import {
   type StackedBarItem,
   type StackedBarSeries,
   type ActiveSegmentData,
-  type LegendPositon,
+  type LegendPosition,
 } from '../types/types'
 
 export interface ComputedBarSegment {
