@@ -57,8 +57,9 @@
 
       <!-- Stacked Bar Chart Instance -->
       <div class="h-[480px]">
-        <StackedBarChart :show-legend="false" :show-title="false" 
-          v-model="barData" 
+        <StackedBarChart :show-legend="true" :show-title="false" 
+          v-model="barData"
+	  legend-position="bottom" 
           :series-list="barSeries"
           title="Quarterly Sales (Stacked Bar)" 
           subtitle="Regional Breakdown per Quarter"

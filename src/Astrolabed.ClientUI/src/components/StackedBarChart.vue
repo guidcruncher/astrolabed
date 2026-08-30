@@ -14,17 +14,16 @@
       </div>
     </div>
 
-    <!-- Main Content Area (Dynamic Grid Layout) -->
+    <!-- Main Content Area (Dynamic Layout based on Legend Position) -->
     <div 
-      class="grid gap-8 items-center flex-1 w-full"
-      :class="showLegend ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'"
+      class="flex flex-1 w-full gap-8 items-center"
+      :class="layoutClasses"
     >
-      <!-- SVG Chart Container (Expands when legend is hidden) -->
-      <div class="relative w-full h-full min-h-[240px] flex items-center justify-center">
+      <!-- SVG Chart Container -->
+      <div class="relative w-full h-full min-h-[240px] flex-1 flex items-center justify-center">
         <svg 
           viewBox="0 0 400 320" 
-          class="w-full h-full overflow-visible drop-shadow-xl"
-          :class="showLegend ? 'max-h-[320px]' : 'max-h-[420px]'"
+          class="w-full h-full overflow-visible drop-shadow-xl max-h-[320px]"
         >
           <!-- Grid Lines -->
           <g class="stroke-slate-800 stroke-1">
@@ -83,7 +82,11 @@
       </div>
 
       <!-- Legend (Conditional) -->
-      <div v-if="showLegend" class="flex flex-col gap-2.5">
+      <div 
+        v-if="showLegend" 
+        class="flex gap-2.5"
+        :class="legendClasses"
+      >
         <div
           v-for="series in seriesList"
           :key="series.id"
@@ -91,19 +94,19 @@
           :class="[
             activeSeriesId === series.id 
               ? 'bg-slate-800 border-slate-700' 
-              : 'border-transparent hover:bg-slate-800/50 hover:border-slate-800'
+              : 'border-transparent hover:bg-slate-800/50 hover:border-slate-800',
+            isHorizontalLegend ? 'flex-1 min-w-[140px]' : 'w-full'
           ]"
           @mouseenter="activeSeriesId = series.id"
           @mouseleave="activeSeriesId = null"
         >
           <div class="flex items-center gap-3">
             <span 
-              class="w-3 h-3 rounded-full" 
+              class="w-3 h-3 rounded-full flex-shrink-0" 
               :style="{ backgroundColor: series.color }"
             ></span>
             <span class="text-sm font-medium text-slate-300">{{ series.label }}</span>
           </div>
-          <span class="text-sm font-bold text-slate-100">{{ getSeriesTotal(series.id) }}</span>
         </div>
       </div>
     </div>
@@ -128,7 +131,8 @@ import { ref, computed } from 'vue';
 import {
   type StackedBarItem,
   type StackedBarSeries,
-  type ActiveSegmentData
+  type ActiveSegmentData,
+  type LegendPositon
 } from '../types/types';
 
 export interface ComputedBarSegment {
@@ -157,6 +161,7 @@ export interface TooltipPosition {
   y: number;
 }
 
+
 interface Props {
   modelValue: StackedBarItem[];
   seriesList: StackedBarSeries[];
@@ -164,13 +169,15 @@ interface Props {
   subtitle?: string;
   showTitle?: boolean;
   showLegend?: boolean;
+  legendPosition?: LegendPosition;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   title: 'Stacked Distribution',
   subtitle: '',
   showTitle: true,
-  showLegend: true
+  showLegend: true,
+  legendPosition: 'right'
 });
 
 const emit = defineEmits<{
@@ -181,6 +188,33 @@ const emit = defineEmits<{
 const activeSegment = ref<ActiveSegmentData | null>(null);
 const activeSeriesId = ref<string | number | null>(null);
 const tooltipPos = ref<TooltipPosition>({ x: 0, y: 0 });
+
+const isHorizontalLegend = computed(() => {
+  return props.legendPosition === 'top' || props.legendPosition === 'bottom';
+});
+
+const layoutClasses = computed(() => {
+  if (!props.showLegend) return 'flex-col';
+
+  switch (props.legendPosition) {
+    case 'left':
+      return 'flex-col md:flex-row-reverse';
+    case 'top':
+      return 'flex-col-reverse';
+    case 'bottom':
+      return 'flex-col';
+    case 'right':
+    default:
+      return 'flex-col md:flex-row';
+  }
+});
+
+const legendClasses = computed(() => {
+  if (isHorizontalLegend.value) {
+    return 'flex-row flex-wrap w-full justify-center';
+  }
+  return 'flex-col w-full md:w-64';
+});
 
 const chartTop = 20;
 const chartBottom = 270;

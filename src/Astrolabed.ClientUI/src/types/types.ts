@@ -1,3 +1,5 @@
+export type LegendPosition = 'left' | 'right' | 'top' | 'bottom';
+
 export interface ActiveSegmentData {
   barId: string | number;
   barLabel: string;
