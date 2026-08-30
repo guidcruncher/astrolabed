@@ -29,7 +29,7 @@
       </StackedBarChart>
     </div>
 
-    <div class="h-[480px]">
+    <div class="h-[380px]">
       <PieChart
         :show-legend="true"
         :show-title="true"
