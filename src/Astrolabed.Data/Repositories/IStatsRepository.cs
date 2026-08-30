@@ -8,10 +8,10 @@ using Astrolabed.Data.Models;
 public interface IStatsRepository
 {
     /// <summary>
-    /// Gets aggregated event counts grouped by hour of the day and blocked status.
+    /// Gets aggregated DNS event metrics grouped into 24 hourly records (0–23 UTC),
+    /// detailing blocked and allowed counts per hour.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>A collection of hourly event metrics.</returns>
+    /// <returns>A collection of exactly 24 hourly event metrics.</returns>
     Task<IReadOnlyCollection<DnsHourlyEventSummary>> GetHourlyEventSummariesAsync(CancellationToken cancellationToken = default);
 }
-

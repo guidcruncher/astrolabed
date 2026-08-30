@@ -1,7 +1,7 @@
 namespace Astrolabed.Data.Models;
 
 /// <summary>
-/// Database representation for mapped DnsHourlyEventSummary query execution.
+/// Database entity for mapping hourly conditional aggregations.
 /// </summary>
 internal sealed class DnsHourlyEventSummaryEntity
 {
@@ -9,15 +9,15 @@ internal sealed class DnsHourlyEventSummaryEntity
 
     public int Blocked { get; set; }
 
-    public long TotalEvents { get; set; }
+    public int Allowed { get; set; }
 
     public DnsHourlyEventSummary ToDomain()
     {
         return new DnsHourlyEventSummary
         {
             EventHour = EventHour,
-            IsBlocked = Blocked != 0,
-            TotalEvents = TotalEvents
+            Blocked = Blocked,
+            Allowed = Allowed
         };
     }
 }

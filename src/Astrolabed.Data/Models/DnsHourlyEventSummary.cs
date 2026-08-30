@@ -1,23 +1,35 @@
 namespace Astrolabed.Data.Models;
 
+using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+
 /// <summary>
-/// Represents aggregated DNS event statistics grouped by hour of the day and blocked status.
+/// Represents aggregated DNS event statistics for a specific hour of the day.
 /// </summary>
 public sealed record DnsHourlyEventSummary
 {
     /// <summary>
-    /// Gets the hour of the day (0 through 23 UTC).
+    /// Gets the hour of the day in UTC (0 through 23).
     /// </summary>
+    /// <example>14</example>
+    [Required]
+    [Range(0, 23)]
+    [DefaultValue(0)]
     public required int EventHour { get; init; }
 
     /// <summary>
-    /// Gets a value indicating whether the events in this summary block were blocked (1) or allowed (0).
+    /// Gets the total count of blocked DNS events during this hour.
     /// </summary>
-    public required bool IsBlocked { get; init; }
+    /// <example>42</example>
+    [Required]
+    [DefaultValue(0)]
+    public required int Blocked { get; init; }
 
     /// <summary>
-    /// Gets the total count of events for this specific hour and blocked state.
+    /// Gets the total count of allowed (non-blocked) DNS events during this hour.
     /// </summary>
-
-    public required long TotalEvents { get; init; }
+    /// <example>1208</example>
+    [Required]
+    [DefaultValue(0)]
+    public required int Allowed { get; init; }
 }

@@ -2,7 +2,6 @@ namespace Astrolabed.Data.Repositories;
 
 using System.Data.Common;
 
-using Astrolabed.Core.Network;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Options;
 
@@ -10,6 +9,7 @@ using Dapper;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+
 
 /// <summary>
 /// High-performance Dapper implementation for querying analytical statistics and DNS metrics.
@@ -35,10 +35,10 @@ public sealed partial class DapperStatsRepository(
     {
         const string sql = """
             SELECT (start_time_utc / 3600) % 24 AS EventHour,
-                   blocked AS Blocked,
-                   COUNT(*) AS TotalEvents
+                   SUM(CASE WHEN blocked <> 0 THEN 1 ELSE 0 END) AS Blocked,
+                   SUM(CASE WHEN blocked = 0 THEN 1 ELSE 0 END) AS Allowed
             FROM dns_response_events
-            GROUP BY 1, 2
+            GROUP BY 1
             ORDER BY EventHour;
             """;
 
@@ -55,34 +55,30 @@ public sealed partial class DapperStatsRepository(
 
         var existingData = entities
             .Select(entity => entity.ToDomain())
-            .ToDictionary(summary => (summary.EventHour, summary.IsBlocked));
+            .ToDictionary(summary => summary.EventHour);
 
-        var completeSummaries = new List<DnsHourlyEventSummary>(48);
+        var completeSummaries = new List<DnsHourlyEventSummary>(24);
 
         for (int hour = 0; hour < 24; hour++)
         {
-            foreach (bool isBlocked in (bool[])[false, true])
+            if (existingData.TryGetValue(hour, out var existingSummary))
             {
-                if (existingData.TryGetValue((hour, isBlocked), out var existingSummary))
+                completeSummaries.Add(existingSummary);
+            }
+            else
+            {
+                completeSummaries.Add(new DnsHourlyEventSummary
                 {
-                    completeSummaries.Add(existingSummary);
-                }
-                else
-                {
-                    completeSummaries.Add(new DnsHourlyEventSummary
-                    {
-                        EventHour = hour,
-                        IsBlocked = isBlocked,
-                        TotalEvents = 0
-                    });
-                }
+                    EventHour = hour,
+                    Blocked = 0,
+                    Allowed = 0
+                });
             }
         }
 
         return completeSummaries.AsReadOnly();
     }
 
-    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Fetching hourly DNS event metrics grouped by hour and blocked status")]
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "Fetching hourly DNS event metrics grouped into one record per hour.")]
     private static partial void LogFetchingHourlyEventSummaries(ILogger logger);
 }
-
