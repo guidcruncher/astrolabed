@@ -2,34 +2,6 @@
   <div>
     <h2 class="text-2xl font-bold mb-6">System Overview</h2>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
-        <h3 class="text-sm font-semibold text-slate-400 uppercase">Operational Status</h3>
-        <p
-          class="text-2xl font-bold mt-2"
-          :class="status?.status === 'Healthy' ? 'text-emerald-400' : 'text-amber-400'"
-        >
-          {{ status?.status || 'Loading...' }}
-        </p>
-        <span class="text-xs text-slate-500 mt-4 block">
-          Last Check: {{ status?.timestamp ? new Date(status.timestamp).toLocaleString() : 'N/A' }}
-        </span>
-      </div>
-
-      <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
-        <h3 class="text-sm font-semibold text-slate-400 uppercase">Cached DNS Items</h3>
-        <p class="text-3xl font-bold mt-2 text-sky-400">
-          {{ cacheCount !== null ? cacheCount : '-' }}
-        </p>
-        <AppButton
-          variant="danger"
-          @click="handleClearCache"
-          class="inline-flex items-center gap-2 whitespace-nowrap"
-          ><Trash2 /> Purge DNS Cache
-        </AppButton>
-      </div>
-    </div>
-
     <div class="h-[380px]">
       <StackedBarChart
         :show-legend="false"
@@ -64,11 +36,8 @@ import { ref, onMounted, computed } from 'vue'
 import { useApi } from '../composables/useApi'
 import type { AstrolabedStatusResponse, DnsHourlyEventSummary } from '../types/api'
 import type { StackedBarItem, StackedBarSeries } from '../types/types'
-import { Trash2 } from '@lucide/vue'
 
-const { getStatus, getCacheCount, clearCache, getDnsHourlyEventSummary } = useApi()
-const status = ref<AstrolabedStatusResponse | null>(null)
-const cacheCount = ref<number | null>(null)
+const { getDnsHourlyEventSummary } = useApi()
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 
 const dnsBarSeries: StackedBarSeries[] = [
@@ -95,19 +64,9 @@ const hourlyDnsChartData = computed<StackedBarItem[]>(() => {
 
 const fetchData = async (): Promise<void> => {
   try {
-    status.value = await getStatus()
-    const countRes = await getCacheCount()
     hourDnsData.value = await getDnsHourlyEventSummary()
-    cacheCount.value = countRes?.count ?? 0
   } catch (e) {
     console.error(e)
-  }
-}
-
-const handleClearCache = async (): Promise<void> => {
-  if (confirm('Are you sure you want to purge the DNS cache?')) {
-    await clearCache()
-    await fetchData()
   }
 }
 

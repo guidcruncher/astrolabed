@@ -16,13 +16,13 @@
 import { type NavItem } from '../types/types'
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
-  { label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
-  { label: 'DNS Bench', shortLabel: 'BNH', to: '/benchmark' },
-  { label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
-  { label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
-  { label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },
-  { label: 'Network Devices', shortLabel: 'NET', to: '/network' },
+  { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
+  { icon: 'HandHelping', label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
+  { icon: 'Timer', label: 'DNS Bench', shortLabel: 'BNH', to: '/benchmark' },
+  { icon: 'Logs', label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
+  { icon: 'DatabaseZap', label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
+  { icon: 'Binoculars', label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },
+  { icon: 'Network', label: 'Network Devices', shortLabel: 'NET', to: '/network' },
 ]
 
 function onSidebarCollapse(isCollapsed: boolean): void {}

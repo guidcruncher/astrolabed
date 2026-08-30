@@ -27,6 +27,7 @@ declare module 'vue' {
     DnsView: typeof import('./views/DnsView.vue')['default']
     LineChart: typeof import('./components/LineChart.vue')['default']
     NetworkView: typeof import('./views/NetworkView.vue')['default']
+    Panel: typeof import('./components/Panel.vue')['default']
     PieChart: typeof import('./components/PieChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
