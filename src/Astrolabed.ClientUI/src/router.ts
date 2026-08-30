@@ -11,6 +11,11 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('./views/DashboardView.vue'),
       },
       {
+        path: 'demo',
+        name: 'Demo',
+        component: () => import('./views/DemoView.vue'),
+      },
+      {
         path: 'cache',
         name: 'Cache',
         component: () => import('./views/CacheListView.vue'),

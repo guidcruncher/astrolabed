@@ -19,13 +19,17 @@ declare module 'vue' {
     DashboardView: typeof import('./views/DashboardView.vue')['default']
     DataGrid: typeof import('./components/DataGrid.vue')['default']
     DefaultLayout: typeof import('./layouts/DefaultLayout.vue')['default']
+    DemoView: typeof import('./views/DemoView.vue')['default']
     DeviceType: typeof import('./components/DeviceType.vue')['default']
     DhcpView: typeof import('./views/DhcpView.vue')['default']
     DnsBenchmarksView: typeof import('./views/DnsBenchmarksView.vue')['default']
     DnsQueryView: typeof import('./views/DnsQueryView.vue')['default']
     DnsView: typeof import('./views/DnsView.vue')['default']
     NetworkView: typeof import('./views/NetworkView.vue')['default']
+    PieChart: typeof import('./components/PieChart.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    StackedBar: typeof import('./components/StackedBar.vue')['default']
+    StackedBarChart: typeof import('./components/StackedBarChart.vue')['default']
   }
 }
