@@ -30,6 +30,28 @@ public sealed partial class DapperStatsRepository(
     private readonly DatabaseOptions _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
     private readonly ILogger<DapperStatsRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+
+    /// <inheritdoc />
+    public async Task<IEnumerable<DnsQuestionTypeSummary>> GetQuestionTypeSummary(CancellationToken cancellationToken = default)
+    {
+        const string sql = """
+            SELECT COUNT(*) AS Total, question_type AS QuestionType
+            FROM dns_response_events
+            GROUP BY question_type
+            ORDER BY question_type;
+            """;
+
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
+
+        var command = new CommandDefinition(
+            sql,
+            commandTimeout: _databaseOptions.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        IEnumerable<DnsQuestionTypeSummary> entities = await connection.QueryAsync<DnsQuestionTypeSummary>(command);
+        return entities;
+    }
+
     /// <inheritdoc />
     public async Task<IReadOnlyCollection<DnsHourlyEventSummary>> GetHourlyEventSummariesAsync(CancellationToken cancellationToken = default)
     {

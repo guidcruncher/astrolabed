@@ -2,6 +2,7 @@ import { ref } from 'vue'
 import type {
   AstrolabedStatusResponse,
   DnsHourlyEventSummary,
+  DnsQuestionTypeSummary,
   CacheCountResponse,
   CacheEntryView,
   PagedResultOfCacheEntryView,
@@ -71,6 +72,9 @@ export function useApi() {
   // --- Stats ---
   const getDnsHourlyEventSummary = (): Promise<DnsHourlyEventSummary[]> =>
     request<DnsHourlyEventSummary[]>('/api/stats/dns/hourly')
+
+  const getDnsQuestionTypeSummary = (): Promise<DnsQuestionTypeSummary[]> =>
+    request<DnsQuestionTypeSummary[]>('/api/stats/dns/question-types')
 
   // --- Cache ---
   const getCacheCount = (): Promise<CacheCountResponse> =>
@@ -192,5 +196,6 @@ export function useApi() {
     getCurrentTime,
     getDnsBenchmarks,
     getDnsHourlyEventSummary,
+    getDnsQuestionTypeSummary,
   }
 }

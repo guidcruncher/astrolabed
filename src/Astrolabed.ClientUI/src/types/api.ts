@@ -1,3 +1,8 @@
+export interface DnsQuestionTypeSummary {
+  total: number
+  questionType: string
+}
+
 export interface DnsHourlyEventSummary {
   eventHour: number
   blocked: number
