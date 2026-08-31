@@ -73,8 +73,16 @@
           <div class="flex items-center gap-3 min-w-0">
             <span
               class="w-3 h-3 rounded-full flex-shrink-0"
-              :class="isClassString(getItemColor(item, index)) ? getLegendBgClass(getItemColor(item, index)) : ''"
-              :style="isClassString(getItemColor(item, index)) ? {} : { backgroundColor: getItemColor(item, index) }"
+              :class="
+                isClassString(getItemColor(item, index))
+                  ? getLegendBgClass(getItemColor(item, index))
+                  : ''
+              "
+              :style="
+                isClassString(getItemColor(item, index))
+                  ? {}
+                  : { backgroundColor: getItemColor(item, index) }
+              "
             ></span>
             <span class="text-sm font-medium text-slate-300 truncate">{{ item.label }}</span>
           </div>
