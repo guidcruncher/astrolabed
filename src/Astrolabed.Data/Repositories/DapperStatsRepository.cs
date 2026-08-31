@@ -37,7 +37,7 @@ public sealed partial class DapperStatsRepository(
         const string sql = """
             SELECT COUNT(*) AS Total, question_type AS QuestionType
             FROM dns_response_events
-             WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch
+            WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch
             GROUP BY question_type
             ORDER BY question_type;
             """;
@@ -65,8 +65,8 @@ public sealed partial class DapperStatsRepository(
             SELECT (start_time_utc / 3600) % 24 AS EventHour,
                    SUM(CASE WHEN blocked <> 0 THEN 1 ELSE 0 END) AS Blocked,
                    SUM(CASE WHEN blocked = 0 THEN 1 ELSE 0 END) AS Allowed
-            WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch 
             FROM dns_response_events
+            WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch
             GROUP BY 1
             ORDER BY EventHour;
             """;

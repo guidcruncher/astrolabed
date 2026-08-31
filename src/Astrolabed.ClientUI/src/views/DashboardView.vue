@@ -3,6 +3,26 @@
     <h2 class="text-2xl font-bold mb-6">System Overview</h2>
 
     <div class="relative inline-block w-full">
+      <Panel title="Filters">
+        <DatePicker
+          v-model="startDate"
+          label="Start"
+          placeholder="YYYY-MM-DD"
+          input-id="start-date"
+          @date-selected="handleDateSelected"
+        />
+
+        <DatePicker
+          v-model="endDate"
+          label="End"
+          placeholder="YYYY-MM-DD"
+          input-id="end-date"
+          @date-selected="handleDateSelected"
+        />
+      </Panel>
+    </div>
+
+    <div class="relative inline-block w-full">
       <!-- Green LED Indicator (Top Right) -->
       <span
         v-if="loading"
@@ -95,9 +115,9 @@
             </span>
             <span class="text-slate-300 text-[11px]">
               Value:
-              <span class="text-emerald-400 font-medium"
-                >{{ activeSlice.value.toLocaleString() }}</span
-              >
+              <span class="text-emerald-400 font-medium">{{
+                activeSlice.value.toLocaleString()
+              }}</span>
             </span>
             <span class="text-slate-400 text-[10px] italic">
               Share: {{ activeSlice.percentage.toFixed(2) }}% of total
@@ -126,6 +146,8 @@ const { getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } = 
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 const questionTypeData = ref<DnsQuestionTypeSummary[] | null>(null)
 const currentTime = ref<Date | null>(null)
+const startDate = ref<number>(0)
+const endDate = ref<number>(0)
 
 const loading = ref<boolean>(false)
 const error = ref<string | null>(null)
@@ -173,15 +195,21 @@ const hourlyDnsChartData = computed<StackedBarItem[]>(() => {
   return res
 })
 
+const handleDateSelected = (epochSeconds: number): void => {
+  //  lastEventLog.value = `date-selected emitted: ${epochSeconds}`;
+}
+
 const fetchData = async (): Promise<void> => {
   if (loading.value) return
 
   try {
     loading.value = true
+    const endOfDate = (endDate.value + 86399) * 1000
+    const startOfDate = startDate.value * 1000
     const now = await getCurrentTime()
     currentTime.value = new Date(now)
-    hourDnsData.value = await getDnsHourlyEventSummary()
-    questionTypeData.value = await getDnsQuestionTypeSummary()
+    hourDnsData.value = await getDnsHourlyEventSummary(startOfDate, endOfDate)
+    questionTypeData.value = await getDnsQuestionTypeSummary(startOfDate, endOfDate)
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to fetch data'
     console.error(err)
@@ -190,8 +218,19 @@ const fetchData = async (): Promise<void> => {
   }
 }
 
+const calculateDateFromNow = (days: number) => {
+  const now = new Date()
+  const epochSecondsUTC = Math.floor(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days, 0, 0, 0, 0) / 1000
+  )
+
+  return epochSecondsUTC
+}
+
 onMounted(() => {
   // 1. Fetch immediately on component mount
+  startDate.value = calculateDateFromNow(-7)
+  endDate.value = calculateDateFromNow(0)
   fetchData()
 
   // 2. Schedule polling every 15000ms (15 seconds)

@@ -49,7 +49,7 @@ public sealed partial class StatsController(
         CancellationToken cancellationToken = default)
     {
         LogExecutingGetHourlyDnsEventSummaries(_logger);
-        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : endEpoch);
+        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : endEpoch);
 
         IReadOnlyCollection<DnsHourlyEventSummary> summaries =
             await _statsRepository.GetHourlyEventSummariesAsync(startEpoch, endEpochValue, cancellationToken);
@@ -82,7 +82,7 @@ public sealed partial class StatsController(
         CancellationToken cancellationToken = default)
     {
         LogExecutingGetQuestionTypeSummaries(_logger);
-        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeSeconds() : endEpoch);
+        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : endEpoch);
 
         IEnumerable<DnsQuestionTypeSummary> summaries =
             await _statsRepository.GetQuestionTypeSummary(startEpoch, endEpochValue, cancellationToken);
