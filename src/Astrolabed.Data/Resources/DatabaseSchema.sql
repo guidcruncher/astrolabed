@@ -1,21 +1,29 @@
--- PostgreSQL and SQLite compatible schema
 CREATE TABLE IF NOT EXISTS dns_response_events (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
     start_time_utc BIGINT NOT NULL,
     context_id VARCHAR(64) NOT NULL,
     question_name VARCHAR(255) NOT NULL,
     question_type VARCHAR(32) NOT NULL,
-    client_endpoint VARCHAR(64) NOT NULL,
-    client_name VARCHAR(255) NOT NULL,
-    resolution_source VARCHAR(255) NOT NULL,
+    client_ip VARCHAR(45) NOT NULL,
+    client_port INT NULL,
+    client_name VARCHAR(255) NULL,
+    resolution_source VARCHAR(64) NOT NULL,
+    rcode VARCHAR(16) NOT NULL,
     duration_ms DOUBLE PRECISION NOT NULL,
     blocked INT NOT NULL,
-    upstream VARCHAR(64) NOT NULL
+    upstream VARCHAR(64) NULL,
+    answer_data VARCHAR(255) NULL,
+    ttl_seconds INT NULL,
+    block_rule_id VARCHAR(128) NULL
 );
 
+-- Performance Indexes
+CREATE INDEX IF NOT EXISTS idx_dns_events_time_blocked ON dns_response_events (start_time_utc, blocked);
+CREATE INDEX IF NOT EXISTS idx_dns_events_client ON dns_response_events (client_ip, start_time_utc);
+CREATE INDEX IF NOT EXISTS idx_dns_events_question ON dns_response_events (question_name, blocked);
+
 CREATE INDEX IF NOT EXISTS idx_dns_events_start_time ON dns_response_events (start_time_utc);
-CREATE INDEX IF NOT EXISTS idx_dns_events_question ON dns_response_events (question_name);
-CREATE INDEX IF NOT EXISTS idx_dns_events_context ON dns_response_events (context_id);
+CREATE INDEX IF NOT EXISTS idx_dns_events_context_id ON dns_response_events (context_id);
 
 CREATE TABLE IF NOT EXISTS discovered_lan_devices (
     mac_address VARCHAR(17) NOT NULL,
