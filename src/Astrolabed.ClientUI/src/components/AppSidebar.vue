@@ -66,6 +66,8 @@ interface Props {
   defaultCollapsed?: boolean
 }
 
+const STORAGE_KEY = 'astrolabed_sidebar_collapsed'
+
 const getIconRef = (name: string) => {
   const icon = (icons as Record<string, any>)[name]
 
@@ -92,10 +94,32 @@ const emit = defineEmits<{
 }>()
 
 const { apiBaseUrl } = useApi()
-const isCollapsed = ref(props.defaultCollapsed)
+
+// Rehydrate state from localStorage if available, fallback to props.defaultCollapsed
+const getInitialCollapsedState = (): boolean => {
+  if (typeof window === 'undefined') {
+    return props.defaultCollapsed
+  }
+
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved !== null ? JSON.parse(saved) : props.defaultCollapsed
+  } catch {
+    return props.defaultCollapsed
+  }
+}
+
+const isCollapsed = ref(getInitialCollapsedState())
 
 function handleToggleCollapse(): void {
   isCollapsed.value = !isCollapsed.value
+
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(isCollapsed.value))
+  } catch (error) {
+    console.warn('Failed to persist sidebar collapse state to localStorage:', error)
+  }
+
   emit('toggle-collapse', isCollapsed.value)
 }
 
