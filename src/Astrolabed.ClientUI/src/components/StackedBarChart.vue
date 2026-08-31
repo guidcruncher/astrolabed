@@ -58,8 +58,9 @@
               :y="segment.y"
               :width="segment.width"
               :height="segment.height"
-              :fill="segment.color"
+              :fill="isClassString(segment.color) ? undefined : segment.color"
               class="transition-all duration-300 ease-out cursor-pointer hover:opacity-90 stroke-slate-900 stroke-1"
+              :class="isClassString(segment.color) ? getSvgFillClass(segment.color) : ''"
               :style="{
                 transform: isSegmentActive(bar.id, segment.seriesId) ? 'scaleY(1.02)' : 'scaleY(1)',
                 transformOrigin: `${segment.x + segment.width / 2}px ${segment.y + segment.height}px`,
@@ -101,7 +102,8 @@
           <div class="flex items-center gap-3">
             <span
               class="w-3 h-3 rounded-full flex-shrink-0"
-              :style="{ backgroundColor: series.color }"
+              :class="isClassString(series.color) ? getLegendBgClass(series.color) : ''"
+              :style="isClassString(series.color) ? {} : { backgroundColor: series.color }"
             ></span>
             <span class="text-sm font-medium text-slate-300">{{ series.label }}</span>
           </div>
@@ -186,6 +188,25 @@ const emit = defineEmits<{
 const activeSegment = ref<ActiveSegmentData | null>(null)
 const activeSeriesId = ref<string | number | null>(null)
 const tooltipPos = ref<TooltipPosition>({ x: 0, y: 0 })
+
+function isClassString(colorStr?: string): boolean {
+  if (!colorStr) return false
+  const trimmed = colorStr.trim()
+  return (
+    trimmed.includes(' ') ||
+    trimmed.startsWith('bg-') ||
+    trimmed.startsWith('fill-') ||
+    trimmed.startsWith('text-')
+  )
+}
+
+function getSvgFillClass(colorStr: string): string {
+  return colorStr.replace(/\bbg-/g, 'fill-')
+}
+
+function getLegendBgClass(colorStr: string): string {
+  return colorStr.replace(/\bfill-/g, 'bg-')
+}
 
 const isHorizontalLegend = computed(() => {
   return props.legendPosition === 'top' || props.legendPosition === 'bottom'
