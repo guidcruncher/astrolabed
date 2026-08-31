@@ -1,12 +1,14 @@
-namespace DnsAnalytics.Infrastructure.Repositories;
+namespace Astrolabed.Data.Repositories;
 
 using System.Data.Common;
 
+using Astrolabed.Data;
 using Astrolabed.Data.Options;
 
 using Dapper;
 
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Provides a cross-compatible implementation of <see cref="IDnsAnalyticsRepository"/> using Dapper ADO.NET abstractions.

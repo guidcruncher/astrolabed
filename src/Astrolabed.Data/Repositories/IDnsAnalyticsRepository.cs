@@ -1,4 +1,5 @@
-namespace DnsAnalytics.Infrastructure.Repositories;
+namespace Astrolabed.Data.Repositories;
+
 /// <summary>
 /// Defines the data access contract for storing and querying DNS response log events 
 /// and executing ad-blocking effectiveness analytics.
