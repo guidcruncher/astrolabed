@@ -195,7 +195,7 @@ const hourlyDnsChartData = computed<StackedBarItem[]>(() => {
   return res
 })
 
-const handleDateSelected = async (epochSeconds: number): void => {
+const handleDateSelected = async (epochSeconds: number): Promise<void> => {
   //  lastEventLog.value = `date-selected emitted: ${epochSeconds}`;
   await fetchData()
 }
