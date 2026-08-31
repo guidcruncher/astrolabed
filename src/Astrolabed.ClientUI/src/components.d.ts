@@ -18,6 +18,7 @@ declare module 'vue' {
     CacheListView: typeof import('./views/CacheListView.vue')['default']
     DashboardView: typeof import('./views/DashboardView.vue')['default']
     DataGrid: typeof import('./components/DataGrid.vue')['default']
+    DatePicker: typeof import('./components/DatePicker.vue')['default']
     DefaultLayout: typeof import('./layouts/DefaultLayout.vue')['default']
     DemoView: typeof import('./views/DemoView.vue')['default']
     DeviceType: typeof import('./components/DeviceType.vue')['default']

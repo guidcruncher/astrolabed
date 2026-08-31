@@ -32,19 +32,25 @@ public sealed partial class DapperStatsRepository(
 
 
     /// <inheritdoc />
-    public async Task<IEnumerable<DnsQuestionTypeSummary>> GetQuestionTypeSummary(CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<DnsQuestionTypeSummary>> GetQuestionTypeSummary(long startEpoch, long endEpoch, CancellationToken cancellationToken = default)
     {
         const string sql = """
             SELECT COUNT(*) AS Total, question_type AS QuestionType
             FROM dns_response_events
+            WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch
             GROUP BY question_type
             ORDER BY question_type;
             """;
+
+        var parameters = new DynamicParameters();
+        parameters.Add("StartEpoch", startEpoch);
+        parameters.Add("EndEpoch", endEpoch);
 
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         var command = new CommandDefinition(
             sql,
+        parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
@@ -53,16 +59,21 @@ public sealed partial class DapperStatsRepository(
     }
 
     /// <inheritdoc />
-    public async Task<IReadOnlyCollection<DnsHourlyEventSummary>> GetHourlyEventSummariesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyCollection<DnsHourlyEventSummary>> GetHourlyEventSummariesAsync(long startEpoch, long endEpoch, CancellationToken cancellationToken = default)
     {
         const string sql = """
             SELECT (start_time_utc / 3600) % 24 AS EventHour,
                    SUM(CASE WHEN blocked <> 0 THEN 1 ELSE 0 END) AS Blocked,
                    SUM(CASE WHEN blocked = 0 THEN 1 ELSE 0 END) AS Allowed
             FROM dns_response_events
+            WHERE start_time_utc >= @StartEpoch AND start_time_utc <= @EndEpoch
             GROUP BY 1
             ORDER BY EventHour;
             """;
+
+        var parameters = new DynamicParameters();
+        parameters.Add("StartEpoch", startEpoch);
+        parameters.Add("EndEpoch", endEpoch);
 
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
@@ -70,6 +81,7 @@ public sealed partial class DapperStatsRepository(
 
         var command = new CommandDefinition(
             sql,
+        parameters,
             commandTimeout: _databaseOptions.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 

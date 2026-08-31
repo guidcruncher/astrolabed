@@ -32,6 +32,8 @@ public sealed partial class StatsController(
     /// count of blocked and allowed events for that hour. Any hours missing database records 
     /// are explicitly populated with zero counts.
     /// </remarks>
+    /// <param name="startEpoch">Start Epoch to filter by.</param>
+    /// <param name="endEpoch">End Epoch to filter by.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>A collection of 24 hourly DNS summary records.</returns>
     /// <response code="200">Hourly DNS response event summaries retrieved successfully.</response>
@@ -42,12 +44,15 @@ public sealed partial class StatsController(
     [ProducesResponseType(typeof(IReadOnlyCollection<DnsHourlyEventSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IReadOnlyCollection<DnsHourlyEventSummary>>> GetHourlyDnsEventSummariesAsync(
-        CancellationToken cancellationToken)
+        [FromQuery] long startEpoch = 0,
+        [FromQuery] long endEpoch = 0,
+        CancellationToken cancellationToken = default)
     {
         LogExecutingGetHourlyDnsEventSummaries(_logger);
+        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : endEpoch);
 
         IReadOnlyCollection<DnsHourlyEventSummary> summaries =
-            await _statsRepository.GetHourlyEventSummariesAsync(cancellationToken);
+            await _statsRepository.GetHourlyEventSummariesAsync(startEpoch, endEpochValue, cancellationToken);
 
         LogFetchedHourlyDnsEventSummaries(_logger, summaries.Count);
 
@@ -59,7 +64,9 @@ public sealed partial class StatsController(
     /// </summary>
     /// <remarks>
     /// Returns a collection of records indicating total query volume categorized by individual DNS record types (for example: A, AAAA, MX, CNAME).
-    /// </remarks>
+    /// </remarks> 
+    /// <param name="startEpoch">Start Epoch to filter by.</param>
+    /// <param name="endEpoch">End Epoch to filter by.</param>
     /// <param name="cancellationToken">Cancellation token for the async operation.</param>
     /// <returns>A collection of DNS question type summary records.</returns>
     /// <response code="200">DNS question type summaries retrieved successfully.</response>
@@ -70,12 +77,15 @@ public sealed partial class StatsController(
     [ProducesResponseType(typeof(IEnumerable<DnsQuestionTypeSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult<IEnumerable<DnsQuestionTypeSummary>>> GetQuestionTypeSummariesAsync(
-        CancellationToken cancellationToken)
+        [FromQuery] long startEpoch = 0,
+        [FromQuery] long endEpoch = 0,
+        CancellationToken cancellationToken = default)
     {
         LogExecutingGetQuestionTypeSummaries(_logger);
+        long endEpochValue = (endEpoch == 0 ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() : endEpoch);
 
         IEnumerable<DnsQuestionTypeSummary> summaries =
-            await _statsRepository.GetQuestionTypeSummary(cancellationToken);
+            await _statsRepository.GetQuestionTypeSummary(startEpoch, endEpochValue, cancellationToken);
 
         LogFetchedQuestionTypeSummaries(_logger);
 

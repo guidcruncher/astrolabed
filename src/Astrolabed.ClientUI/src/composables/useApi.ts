@@ -70,11 +70,21 @@ export function useApi() {
     request<AstrolabedStatusResponse>('/api/Astrolabed/status')
 
   // --- Stats ---
-  const getDnsHourlyEventSummary = (): Promise<DnsHourlyEventSummary[]> =>
-    request<DnsHourlyEventSummary[]>('/api/stats/dns/hourly')
+  const getDnsHourlyEventSummary = (
+    startEpoch = 0,
+    endEpoch = 0
+  ): Promise<DnsHourlyEventSummary[]> =>
+    request<DnsHourlyEventSummary[]>(
+      `/api/stats/dns/hourly?startepoch=${startEpoch}&endepoch=${endEpoch}`
+    )
 
-  const getDnsQuestionTypeSummary = (): Promise<DnsQuestionTypeSummary[]> =>
-    request<DnsQuestionTypeSummary[]>('/api/stats/dns/question-types')
+  const getDnsQuestionTypeSummary = (
+    startEpoch = 0,
+    endEpoch = 0
+  ): Promise<DnsQuestionTypeSummary[]> =>
+    request<DnsQuestionTypeSummary[]>(
+      `/api/stats/dns/question-types?startepoch=${startEpoch}&endepoch=${endEpoch}`
+    )
 
   // --- Cache ---
   const getCacheCount = (): Promise<CacheCountResponse> =>
