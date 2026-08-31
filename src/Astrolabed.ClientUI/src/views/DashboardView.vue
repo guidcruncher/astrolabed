@@ -96,7 +96,7 @@
             <span class="text-slate-300 text-[11px]">
               Value:
               <span class="text-emerald-400 font-medium"
-                >${{ activeSlice.value.toLocaleString() }}</span
+                >{{ activeSlice.value.toLocaleString() }}</span
               >
             </span>
             <span class="text-slate-400 text-[10px] italic">
