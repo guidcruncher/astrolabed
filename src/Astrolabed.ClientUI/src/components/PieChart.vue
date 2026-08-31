@@ -5,7 +5,7 @@
     <!-- Header (Conditional) -->
     <div
       v-if="showTitle"
-      class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4"
+      class="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-2 border-b border-slate-800 pb-4 flex-shrink-0"
     >
       <div>
         <h2 class="text-xl font-bold text-white tracking-tight">{{ title }}</h2>
@@ -20,7 +20,7 @@
 
     <!-- Main Content Area (Dynamic Grid Layout) -->
     <div
-      class="grid gap-8 items-center flex-1 w-full"
+      class="grid gap-8 items-center flex-1 w-full min-h-0"
       :class="showLegend ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'"
     >
       <!-- SVG Chart Container (Expands when legend is hidden) -->
@@ -34,8 +34,9 @@
             v-for="slice in computedSlices"
             :key="slice.id"
             :d="slice.pathData"
-            :fill="slice.color"
+            :fill="isClassString(slice.color) ? undefined : slice.color"
             class="transition-transform duration-300 ease-out cursor-pointer hover:opacity-90 stroke-slate-900 stroke-2"
+            :class="isClassString(slice.color) ? getSvgFillClass(slice.color) : ''"
             :style="{
               transformOrigin: '160px 160px',
               transform:
@@ -51,12 +52,15 @@
         </svg>
       </div>
 
-      <!-- Legend (Conditional) -->
-      <div v-if="showLegend" class="flex flex-col gap-2.5">
+      <!-- Legend (Conditional with Flex-1 Scaling and Scroll Containment) -->
+      <div
+        v-if="showLegend"
+        class="flex flex-col justify-center gap-2 h-full max-h-[320px] overflow-y-auto pr-1 custom-scrollbar"
+      >
         <div
           v-for="(item, index) in modelValue"
           :key="item.id"
-          class="flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer"
+          class="flex items-center justify-between p-2.5 rounded-lg border transition-all duration-200 cursor-pointer flex-shrink-0"
           :class="[
             activeSliceId === item.id
               ? 'bg-slate-800 border-slate-700'
@@ -66,14 +70,23 @@
           @mouseleave="clearActiveSlice"
           @click="handleLegendClick(item.id)"
         >
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-3 min-w-0">
             <span
-              class="w-3 h-3 rounded-full"
-              :style="{ backgroundColor: getItemColor(item, index) }"
+              class="w-3 h-3 rounded-full flex-shrink-0"
+              :class="
+                isClassString(getItemColor(item, index))
+                  ? getLegendBgClass(getItemColor(item, index))
+                  : ''
+              "
+              :style="
+                isClassString(getItemColor(item, index))
+                  ? {}
+                  : { backgroundColor: getItemColor(item, index) }
+              "
             ></span>
-            <span class="text-sm font-medium text-slate-300">{{ item.label }}</span>
+            <span class="text-sm font-medium text-slate-300 truncate">{{ item.label }}</span>
           </div>
-          <span class="text-sm font-bold text-slate-100">{{ item.value }}</span>
+          <span class="text-sm font-bold text-slate-100 ml-3 flex-shrink-0">{{ item.value }}</span>
         </div>
       </div>
     </div>
@@ -149,6 +162,25 @@ const DEFAULT_SLATE_PALETTE: readonly string[] = [
   '#a78bfa', // Violet 400
   '#f87171', // Red 400
 ]
+
+function isClassString(colorStr?: string): boolean {
+  if (!colorStr) return false
+  const trimmed = colorStr.trim()
+  return (
+    trimmed.includes(' ') ||
+    trimmed.startsWith('bg-') ||
+    trimmed.startsWith('fill-') ||
+    trimmed.startsWith('text-')
+  )
+}
+
+function getSvgFillClass(colorStr: string): string {
+  return colorStr.replace(/\bbg-/g, 'fill-')
+}
+
+function getLegendBgClass(colorStr: string): string {
+  return colorStr.replace(/\bfill-/g, 'bg-')
+}
 
 function getItemColor(item: PieChartItem, index: number): string {
   if (item.color && item.color.trim() !== '') {
@@ -236,3 +268,19 @@ function handleLegendClick(id: string | number): void {
   }
 }
 </script>
+
+<style scoped>
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 9999px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+</style>

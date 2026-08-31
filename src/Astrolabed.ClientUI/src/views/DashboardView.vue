@@ -29,7 +29,7 @@
       </StackedBarChart>
     </div>
 
-    <div class="h-[480px]">
+    <div class="h-[380px]">
       <PieChart
         :show-legend="true"
         :show-title="true"
@@ -63,6 +63,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { useDnsTypeColor } from '../composables/useDnsTypeColor'
 import { useApi } from '../composables/useApi'
 import type {
   DnsQuestionTypeSummary,
@@ -71,6 +72,7 @@ import type {
 } from '../types/api'
 import type { PieChartItem, StackedBarItem, StackedBarSeries } from '../types/types'
 
+const { getDnsTypeColorConfig } = useDnsTypeColor()
 const { getDnsQuestionTypeSummary, getDnsHourlyEventSummary } = useApi()
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 const questionTypeData = ref<DnsQuestionTypeSummary[] | null>(null)
@@ -87,11 +89,12 @@ const questionTypeChartData = computed<PieChartItem[]>(() => {
   const count = records.length
 
   for (let i = 0; i < count; i++) {
+    const color = getDnsTypeColorConfig(records[i].questionType)
     res.push({
       id: records[i].questionType,
       label: records[i].questionType,
       value: records[i].total,
-      color: '',
+      color: color.fill,
     })
   }
 
