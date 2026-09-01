@@ -133,7 +133,7 @@ public sealed partial class DnsQueryProcessor(
 
                 switch (options.BlockedResponseMode)
                 {
-		    case BlockedResponseMode.NoData:
+                    case BlockedResponseMode.NoData:
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, ede: filterEde);
                         resolutionSource = "BLOCKED";
                         rCode = "NODATA";

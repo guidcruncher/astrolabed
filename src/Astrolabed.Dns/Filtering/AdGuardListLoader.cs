@@ -1,9 +1,11 @@
 
 // File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
 using System.Text;
+
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Dns.Options;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 

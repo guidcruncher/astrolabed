@@ -1,5 +1,7 @@
 namespace Astrolabed.Dns.Filtering;
 
+using Microsoft.Extensions.Logging;
+
 /// <summary>
 /// Evaluates DNS query domains against exact, hierarchical subdomain, and regex rules.
 /// </summary>
@@ -71,9 +73,11 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
 
         // Priority 3: Check Regex Block Rules
         IReadOnlyList<RegexRule> regexBlocks = snapshot.RegexBlocks;
+
         for (int i = 0; i < regexBlocks.Count; i++)
         {
             RegexRule regexRule = regexBlocks[i];
+
             if (regexRule.Pattern.IsMatch(cleanDomain))
             {
                 ruleListId = regexRule.RuleListId;

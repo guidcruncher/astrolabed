@@ -46,6 +46,16 @@ public sealed partial class HostsFileReader(
         string resolvedPath = ResolveFilePath(sourceLocation);
         LogReadingHostsFromFileSystem(_logger, resolvedPath);
 
+        if (!File.Exists(resolvedPath))
+        {
+            _logger.LogError($"Error, Hosts file path not found ${resolvedPath}");
+            var map = new Dictionary<string, List<IPAddress>>(StringComparer.OrdinalIgnoreCase);
+            return map.ToDictionary(
+                        kvp => kvp.Key,
+                        kvp => (IReadOnlyList<IPAddress>)kvp.Value,
+                        StringComparer.OrdinalIgnoreCase);
+        }
+
         await using FileStream fileStream = new(resolvedPath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
         using var fileReader = new StreamReader(fileStream);
         return await ParseHostsContentAsync(fileReader, ct).ConfigureAwait(false);

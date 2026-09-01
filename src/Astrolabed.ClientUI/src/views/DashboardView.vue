@@ -26,9 +26,7 @@
               @date-selected="handleDateSelected"
             />
           </div>
-	  <div v-if="blockRate">
-	    Block Rate: {{ blockRate.blockRatePercentage }}%
-          </div>
+          <div v-if="blockRate">Block Rate: {{ blockRate.blockRatePercentage }}%</div>
         </Panel>
       </div>
 
@@ -159,7 +157,8 @@ import { Globe, Clock } from '@lucide/vue'
 
 const { formatUtcToLocalBrowserTime } = useDateUtils()
 const { getDnsTypeColorConfig } = useDnsTypeColor()
-const { getBlockRate, getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } = useApi()
+const { getBlockRate, getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } =
+  useApi()
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 const questionTypeData = ref<DnsQuestionTypeSummary[] | null>(null)
 const currentTime = ref<Date | null>(null)

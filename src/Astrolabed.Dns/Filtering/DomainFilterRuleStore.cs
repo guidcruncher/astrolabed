@@ -119,7 +119,11 @@ public sealed partial class DomainFilterRuleStore(ILogger<DomainFilterRuleStore>
 
             if (IsRegexOrWildcardRule(rule, out string pattern))
             {
+		if (!pattern.EndsWith("$")) { 
+		rawRegexPatterns.Add($"{pattern}$");
+		} else {
                 rawRegexPatterns.Add(pattern);
+		}
             }
             else
             {
