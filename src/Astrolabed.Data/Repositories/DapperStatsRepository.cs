@@ -62,7 +62,7 @@ public sealed partial class DapperStatsRepository(
     public async Task<IReadOnlyCollection<DnsHourlyEventSummary>> GetHourlyEventSummariesAsync(long startEpoch, long endEpoch, CancellationToken cancellationToken = default)
     {
         const string sql = """
-            SELECT (start_time_utc / 3600) % 24 AS EventHour,
+            SELECT start_time_hour AS EventHour,
                    SUM(CASE WHEN blocked <> 0 THEN 1 ELSE 0 END) AS Blocked,
                    SUM(CASE WHEN blocked = 0 THEN 1 ELSE 0 END) AS Allowed
             FROM dns_response_events

@@ -39,11 +39,11 @@ public sealed partial class DapperDnsResponseEventRepository(
 
         const string sql = """
             INSERT INTO dns_response_events (
-                id, start_time_utc, context_id, question_name, question_type,
+                id, start_time_utc, start_time_hour, context_id, question_name, question_type,
                 client_ip, client_name, resolution_source, rcode, duration_ms,
                 blocked, upstream, answer_data, ttl_seconds, block_rule_id
             ) VALUES (
-                @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
+                @Id, @StartTimeUtc, @StartTimeHour, @ContextId, @QuestionName, @QuestionType,
                 @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
                 @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId
             );
@@ -56,6 +56,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         var parameters = new DynamicParameters();
         parameters.Add("Id", entity.Id);
         parameters.Add("StartTimeUtc", entity.StartTimeUtc);
+        parameters.Add("StartTimeHour", DateTimeOffset.FromUnixTimeMilliseconds(entity.StartTimeUtc).UtcDateTime.Hour);
         parameters.Add("ContextId", entity.ContextId);
         parameters.Add("QuestionName", entity.QuestionName);
         parameters.Add("QuestionType", entity.QuestionType);
