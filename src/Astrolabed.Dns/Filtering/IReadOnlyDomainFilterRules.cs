@@ -1,28 +1,28 @@
+// File: src/Astrolabed.Dns/Filtering/IReadOnlyDomainFilterRules.cs
 namespace Astrolabed.Dns.Filtering;
 
 /// <summary>
-/// Provides read-only access to compiled domain filter rules.
+/// Defines read-only snapshot access to compiled domain filter rules and their associated list source IDs.
 /// </summary>
 public interface IReadOnlyDomainFilterRules
 {
     /// <summary>
-    /// Gets the set of exact allowed domain names.
+    /// Gets a dictionary mapping exact allow domain names to their list source IDs.
     /// </summary>
-    IReadOnlySet<string> ExactAllows { get; }
+    IReadOnlyDictionary<string, int> ExactAllows { get; }
 
     /// <summary>
-    /// Gets the set of exact blocked domain names.
+    /// Gets a dictionary mapping exact block domain names to their list source IDs.
     /// </summary>
-    IReadOnlySet<string> ExactBlocks { get; }
+    IReadOnlyDictionary<string, int> ExactBlocks { get; }
 
     /// <summary>
-    /// Gets the collection of compiled allowlist regular expression strings.
+    /// Gets a list of compiled regular expression allow rules and their list source IDs.
     /// </summary>
-    IReadOnlyList<string> RegexAllows { get; }
+    IReadOnlyList<RegexRule> RegexAllows { get; }
 
     /// <summary>
-    /// Gets the collection of compiled blocklist regular expression strings.
+    /// Gets a list of compiled regular expression block rules and their list source IDs.
     /// </summary>
-    IReadOnlyList<string> RegexBlocks { get; }
+    IReadOnlyList<RegexRule> RegexBlocks { get; }
 }
-

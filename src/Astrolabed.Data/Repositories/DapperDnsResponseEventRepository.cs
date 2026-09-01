@@ -39,11 +39,13 @@ public sealed partial class DapperDnsResponseEventRepository(
 
         const string sql = """
             INSERT INTO dns_response_events (
-                id, start_time_utc, context_id, question_name, question_type,
-                client_endpoint, client_name, resolution_source, duration_ms, blocked, upstream
+                id, start_time_utc, start_time_hour, context_id, question_name, question_type,
+                client_ip, client_name, resolution_source, rcode, duration_ms,
+                blocked, upstream, answer_data, ttl_seconds, block_rule_id
             ) VALUES (
-                @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
-                @ClientEndpoint, @ClientName, @ResolutionSource, @DurationMs, @Blocked, @Upstream
+                @Id, @StartTimeUtc, @StartTimeHour, @ContextId, @QuestionName, @QuestionType,
+                @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
+                @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId
             );
             """;
 
@@ -54,15 +56,20 @@ public sealed partial class DapperDnsResponseEventRepository(
         var parameters = new DynamicParameters();
         parameters.Add("Id", entity.Id);
         parameters.Add("StartTimeUtc", entity.StartTimeUtc);
+        parameters.Add("StartTimeHour", DateTimeOffset.FromUnixTimeMilliseconds(entity.StartTimeUtc).UtcDateTime.Hour);
         parameters.Add("ContextId", entity.ContextId);
         parameters.Add("QuestionName", entity.QuestionName);
         parameters.Add("QuestionType", entity.QuestionType);
-        parameters.Add("ClientEndpoint", entity.ClientEndpoint);
+        parameters.Add("ClientAddress", entity.ClientAddress);
         parameters.Add("ClientName", entity.ClientName);
         parameters.Add("ResolutionSource", entity.ResolutionSource);
+        parameters.Add("Rcode", entity.Rcode);
         parameters.Add("DurationMs", entity.DurationMs);
         parameters.Add("Blocked", entity.Blocked);
         parameters.Add("Upstream", entity.Upstream);
+        parameters.Add("AnswerDataJson", entity.AnswerDataJson);
+        parameters.Add("TtlSeconds", entity.TtlSeconds);
+        parameters.Add("BlockRuleId", entity.BlockRuleId);
 
         var command = new CommandDefinition(
             sql,
@@ -86,12 +93,16 @@ public sealed partial class DapperDnsResponseEventRepository(
                    context_id AS ContextId,
                    question_name AS QuestionName,
                    question_type AS QuestionType,
-                   client_endpoint AS ClientEndpoint,
+                   client_ip AS ClientAddress,
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
+                   rcode AS Rcode,
                    duration_ms AS DurationMs,
                    blocked AS Blocked,
-                   upstream AS Upstream
+                   upstream AS Upstream,
+                   answer_data AS AnswerDataJson,
+                   ttl_seconds AS TtlSeconds,
+                   block_rule_id AS BlockRuleId
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -130,12 +141,16 @@ public sealed partial class DapperDnsResponseEventRepository(
                    context_id AS ContextId,
                    question_name AS QuestionName,
                    question_type AS QuestionType,
-                   client_endpoint AS ClientEndpoint,
+                   client_ip AS ClientAddress,
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
+                   rcode AS Rcode,
                    duration_ms AS DurationMs,
                    blocked AS Blocked,
-                   upstream AS Upstream
+                   upstream AS Upstream,
+                   answer_data AS AnswerDataJson,
+                   ttl_seconds AS TtlSeconds,
+                   block_rule_id AS BlockRuleId
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;
@@ -204,15 +219,15 @@ public sealed partial class DapperDnsResponseEventRepository(
     /// <inheritdoc />
     public async Task CleanOldDataAsync(CancellationToken cancellationToken = default)
     {
-        long cutoff = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeSeconds();
+        long cutoffMs = DateTimeOffset.UtcNow.AddDays(-7).ToUnixTimeMilliseconds();
         const string sql = "DELETE FROM dns_response_events WHERE start_time_utc < @Cutoff;";
 
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        LogCleaningOldRecords(_logger, cutoff);
+        LogCleaningOldRecords(_logger, cutoffMs);
 
         var parameters = new DynamicParameters();
-        parameters.Add("Cutoff", cutoff);
+        parameters.Add("Cutoff", cutoffMs);
 
         var command = new CommandDefinition(
             sql,
@@ -228,7 +243,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         }
         else
         {
-            LogNoOldRecordsFoundToClean(_logger, cutoff);
+            LogNoOldRecordsFoundToClean(_logger, cutoffMs);
         }
     }
 

@@ -2,6 +2,28 @@
 namespace Astrolabed.Dns.Options;
 
 /// <summary>
+/// Represents a List source.
+/// </summary>
+public sealed class ListSource
+{
+    /// <summary>
+    /// A unique identifier for the list
+    /// </summary>
+    public int Id { get; set; } = 0;
+
+    /// <summary>
+    /// The path to the list
+    /// </summary>
+    public string Path { get; set; } = "";
+
+    /// <summary>
+    /// The Name of the list
+    /// </summary>
+    public string Name { get; set; } = "";
+}
+
+
+/// <summary>
 /// Configures settings and file or URL source paths for domain allowlist and blocklist filtering rules.
 /// </summary>
 public sealed class DomainFilterRuleOptions
@@ -14,10 +36,10 @@ public sealed class DomainFilterRuleOptions
     /// <summary>
     /// Gets or sets the list of file paths or remote URLs specifying domain allowlist rules.
     /// </summary>
-    public List<string> AllowListSources { get; set; } = [];
+    public List<ListSource> AllowListSources { get; set; } = [];
 
     /// <summary>
     /// Gets or sets the list of file paths or remote URLs specifying domain blocklist rules.
     /// </summary>
-    public List<string> BlockListSources { get; set; } = [];
+    public List<ListSource> BlockListSources { get; set; } = [];
 }

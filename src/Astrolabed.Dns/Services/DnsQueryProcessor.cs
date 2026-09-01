@@ -89,6 +89,9 @@ public sealed partial class DnsQueryProcessor(
 
         byte[]? responseBytes = null;
         string resolutionSource = "UNKNOWN";
+        string rCode = "NOERROR";
+        int? blockRuleId = 0;
+        IEnumerable<DnsResourceRecord>? answerData = null;
 
         try
         {
@@ -105,8 +108,8 @@ public sealed partial class DnsQueryProcessor(
 
             // 2. Blocklist / Allowlist Filter Evaluation
             if (request.QuestionName is { Length: > 0 } &&
-                !_domainFilter.IsAllowed(request.QuestionName) &&
-                _domainFilter.IsBlocked(request.QuestionName, out string? reason))
+                !_domainFilter.IsAllowed(request.QuestionName, out blockRuleId) &&
+                _domainFilter.IsBlocked(request.QuestionName, out string? reason, out blockRuleId))
             {
                 blocked = true;
                 var filterEde = new ExtendedDnsError
@@ -121,12 +124,14 @@ public sealed partial class DnsQueryProcessor(
                 {
                     case BlockedResponseMode.NxDomain:
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NXDomain, ede: filterEde);
-                        resolutionSource = "BLOCKED_NXDOMAIN";
+                        resolutionSource = "BLOCKED";
+                        rCode = "NXDOMAIN";
                         break;
 
                     case BlockedResponseMode.ServFail:
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: filterEde);
-                        resolutionSource = "BLOCKED_SERVFAIL";
+                        resolutionSource = "BLOCKED";
+                        rCode = "SERVFAIL";
                         break;
 
                     case BlockedResponseMode.ZeroIp:
@@ -140,7 +145,8 @@ public sealed partial class DnsQueryProcessor(
                             ParsedIp = zeroIp
                         };
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [zeroRecord], filterEde);
-                        resolutionSource = "BLOCKED_ZERO_IP";
+                        resolutionSource = "BLOCKED";
+                        rCode = "NOERROR";
                         break;
 
                     case BlockedResponseMode.CustomIp:
@@ -155,19 +161,22 @@ public sealed partial class DnsQueryProcessor(
                                 ParsedIp = customIp
                             };
                             responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [customRecord], filterEde);
-                            resolutionSource = "BLOCKED_CUSTOM_IP";
+                            resolutionSource = "BLOCKED";
+                            rCode = "NOERROR";
                         }
                         else
                         {
                             responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
-                            resolutionSource = "BLOCKED_REFUSED_FALLBACK";
+                            resolutionSource = "BLOCKED";
+                            rCode = "REFUSED_FALLBACK";
                         }
                         break;
 
                     case BlockedResponseMode.Refused:
                     default:
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
-                        resolutionSource = "BLOCKED_REFUSED";
+                        resolutionSource = "BLOCKED";
+                        rCode = "REFUSED";
                         break;
                 }
 
@@ -188,8 +197,10 @@ public sealed partial class DnsQueryProcessor(
                     ParsedIp = matchedIp
                 };
 
+                answerData = [record];
                 responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
                 resolutionSource = "HOSTS_FILE";
+                rCode = "NOERROR";
                 return responseBytes;
             }
 
@@ -211,8 +222,10 @@ public sealed partial class DnsQueryProcessor(
                         Data = ptrBuffer[..ptrOffset].ToArray()
                     };
 
+                    answerData = [record];
                     responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
                     resolutionSource = "LOCAL_PTR";
+                    rCode = "NOERROR";
                     return responseBytes;
                 }
 
@@ -229,7 +242,9 @@ public sealed partial class DnsQueryProcessor(
                         upstreamSource = targetResolverIp.ToString();
                         upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
+                        answerData = upstreamMessage.Answers;
                         resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
+                        rCode = "NOERROR";
                         _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
                         return responseBytes;
                     }
@@ -251,8 +266,10 @@ public sealed partial class DnsQueryProcessor(
                         if (upstreamMessage is not null)
                         {
                             upstreamMessage.TransactionId = request.TransactionId;
+                            answerData = upstreamMessage.Answers;
                             responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                             resolutionSource = "UPSTREAM";
+                            rCode = "NOERROR";
                             _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
                             upstreamSource = upstream;
                             return responseBytes;
@@ -273,26 +290,36 @@ public sealed partial class DnsQueryProcessor(
             };
 
             responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: servfailEde);
-            resolutionSource = "FALLBACK_SERVFAIL";
+            resolutionSource = "FALLBACK";
+            rCode = "SERVFAIL";
             return responseBytes;
         }
         finally
         {
             if (!isNestedQuery)
             {
-                double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
+                int ttlSeconds = 300;
+                if ((answerData != null) && (answerData.Count() < 0))
+                {
+                    ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
+                }
 
+                double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
                 var dnsEvent = new DnsResponseEvent(
                     startTime,
                     context.Id.ToString(),
                     request.QuestionName,
                     request.QuestionType.ToString().ToUpperInvariant(),
-                    clientEndpoint,
+                    ((IPEndPoint)clientEndpoint).Address.ToString(),
                     clientName,
                     resolutionSource,
+                    rCode,
                     elapsedMs,
                     blocked,
-            upstreamSource
+                    upstreamSource,
+                    answerData?.ToAnswerData(),
+                    ttlSeconds,
+                    blockRuleId
                 );
 
                 await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);

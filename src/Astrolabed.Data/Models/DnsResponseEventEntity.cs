@@ -11,7 +11,7 @@ public sealed class DnsResponseEventEntity
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the query execution start time represented as a UTC Unix epoch timestamp in seconds.
+    /// Gets or sets the query execution start time represented as a UTC Unix epoch timestamp in milliseconds.
     /// </summary>
     public long StartTimeUtc { get; set; }
 
@@ -26,24 +26,29 @@ public sealed class DnsResponseEventEntity
     public string QuestionName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the queried DNS record type string (e.g., "A", "AAAA", "PTR").
+    /// Gets or sets the queried DNS record type string (e.g., "A", "AAAA", "HTTPS").
     /// </summary>
     public string QuestionType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the client endpoint IP and port string representation.
+    /// Gets or sets the client Address IP and port string representation (e.g., "192.168.1.100:54321").
     /// </summary>
-    public string ClientEndpoint { get; set; } = string.Empty;
+    public string ClientAddress { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the resolved name of the client making the DNS request.
+    /// Gets or sets the resolved name of the client making the DNS request, or <see langword="null"/> if unresolvable.
     /// </summary>
-    public string ClientName { get; set; } = string.Empty;
+    public string? ClientName { get; set; }
 
     /// <summary>
-    /// Gets or sets the resolution outcome source description tag (e.g., "CACHE", "HOSTS_FILE", "UPSTREAM").
+    /// Gets or sets the resolution outcome source description tag (e.g., "CACHE", "UPSTREAM", "BLOCKED").
     /// </summary>
     public string ResolutionSource { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets the standard DNS response code (e.g., "NOERROR", "NXDOMAIN", "REFUSED").
+    /// </summary>
+    public string Rcode { get; set; } = "UNKNOWN";
 
     /// <summary>
     /// Gets or sets the total processing duration for the DNS query in milliseconds.
@@ -51,13 +56,28 @@ public sealed class DnsResponseEventEntity
     public double DurationMs { get; set; }
 
     /// <summary>
-    /// Gets or sets a value to indicate if this response was blocked
+    /// Gets or sets an integer value indicating if this response was blocked (1 = Blocked, 0 = Allowed).
+    /// Compatible across both PostgreSQL and SQLite backends.
     /// </summary>
     public int Blocked { get; set; }
 
     /// <summary>
-    /// Gets or sets a value to indicate the resolving upstream
+    /// Gets or sets the resolving upstream server, or <see langword="null"/> if resolved via cache or blocked.
     /// </summary>
-    public required string Upstream { get; set; }
+    public string? Upstream { get; set; }
 
+    /// <summary>
+    /// Gets or sets the JSON-serialized array string representing resolved DNS answer records, or <see langword="null"/>.
+    /// </summary>
+    public string? AnswerDataJson { get; set; }
+
+    /// <summary>
+    /// Gets or sets the record Time-To-Live (TTL) in seconds returned by the DNS response, or <see langword="null"/>.
+    /// </summary>
+    public int? TtlSeconds { get; set; }
+
+    /// <summary>
+    /// Gets or sets the name or identifier string of the specific block rule list that matched, if blocked.
+    /// </summary>
+    public int? BlockRuleId { get; set; }
 }

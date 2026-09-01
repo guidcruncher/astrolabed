@@ -1,5 +1,5 @@
+// File: tests/Astrolabed.Dns.Tests/DomainFilterTests.cs
 using System.Collections.Frozen;
-using System.Text.RegularExpressions;
 
 using Astrolabed.Dns.Filtering;
 
@@ -24,52 +24,54 @@ public class DomainFilterTests
     public void IsAllowed_NullOrEmptyDomain_ReturnsFalse(string? domain)
     {
         var filter = new DomainFilter(_ruleStore);
-        Assert.False(filter.IsAllowed(domain!));
+        Assert.False(filter.IsAllowed(domain!, out _));
     }
 
     [Fact]
     public void IsAllowed_DomainInExactAllows_ReturnsTrue()
     {
         _ruleStore.Snapshot = new RuleStoreSnapshot(
-            new[] { "example.com" }.ToFrozenSet(),
-            Array.Empty<Regex>(),
-            new[] { "block.com" }.ToFrozenSet(),
-            Array.Empty<Regex>());
+            new Dictionary<string, int> { ["example.com"] = 1 }.ToFrozenDictionary(),
+            Array.Empty<RegexRule>(),
+            new Dictionary<string, int> { ["block.com"] = 1 }.ToFrozenDictionary(),
+            Array.Empty<RegexRule>());
 
         var filter = new DomainFilter(_ruleStore);
 
-        Assert.True(filter.IsAllowed("sub.example.com."));
+        Assert.True(filter.IsAllowed("sub.example.com.", out int? ruleListId));
+        Assert.Equal(1, ruleListId);
     }
 
     [Fact]
     public void IsBlocked_ExactMatch_ReturnsTrueWithReason()
     {
         _ruleStore.Snapshot = new RuleStoreSnapshot(
-            Array.Empty<string>().ToFrozenSet(),
-            Array.Empty<Regex>(),
-            new[] { "malware.com" }.ToFrozenSet(),
-            Array.Empty<Regex>());
+            FrozenDictionary<string, int>.Empty,
+            Array.Empty<RegexRule>(),
+            new Dictionary<string, int> { ["malware.com"] = 1 }.ToFrozenDictionary(),
+            Array.Empty<RegexRule>());
 
         var filter = new DomainFilter(_ruleStore);
 
-        bool isBlocked = filter.IsBlocked("sub.malware.com.", out string? reason);
+        bool isBlocked = filter.IsBlocked("sub.malware.com.", out string? reason, out int? ruleListId);
 
         Assert.True(isBlocked);
         Assert.Contains("malware.com", reason);
+        Assert.Equal(1, ruleListId);
     }
 
     [Fact]
     public void IsBlocked_AllowedSupercedesBlock_ReturnsFalse()
     {
         _ruleStore.Snapshot = new RuleStoreSnapshot(
-            new[] { "sub.malware.com" }.ToFrozenSet(),
-            Array.Empty<Regex>(),
-            new[] { "malware.com" }.ToFrozenSet(),
-            Array.Empty<Regex>());
+            new Dictionary<string, int> { ["sub.malware.com"] = 1 }.ToFrozenDictionary(),
+            Array.Empty<RegexRule>(),
+            new Dictionary<string, int> { ["malware.com"] = 1 }.ToFrozenDictionary(),
+            Array.Empty<RegexRule>());
 
         var filter = new DomainFilter(_ruleStore);
 
-        bool isBlocked = filter.IsBlocked("sub.malware.com", out _);
+        bool isBlocked = filter.IsBlocked("sub.malware.com", out _, out _);
 
         Assert.False(isBlocked);
     }
@@ -77,19 +79,19 @@ public class DomainFilterTests
     private sealed class FakeDomainFilterRuleStore : IDomainFilterRuleStore
     {
         public RuleStoreSnapshot Snapshot { get; set; } = new(
-            Array.Empty<string>().ToFrozenSet(),
-            Array.Empty<Regex>(),
-            Array.Empty<string>().ToFrozenSet(),
-            Array.Empty<Regex>());
+            FrozenDictionary<string, int>.Empty,
+            Array.Empty<RegexRule>(),
+            FrozenDictionary<string, int>.Empty,
+            Array.Empty<RegexRule>());
 
-        public IReadOnlySet<string> ExactAllows => Snapshot.ExactAllows;
-        public IReadOnlyList<string> RegexAllows => Snapshot.RegexAllows.Select(r => r.ToString()).ToList();
-        public IReadOnlySet<string> ExactBlocks => Snapshot.ExactBlocks;
-        public IReadOnlyList<string> RegexBlocks => Snapshot.RegexBlocks.Select(r => r.ToString()).ToList();
+        public IReadOnlyDictionary<string, int> ExactAllows => Snapshot.ExactAllows;
+        public IReadOnlyList<RegexRule> RegexAllows => Snapshot.RegexAllows;
+        public IReadOnlyDictionary<string, int> ExactBlocks => Snapshot.ExactBlocks;
+        public IReadOnlyList<RegexRule> RegexBlocks => Snapshot.RegexBlocks;
 
         public RuleStoreSnapshot GetCompiledSnapshot() => Snapshot;
 
-        public void UpdateRules(IEnumerable<string> allowRules, IEnumerable<string> blockRules)
+        public void UpdateRules(int ruleListId, IEnumerable<string> allowRules, IEnumerable<string> blockRules)
         {
         }
     }

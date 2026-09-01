@@ -1,5 +1,3 @@
-using System.Text.RegularExpressions;
-
 namespace Astrolabed.Dns.Filtering;
 
 /// <summary>
@@ -8,11 +6,15 @@ namespace Astrolabed.Dns.Filtering;
 /// <param name="ruleStore">Rule store providing compiled filter rule snapshots.</param>
 public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilter
 {
+    /// <summary>
+    /// The rule store providing active compiled filtering snapshots.
+    /// </summary>
     private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
 
     /// <inheritdoc />
-    public bool IsAllowed(string domain)
+    public bool IsAllowed(string domain, out int? ruleListId)
     {
+        ruleListId = null;
         if (string.IsNullOrWhiteSpace(domain))
         {
             return false;
@@ -21,13 +23,15 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         string cleanDomain = NormalizeDomain(domain);
         RuleStoreSnapshot snapshot = _ruleStore.GetCompiledSnapshot();
 
-        return IsDomainAllowedInternal(cleanDomain, snapshot);
+        return IsDomainAllowedInternal(cleanDomain, snapshot, out ruleListId);
     }
 
     /// <inheritdoc />
-    public bool IsBlocked(string domain, out string? reason)
+    public bool IsBlocked(string domain, out string? reason, out int? ruleListId)
     {
         reason = null;
+        ruleListId = null;
+
         if (string.IsNullOrWhiteSpace(domain))
         {
             return false;
@@ -37,7 +41,7 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         RuleStoreSnapshot snapshot = _ruleStore.GetCompiledSnapshot();
 
         // Priority 1: Check Allow Rules (Exact, Subdomain, or Regex)
-        if (IsDomainAllowedInternal(cleanDomain, snapshot))
+        if (IsDomainAllowedInternal(cleanDomain, snapshot, out int? allowRuleListId))
         {
             return false;
         }
@@ -49,8 +53,9 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         while (offset < span.Length)
         {
             string candidate = span[offset..].ToString();
-            if (snapshot.ExactBlocks.Contains(candidate))
+            if (snapshot.ExactBlocks.TryGetValue(candidate, out int matchedRuleListId))
             {
+                ruleListId = matchedRuleListId;
                 reason = $"Matched exact blocklist entry: {candidate}";
                 return true;
             }
@@ -65,13 +70,14 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         }
 
         // Priority 3: Check Regex Block Rules
-        IReadOnlyList<Regex> regexBlocks = snapshot.RegexBlocks;
+        IReadOnlyList<RegexRule> regexBlocks = snapshot.RegexBlocks;
         for (int i = 0; i < regexBlocks.Count; i++)
         {
-            Regex regex = regexBlocks[i];
-            if (regex.IsMatch(cleanDomain))
+            RegexRule regexRule = regexBlocks[i];
+            if (regexRule.Pattern.IsMatch(cleanDomain))
             {
-                reason = $"Matched blocklist regex pattern: {regex}";
+                ruleListId = regexRule.RuleListId;
+                reason = $"Matched blocklist regex pattern: {regexRule.Pattern}";
                 return true;
             }
         }
@@ -79,8 +85,17 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         return false;
     }
 
-    private static bool IsDomainAllowedInternal(string cleanDomain, RuleStoreSnapshot snapshot)
+    /// <summary>
+    /// Evaluates internal exact, hierarchical subdomain, and regex allow matching logic against snapshot dictionaries.
+    /// </summary>
+    /// <param name="cleanDomain">The normalized domain string.</param>
+    /// <param name="snapshot">The active compiled rule snapshot.</param>
+    /// <param name="ruleListId">Outputs the matched rule list ID if allowed.</param>
+    /// <returns><c>true</c> if allowed; otherwise <c>false</c>.</returns>
+    private static bool IsDomainAllowedInternal(string cleanDomain, RuleStoreSnapshot snapshot, out int? ruleListId)
     {
+        ruleListId = null;
+
         // 1. Hierarchical Subdomain Allow Match
         ReadOnlySpan<char> span = cleanDomain.AsSpan();
         int offset = 0;
@@ -88,8 +103,9 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         while (offset < span.Length)
         {
             string candidate = span[offset..].ToString();
-            if (snapshot.ExactAllows.Contains(candidate))
+            if (snapshot.ExactAllows.TryGetValue(candidate, out int matchedRuleListId))
             {
+                ruleListId = matchedRuleListId;
                 return true;
             }
 
@@ -103,11 +119,13 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         }
 
         // 2. Pre-compiled Regex Allow Match
-        IReadOnlyList<Regex> regexAllows = snapshot.RegexAllows;
+        IReadOnlyList<RegexRule> regexAllows = snapshot.RegexAllows;
         for (int i = 0; i < regexAllows.Count; i++)
         {
-            if (regexAllows[i].IsMatch(cleanDomain))
+            RegexRule regexRule = regexAllows[i];
+            if (regexRule.Pattern.IsMatch(cleanDomain))
             {
+                ruleListId = regexRule.RuleListId;
                 return true;
             }
         }
@@ -115,9 +133,13 @@ public sealed class DomainFilter(IDomainFilterRuleStore ruleStore) : IDomainFilt
         return false;
     }
 
+    /// <summary>
+    /// Normalizes domain name strings by trimming trailing dots and casing to lowercase.
+    /// </summary>
+    /// <param name="domain">The raw domain string.</param>
+    /// <returns>A normalized lowercase domain string.</returns>
     private static string NormalizeDomain(string domain)
     {
         return domain.Trim().TrimEnd('.').ToLowerInvariant();
     }
 }
-

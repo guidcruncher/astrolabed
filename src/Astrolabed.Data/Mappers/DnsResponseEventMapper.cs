@@ -1,15 +1,18 @@
+namespace Astrolabed.Data.Mappers;
+
 using System.Net;
+using System.Text.Json;
 
 using Astrolabed.Data.Models;
 using Astrolabed.EventBus.Events;
-
-namespace Astrolabed.Data.Mappers;
 
 /// <summary>
 /// Concrete mapper providing bidirectional transformations between entities, DTOs, and domain models.
 /// </summary>
 public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
 {
+    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>
     /// Converts a <see cref="DnsResponseEventDto"/> data transfer object into a persistable <see cref="DnsResponseEventEntity"/>.
     /// </summary>
@@ -22,19 +25,22 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
 
         return new DnsResponseEventEntity
         {
-            Id = Guid.NewGuid().ToString("D"),
+            Id = string.IsNullOrWhiteSpace(dto.Id) ? Guid.NewGuid().ToString("D") : dto.Id,
             StartTimeUtc = dto.StartTimeUtc.ToUnixTimeMilliseconds(),
             ContextId = dto.ContextId,
             QuestionName = dto.QuestionName,
             QuestionType = dto.QuestionType,
-            ClientEndpoint = dto.ClientEndpoint,
+            ClientAddress = dto.ClientAddress,
             ClientName = dto.ClientName,
             ResolutionSource = dto.ResolutionSource,
+            Rcode = dto.Rcode,
             DurationMs = dto.DurationMs,
             Blocked = dto.Blocked ? 1 : 0,
-            Upstream = dto.Upstream
+            Upstream = dto.Upstream,
+            AnswerDataJson = dto.AnswerData is not null ? JsonSerializer.Serialize(dto.AnswerData, JsonOptions) : null,
+            TtlSeconds = dto.TtlSeconds,
+            BlockRuleId = dto.BlockRuleId
         };
-
     }
 
     /// <summary>
@@ -54,12 +60,16 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             ContextId = domainEvent.ContextId,
             QuestionName = domainEvent.QuestionName,
             QuestionType = domainEvent.QuestionType,
-            ClientEndpoint = domainEvent.ClientEndpoint.ToString() ?? string.Empty,
+            ClientAddress = domainEvent.ClientAddress,
             ClientName = domainEvent.ClientName,
             ResolutionSource = domainEvent.ResolutionSource,
+            Rcode = domainEvent.Rcode,
             DurationMs = domainEvent.DurationMs,
             Blocked = domainEvent.Blocked ? 1 : 0,
-            Upstream = domainEvent.Upstream
+            Upstream = domainEvent.Upstream,
+            AnswerDataJson = domainEvent.AnswerData is not null ? JsonSerializer.Serialize(domainEvent.AnswerData, JsonOptions) : null,
+            TtlSeconds = domainEvent.TtlSeconds,
+            BlockRuleId = domainEvent.BlockRuleId
         };
     }
 
@@ -73,18 +83,35 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
     {
         ArgumentNullException.ThrowIfNull(entity);
 
+        IReadOnlyList<string>? answerData = null;
+        if (!string.IsNullOrWhiteSpace(entity.AnswerDataJson))
+        {
+            try
+            {
+                answerData = JsonSerializer.Deserialize<List<string>>(entity.AnswerDataJson, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                answerData = null;
+            }
+        }
+
         return new DnsResponseEventDto(
             entity.Id,
             DateTimeOffset.FromUnixTimeMilliseconds(entity.StartTimeUtc),
             entity.ContextId,
             entity.QuestionName,
             entity.QuestionType,
-            entity.ClientEndpoint,
+            entity.ClientAddress,
             entity.ClientName,
             entity.ResolutionSource,
+            entity.Rcode,
             entity.DurationMs,
             entity.Blocked == 1,
-        entity.Upstream
+            entity.Upstream,
+            answerData,
+            entity.TtlSeconds,
+            entity.BlockRuleId
         );
     }
 
