@@ -1,9 +1,9 @@
 namespace Astrolabed.Dns.Services;
 
-using Astrolabed.Dns.Models;
-
 using System.Net;
 using System.Text;
+
+using Astrolabed.Dns.Models;
 
 /// <summary>
 /// Provides utility methods to parse and format <see cref="DnsResourceRecord"/> objects into string representations

@@ -5,6 +5,7 @@ using Astrolabed.Data.Repositories;
 using Astrolabed.Dns.Options;
 
 using Microsoft.Extensions.Logging;
+
 namespace Astrolabed.Dns.Filtering;
 
 /// <summary>
@@ -78,7 +79,7 @@ public sealed partial class AdGuardListLoader(
     public async Task LoadAndApplyListAsync(ListSource source, CancellationToken ct = default)
     {
         var (allowRules, blockRules) = await LoadRulesAsync(source, ct).ConfigureAwait(false);
-        _ruleStore.UpdateRules(allowRules, blockRules);
+        _ruleStore.UpdateRules(source.Id, allowRules, blockRules);
 
         LogUpdatedRuleStore(_logger, source.Path, allowRules.Count, blockRules.Count);
     }

@@ -90,7 +90,7 @@ public sealed partial class DnsQueryProcessor(
         byte[]? responseBytes = null;
         string resolutionSource = "UNKNOWN";
         string rCode = "NOERROR";
-        int blockRuleId = 0;
+        int? blockRuleId = 0;
         IEnumerable<DnsResourceRecord>? answerData = null;
 
         try
@@ -108,8 +108,8 @@ public sealed partial class DnsQueryProcessor(
 
             // 2. Blocklist / Allowlist Filter Evaluation
             if (request.QuestionName is { Length: > 0 } &&
-                !_domainFilter.IsAllowed(request.QuestionName) &&
-                _domainFilter.IsBlocked(request.QuestionName, out string? reason))
+                !_domainFilter.IsAllowed(request.QuestionName, out blockRuleId) &&
+                _domainFilter.IsBlocked(request.QuestionName, out string? reason, out blockRuleId))
             {
                 blocked = true;
                 var filterEde = new ExtendedDnsError

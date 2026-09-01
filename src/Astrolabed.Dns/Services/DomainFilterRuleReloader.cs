@@ -1,3 +1,4 @@
+// File: src/Astrolabed.Dns/Services/DomainFilterRuleReloader.cs
 using Astrolabed.Dns.Filtering;
 using Astrolabed.Dns.Options;
 
@@ -62,8 +63,6 @@ public sealed partial class DomainFilterRuleReloader(
     private async Task LoadAllRulesAsync(CancellationToken cancellationToken)
     {
         DomainFilterRuleOptions options = _optionsMonitor.CurrentValue;
-        var aggregatedAllowRules = new List<string>();
-        var aggregatedBlockRules = new List<string>();
 
         // 1. Process Allow List Sources
         if (options.AllowListSources is { Count: > 0 })
@@ -76,9 +75,11 @@ public sealed partial class DomainFilterRuleReloader(
                         .LoadRulesAsync(source, cancellationToken)
                         .ConfigureAwait(false);
 
-                    aggregatedAllowRules.AddRange(allows);
                     // Standard entries in an explicit allow list default to allow rules
-                    aggregatedAllowRules.AddRange(blocks);
+                    var combinedAllows = allows.Concat(blocks);
+                    _ruleStore.UpdateRules(source.Id, combinedAllows, Enumerable.Empty<string>());
+
+                    LogRulesUpdatedSuccessfully(_logger, source.Id, allows.Count + blocks.Count, 0);
                 }
                 catch (Exception ex)
                 {
@@ -99,8 +100,9 @@ public sealed partial class DomainFilterRuleReloader(
                         .ConfigureAwait(false);
 
                     // Explicit exception rules (@@) in blocklists remain allow rules
-                    aggregatedAllowRules.AddRange(allows);
-                    aggregatedBlockRules.AddRange(blocks);
+                    _ruleStore.UpdateRules(source.Id, allows, blocks);
+
+                    LogRulesUpdatedSuccessfully(_logger, source.Id, allows.Count, blocks.Count);
                 }
                 catch (Exception ex)
                 {
@@ -108,9 +110,6 @@ public sealed partial class DomainFilterRuleReloader(
                 }
             }
         }
-
-        _ruleStore.UpdateRules(aggregatedAllowRules, aggregatedBlockRules);
-        LogRulesUpdatedSuccessfully(_logger, aggregatedAllowRules.Count, aggregatedBlockRules.Count);
     }
 
     /// <inheritdoc />
@@ -146,6 +145,7 @@ public sealed partial class DomainFilterRuleReloader(
     [LoggerMessage(
         EventId = 405,
         Level = LogLevel.Information,
-        Message = "Successfully updated IDomainFilterRuleStore. Total aggregated allow rules: {AllowCount}, block rules: {BlockCount}")]
-    private static partial void LogRulesUpdatedSuccessfully(ILogger logger, int allowCount, int blockCount);
+        Message = "Successfully updated IDomainFilterRuleStore for RuleListId {RuleListId}. Allow rules: {AllowCount}, block rules: {BlockCount}")]
+    private static partial void LogRulesUpdatedSuccessfully(ILogger logger, int ruleListId, int allowCount, int blockCount);
 }
+

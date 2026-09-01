@@ -1,3 +1,4 @@
+// File: tests/Astrolabed.Dns.Tests/DomainFilterRuleReloaderTests.cs
 using System.Collections.Frozen;
 
 using Astrolabed.Dns.Filtering;
@@ -17,11 +18,11 @@ public class DomainFilterRuleReloaderTests
     public async Task StartAsync_LoadsConfiguredSources_UpdatesRuleStore()
     {
         // Arrange
-var options = new DomainFilterRuleOptions
-{
-    AllowListSources = [new ListSource { Id = 1, Name = "", Path = "http://example.com/allow.txt" }],
-    BlockListSources = [new ListSource { Id = 2, Name = "", Path = "http://example.com/block.txt" }]
-};
+        var options = new DomainFilterRuleOptions
+        {
+            AllowListSources = [new ListSource { Id = 1, Name = "", Path = "http://example.com/allow.txt" }],
+            BlockListSources = [new ListSource { Id = 2, Name = "", Path = "http://example.com/block.txt" }]
+        };
 
         var optionsMonitor = new TestOptionsMonitor<DomainFilterRuleOptions>(options);
 
@@ -37,9 +38,9 @@ var options = new DomainFilterRuleOptions
         await reloader.StartAsync(CancellationToken.None);
 
         // Assert
-        Assert.Equal(1, ruleStore.UpdateRulesCallCount);
-        Assert.Contains("allowed.org", ruleStore.LastAllows);
-        Assert.Contains("blocked.org", ruleStore.LastBlocks);
+        Assert.Equal(2, ruleStore.UpdateRulesCallCount);
+        Assert.Contains(ruleStore.Updates, u => u.RuleListId == 1 && u.Allows.Contains("allowed.org"));
+        Assert.Contains(ruleStore.Updates, u => u.RuleListId == 2 && u.Blocks.Contains("blocked.org"));
     }
 
     private sealed class FakeListLoader : IListLoader
@@ -65,21 +66,19 @@ var options = new DomainFilterRuleOptions
     private sealed class SpyDomainFilterRuleStore : IDomainFilterRuleStore
     {
         public int UpdateRulesCallCount { get; private set; }
-        public List<string> LastAllows { get; private set; } = [];
-        public List<string> LastBlocks { get; private set; } = [];
+        public List<(int RuleListId, List<string> Allows, List<string> Blocks)> Updates { get; } = [];
 
-        public IReadOnlySet<string> ExactAllows => FrozenSet<string>.Empty;
-        public IReadOnlyList<string> RegexAllows => Array.Empty<string>();
-        public IReadOnlySet<string> ExactBlocks => FrozenSet<string>.Empty;
-        public IReadOnlyList<string> RegexBlocks => Array.Empty<string>();
+        public IReadOnlyDictionary<string, int> ExactAllows => FrozenDictionary<string, int>.Empty;
+        public IReadOnlyList<RegexRule> RegexAllows => Array.Empty<RegexRule>();
+        public IReadOnlyDictionary<string, int> ExactBlocks => FrozenDictionary<string, int>.Empty;
+        public IReadOnlyList<RegexRule> RegexBlocks => Array.Empty<RegexRule>();
 
         public RuleStoreSnapshot GetCompiledSnapshot() => throw new NotImplementedException();
 
-        public void UpdateRules(IEnumerable<string> allowRules, IEnumerable<string> blockRules)
+        public void UpdateRules(int ruleListId, IEnumerable<string> allowRules, IEnumerable<string> blockRules)
         {
             UpdateRulesCallCount++;
-            LastAllows = allowRules.ToList();
-            LastBlocks = blockRules.ToList();
+            Updates.Add((ruleListId, allowRules.ToList(), blockRules.ToList()));
         }
     }
 
