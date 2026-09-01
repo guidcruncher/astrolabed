@@ -1,9 +1,8 @@
 // File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
+using System.Text;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
-
 using Astrolabed.Dns.Options;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -45,18 +44,19 @@ public sealed partial class AdGuardListLoader(
     /// <inheritdoc />
     public async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(ListSource source, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.Path);
 
         using (IServiceScope scope = _scopeFactory.CreateScope())
         {
             var listRepository = scope.ServiceProvider.GetRequiredService<IDnsListRepository>();
-
             var adGuardList = new DnsListEntity
             {
                 Id = source.Id,
-                Name = source.Name ?? "",
+                Name = source.Name ?? string.Empty,
                 Path = source.Path
             };
+
             await listRepository.UpsertAsync(adGuardList, ct).ConfigureAwait(false);
         }
 
@@ -64,20 +64,25 @@ public sealed partial class AdGuardListLoader(
             source.Path.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
         {
             LogDownloadingHttpList(_logger, source.Path);
-
             using HttpResponseMessage response = await _httpClient.GetAsync(source.Path, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
             await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
-            using var reader = new StreamReader(stream);
+            using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
             return await ParseAdGuardRulesAsync(reader, ct).ConfigureAwait(false);
         }
 
         string filePath = ResolveFilePath(source.Path);
         LogReadingFileContent(_logger, filePath);
 
-        await using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
-        using var fileReader = new StreamReader(fileStream);
+        if (!File.Exists(filePath))
+        {
+            LogFileNotFound(_logger, filePath);
+            throw new FileNotFoundException($"The specified filter list file was not found on disk: {filePath}", filePath);
+        }
+
+        await using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+        using var fileReader = new StreamReader(fileStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true);
         return await ParseAdGuardRulesAsync(fileReader, ct).ConfigureAwait(false);
     }
 
@@ -86,12 +91,12 @@ public sealed partial class AdGuardListLoader(
     {
         var (allowRules, blockRules) = await LoadRulesAsync(source, ct).ConfigureAwait(false);
         _ruleStore.UpdateRules(source.Id, allowRules, blockRules);
-
         LogUpdatedRuleStore(_logger, source.Path, allowRules.Count, blockRules.Count);
     }
 
     /// <summary>
     /// Resolves a file URI or file system path parameter to a canonical local file system path string.
+    /// Handles Linux file scheme URIs (e.g. file:///etc/astrolabed/dns-lists/block.list).
     /// </summary>
     /// <param name="uriOrPath">The raw input path string or absolute file URI.</param>
     /// <returns>The fully qualified local file system path.</returns>
@@ -99,16 +104,10 @@ public sealed partial class AdGuardListLoader(
     {
         if (Uri.TryCreate(uriOrPath, UriKind.Absolute, out Uri? uri) && uri.IsFile)
         {
-            return uri.LocalPath;
+            return Uri.UnescapeDataString(uri.LocalPath);
         }
 
-        string rawPath = uriOrPath;
-        if (uriOrPath.StartsWith("file://", StringComparison.OrdinalIgnoreCase))
-        {
-            rawPath = uriOrPath["file://".Length..];
-        }
-
-        return Path.GetFullPath(rawPath);
+        return Path.GetFullPath(uriOrPath);
     }
 
     /// <summary>
@@ -126,7 +125,6 @@ public sealed partial class AdGuardListLoader(
         while ((line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) is not null)
         {
             ReadOnlySpan<char> span = line.AsSpan().Trim();
-
             if (span.IsEmpty || span[0] is '!' or '#')
             {
                 continue;
@@ -141,7 +139,6 @@ public sealed partial class AdGuardListLoader(
             }
 
             bool isAllow = false;
-
             if (span.StartsWith("@@".AsSpan(), StringComparison.Ordinal))
             {
                 isAllow = true;
@@ -161,7 +158,6 @@ public sealed partial class AdGuardListLoader(
             }
 
             ReadOnlySpan<char> parsedDomain = default;
-
             if (span.StartsWith("||".AsSpan(), StringComparison.Ordinal))
             {
                 int endIdx = span.IndexOf('^');
@@ -245,4 +241,15 @@ public sealed partial class AdGuardListLoader(
         Level = LogLevel.Information,
         Message = "Successfully updated IDomainFilterRuleStore with {AllowCount} allow and {BlockCount} block rules loaded from {Source}.")]
     private static partial void LogUpdatedRuleStore(ILogger logger, string source, int allowCount, int blockCount);
+
+    /// <summary>
+    /// Logs an error when a local list file cannot be located on disk.
+    /// </summary>
+    /// <param name="logger">Target structured logger instance.</param>
+    /// <param name="filePath">Resolved local file system path string.</param>
+    [LoggerMessage(
+        EventId = 105,
+        Level = LogLevel.Error,
+        Message = "Filter list file was not found on local disk at path: {FilePath}")]
+    private static partial void LogFileNotFound(ILogger logger, string filePath);
 }
