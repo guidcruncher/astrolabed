@@ -1,3 +1,11 @@
+CREATE TABLE IF NOT EXISTS dns_lists (
+    id int NOT NULL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    path VARCHAR(255) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_dns_lists_path ON dns_lists (path);
+
 CREATE TABLE IF NOT EXISTS dns_response_events (
     id VARCHAR(36) NOT NULL PRIMARY KEY,
     start_time_utc BIGINT NOT NULL,
