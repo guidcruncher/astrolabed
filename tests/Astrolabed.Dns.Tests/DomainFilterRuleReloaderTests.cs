@@ -17,11 +17,12 @@ public class DomainFilterRuleReloaderTests
     public async Task StartAsync_LoadsConfiguredSources_UpdatesRuleStore()
     {
         // Arrange
-        var options = new DomainFilterRuleOptions
-        {
-            AllowListSources = ["http://example.com/allow.txt"],
-            BlockListSources = ["http://example.com/block.txt"]
-        };
+var options = new DomainFilterRuleOptions
+{
+    AllowListSources = [new ListSource { Id = 1, Name = "", Path = "http://example.com/allow.txt" }],
+    BlockListSources = [new ListSource { Id = 2, Name = "", Path = "http://example.com/block.txt" }]
+};
+
         var optionsMonitor = new TestOptionsMonitor<DomainFilterRuleOptions>(options);
 
         var listLoader = new FakeListLoader();
@@ -45,9 +46,9 @@ public class DomainFilterRuleReloaderTests
     {
         public Dictionary<string, (IReadOnlyList<string> Allows, IReadOnlyList<string> Blocks)> Responses { get; } = new();
 
-        public Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(string sourcePath, CancellationToken cancellationToken = default)
+        public Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(ListSource source, CancellationToken cancellationToken = default)
         {
-            if (Responses.TryGetValue(sourcePath, out var result))
+            if (Responses.TryGetValue(source.Path, out var result))
             {
                 return Task.FromResult(result);
             }
@@ -55,7 +56,7 @@ public class DomainFilterRuleReloaderTests
             return Task.FromResult<(IReadOnlyList<string>, IReadOnlyList<string>)>((Array.Empty<string>(), Array.Empty<string>()));
         }
 
-        public Task LoadAndApplyListAsync(string sourcePath, CancellationToken cancellationToken = default)
+        public Task LoadAndApplyListAsync(ListSource source, CancellationToken cancellationToken = default)
         {
             return Task.CompletedTask;
         }

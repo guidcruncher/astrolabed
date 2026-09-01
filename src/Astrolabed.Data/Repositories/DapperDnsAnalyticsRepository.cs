@@ -16,11 +16,28 @@ using Microsoft.Extensions.Options;
 /// </summary>
 public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
 {
-
+    /// <summary>
+    /// The database connection factory used to acquire asynchronous connections.
+    /// </summary>
     private readonly IDbConnectionFactory _connectionFactory;
+
+    /// <summary>
+    /// The database configuration options, including timeout settings.
+    /// </summary>
     private readonly DatabaseOptions _databaseOptions;
+
+    /// <summary>
+    /// The structured logging instance for repository diagnostics.
+    /// </summary>
     private readonly ILogger<DapperDnsAnalyticsRepository> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="DapperDnsAnalyticsRepository"/> class.
+    /// </summary>
+    /// <param name="connectionFactory">The factory used to establish database connections.</param>
+    /// <param name="databaseOptions">The options containing database configuration settings.</param>
+    /// <param name="logger">The logger for diagnostic messages.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="connectionFactory"/>, <paramref name="databaseOptions"/>, or <paramref name="logger"/> is <see langword="null"/>.</exception>
     public DapperDnsAnalyticsRepository(
         IDbConnectionFactory connectionFactory,
         IOptions<DatabaseOptions> databaseOptions,
@@ -30,7 +47,6 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
         _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
-
 
     /// <inheritdoc />
     public async Task<double> GetBlockRateAsync(long startTimeUtc, CancellationToken cancellationToken = default)
@@ -101,4 +117,3 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
         return await connection.QueryAsync<CnameCloakingResult>(new CommandDefinition(sql, cancellationToken: cancellationToken));
     }
 }
-
