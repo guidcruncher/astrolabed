@@ -33,5 +33,5 @@ public sealed record DnsResponseEvent(
     string? Upstream = null,
     IReadOnlyList<string>? AnswerData = null,
     int? TtlSeconds = null,
-    string? BlockRuleId = null
+    int? BlockRuleId = null
 );

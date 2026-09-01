@@ -1,7 +1,6 @@
 // File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
 using Astrolabed.Data.Models;
-using Astrolabed.Data.Repositories#;
-
+using Astrolabed.Data.Repositories;
 
 using Astrolabed.Dns.Options;
 

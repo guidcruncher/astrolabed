@@ -1,4 +1,4 @@
-#// File: src/Astrolabed.Dns/Options/DomainFilterRuleOptions.cs
+// File: src/Astrolabed.Dns/Options/DomainFilterRuleOptions.cs
 namespace Astrolabed.Dns.Options;
 
 /// <summary>

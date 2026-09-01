@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     upstream VARCHAR(64) NULL,
     answer_data VARCHAR(255) NULL,
     ttl_seconds INT NULL,
-    block_rule_id VARCHAR(128) NULL
+    block_rule_id INT NULL
 );
 
 -- Performance Indexes

@@ -200,7 +200,7 @@ public sealed partial class DnsQueryProcessor(
                 answerData = [record];
                 responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [record]);
                 resolutionSource = "HOSTS_FILE";
-                rCode = "NOERROR"
+                rCode = "NOERROR";
                 return responseBytes;
             }
 
@@ -299,10 +299,10 @@ public sealed partial class DnsQueryProcessor(
             if (!isNestedQuery)
             {
                 int ttlSeconds = 300;
-                if ((answerData != null) && (answerData.length < 0))
+                if ((answerData != null) && (answerData.Count() < 0))
                 {
-                    ttlSeconds = answerData[0].Ttl
-                        }
+                    ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
+                }
 
                 double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
                 var dnsEvent = new DnsResponseEvent(
@@ -310,14 +310,14 @@ public sealed partial class DnsQueryProcessor(
                     context.Id.ToString(),
                     request.QuestionName,
                     request.QuestionType.ToString().ToUpperInvariant(),
-                    clientEndpoint.Address.ToString(),
+                    ((IPEndPoint)clientEndpoint),
                     clientName,
                     resolutionSource,
                     rCode,
                     elapsedMs,
                     blocked,
                     upstreamSource,
-                    answerData ? answerData.ToAnswerData() : [],
+                    answerData?.ToAnswerData(),
                     ttlSeconds,
                     blockRuleId
                 );

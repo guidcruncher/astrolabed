@@ -68,7 +68,7 @@ public sealed partial class DomainFilterRuleReloader(
         // 1. Process Allow List Sources
         if (options.AllowListSources is { Count: > 0 })
         {
-            foreach (string source in options.AllowListSources)
+            foreach (ListSource source in options.AllowListSources)
             {
                 try
                 {
@@ -82,7 +82,7 @@ public sealed partial class DomainFilterRuleReloader(
                 }
                 catch (Exception ex)
                 {
-                    LogLoadSourceFailed(_logger, ex, source);
+                    LogLoadSourceFailed(_logger, ex, source.Path);
                 }
             }
         }
@@ -90,7 +90,7 @@ public sealed partial class DomainFilterRuleReloader(
         // 2. Process Block List Sources
         if (options.BlockListSources is { Count: > 0 })
         {
-            foreach (string source in options.BlockListSources)
+            foreach (ListSource source in options.BlockListSources)
             {
                 try
                 {
@@ -104,7 +104,7 @@ public sealed partial class DomainFilterRuleReloader(
                 }
                 catch (Exception ex)
                 {
-                    LogLoadSourceFailed(_logger, ex, source);
+                    LogLoadSourceFailed(_logger, ex, source.Path);
                 }
             }
         }

@@ -1,4 +1,6 @@
-namespace Astrolabed.Data.Mappers;
+namespace Astrolabed.Dns.Services;
+
+using Astrolabed.Dns.Models;
 
 using System.Net;
 using System.Text;
@@ -14,7 +16,7 @@ public static class DnsResourceRecordParser
     /// </summary>
     /// <param name="records">The collection of DNS resource records to parse.</param>
     /// <returns>An <see cref="IReadOnlyList{T}"/> of human-readable record values, or <see langword="null"/> if empty.</returns>
-    public static IReadOnlyList<string>? ToAnswerData(IEnumerable<DnsResourceRecord>? records)
+    public static IReadOnlyList<string>? ToAnswerData(this IEnumerable<DnsResourceRecord>? records)
     {
         if (records is null)
         {
