@@ -1,3 +1,4 @@
+
 // File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
 using System.Text;
 using Astrolabed.Data.Models;
@@ -158,11 +159,19 @@ public sealed partial class AdGuardListLoader(
             }
 
             ReadOnlySpan<char> parsedDomain = default;
-            if (span.StartsWith("||".AsSpan(), StringComparison.Ordinal))
+
+            // 1. Regex Rules: Retain surrounding slashes so IDomainFilterRuleStore can recognize regex patterns
+            if (span.StartsWith('/') && span.EndsWith('/') && span.Length > 2)
+            {
+                parsedDomain = span;
+            }
+            // 2. AdGuard Domain Matching Syntax: ||example.com^
+            else if (span.StartsWith("||".AsSpan(), StringComparison.Ordinal))
             {
                 int endIdx = span.IndexOf('^');
                 parsedDomain = endIdx >= 0 ? span[2..endIdx] : span[2..];
             }
+            // 3. Standard Hosts File Format: 0.0.0.0 example.com or 127.0.0.1 example.com
             else if (span.StartsWith("0.0.0.0 ".AsSpan(), StringComparison.Ordinal) ||
                      span.StartsWith("127.0.0.1 ".AsSpan(), StringComparison.Ordinal))
             {
@@ -172,21 +181,22 @@ public sealed partial class AdGuardListLoader(
                     parsedDomain = span[(firstSpace + 1)..].Trim();
                 }
             }
-            else if (span[0] is not '/' and not '|')
+            // 4. Plain Domains or Wildcard-trimmed Rules: example.com
+            else
             {
                 parsedDomain = span.TrimEnd('^');
             }
 
             if (!parsedDomain.IsEmpty)
             {
-                string domain = parsedDomain.ToString();
+                string rule = parsedDomain.ToString();
                 if (isAllow)
                 {
-                    allowRules.Add(domain);
+                    allowRules.Add(rule);
                 }
                 else
                 {
-                    blockRules.Add(domain);
+                    blockRules.Add(rule);
                 }
             }
         }
