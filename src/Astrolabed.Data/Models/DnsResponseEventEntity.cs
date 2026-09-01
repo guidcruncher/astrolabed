@@ -31,9 +31,9 @@ public sealed class DnsResponseEventEntity
     public string QuestionType { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets the client endpoint IP and port string representation (e.g., "192.168.1.100:54321").
+    /// Gets or sets the client Address IP and port string representation (e.g., "192.168.1.100:54321").
     /// </summary>
-    public string ClientEndpoint { get; set; } = string.Empty;
+    public string ClientAddress { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets the resolved name of the client making the DNS request, or <see langword="null"/> if unresolvable.

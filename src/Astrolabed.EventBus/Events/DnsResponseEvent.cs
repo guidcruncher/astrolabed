@@ -1,5 +1,4 @@
 using System.Net;
-
 namespace Astrolabed.EventBus.Events;
 
 /// <summary>
@@ -9,7 +8,7 @@ namespace Astrolabed.EventBus.Events;
 /// <param name="ContextId">The trace context GUID string identifying the request operation.</param>
 /// <param name="QuestionName">The requested domain name string.</param>
 /// <param name="QuestionType">The requested DNS record type string.</param>
-/// <param name="ClientEndpoint">The network endpoint of the asking client.</param>
+/// <param name="ClientAddress">The network Address of the asking client.</param>
 /// <param name="ClientName">The resolved network hostname or IP representation of the client, if available.</param>
 /// <param name="ResolutionSource">The resolution source tag describing how the query was answered (e.g., "CACHE", "UPSTREAM", "BLOCKLIST").</param>
 /// <param name="Rcode">The standard DNS response code (e.g., "NOERROR", "NXDOMAIN", "REFUSED").</param>
@@ -24,7 +23,7 @@ public sealed record DnsResponseEvent(
     string ContextId,
     string QuestionName,
     string QuestionType,
-    EndPoint ClientEndpoint,
+    string ClientAddress,
     string? ClientName,
     string ResolutionSource,
     string Rcode,

@@ -4,6 +4,7 @@ using Astrolabed.Data.Repositories;
 
 using Astrolabed.Dns.Options;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
@@ -13,12 +14,12 @@ namespace Astrolabed.Dns.Filtering;
 /// </summary>
 /// <param name="httpClient">The HTTP client instance used for fetching remote filter lists over network streams.</param>
 /// <param name="ruleStore">The target domain filter rule store instance to receive parsed allow/block rules.</param>
-/// <param name="listRepository">The repository used to persist and update DNS list metadata records.</param>
+/// <param name="scopeFactory">The service scope factory used to resolve scoped repositories safely.</param>
 /// <param name="logger">The structured logger instance for diagnostic reporting.</param>
 public sealed partial class AdGuardListLoader(
     HttpClient httpClient,
     IDomainFilterRuleStore ruleStore,
-    IDnsListRepository listRepository,
+    IServiceScopeFactory scopeFactory,
     ILogger<AdGuardListLoader> logger) : IListLoader
 {
     /// <summary>
@@ -32,9 +33,9 @@ public sealed partial class AdGuardListLoader(
     private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
 
     /// <summary>
-    /// The database repository used to record and sync loaded list sources.
+    /// The service scope factory for creating isolated execution scopes.
     /// </summary>
-    private readonly IDnsListRepository _listRepository = listRepository ?? throw new ArgumentNullException(nameof(listRepository));
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
 
     /// <summary>
     /// The logger used for structured logging within the list loader operation lifecycle.
@@ -46,13 +47,18 @@ public sealed partial class AdGuardListLoader(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.Path);
 
-        var adGuardList = new DnsListEntity
+        using (IServiceScope scope = _scopeFactory.CreateScope())
         {
-            Id = source.Id,
-            Name = source.Name ?? "",
-            Path = source.Path
-        };
-        await _listRepository.UpsertAsync(adGuardList, ct);
+            var listRepository = scope.ServiceProvider.GetRequiredService<IDnsListRepository>();
+
+            var adGuardList = new DnsListEntity
+            {
+                Id = source.Id,
+                Name = source.Name ?? "",
+                Path = source.Path
+            };
+            await listRepository.UpsertAsync(adGuardList, ct).ConfigureAwait(false);
+        }
 
         if (source.Path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
             source.Path.StartsWith("https://", StringComparison.OrdinalIgnoreCase))

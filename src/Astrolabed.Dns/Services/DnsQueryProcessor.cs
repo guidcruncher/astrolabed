@@ -310,7 +310,7 @@ public sealed partial class DnsQueryProcessor(
                     context.Id.ToString(),
                     request.QuestionName,
                     request.QuestionType.ToString().ToUpperInvariant(),
-                    ((IPEndPoint)clientEndpoint),
+                    ((IPEndPoint)clientEndpoint).Address.ToString(),
                     clientName,
                     resolutionSource,
                     rCode,

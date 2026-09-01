@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     question_name VARCHAR(255) NOT NULL,
     question_type VARCHAR(32) NOT NULL,
     client_ip VARCHAR(45) NOT NULL,
-    client_port INT NULL,
     client_name VARCHAR(255) NULL,
     resolution_source VARCHAR(64) NOT NULL,
     rcode VARCHAR(16) NOT NULL,

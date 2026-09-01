@@ -40,11 +40,11 @@ public sealed partial class DapperDnsResponseEventRepository(
         const string sql = """
             INSERT INTO dns_response_events (
                 id, start_time_utc, context_id, question_name, question_type,
-                client_endpoint, client_name, resolution_source, rcode, duration_ms,
+                client_ip, client_name, resolution_source, rcode, duration_ms,
                 blocked, upstream, answer_data_json, ttl_seconds, block_rule_id
             ) VALUES (
                 @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
-                @ClientEndpoint, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
+                @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
                 @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId
             );
             """;
@@ -59,7 +59,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         parameters.Add("ContextId", entity.ContextId);
         parameters.Add("QuestionName", entity.QuestionName);
         parameters.Add("QuestionType", entity.QuestionType);
-        parameters.Add("ClientEndpoint", entity.ClientEndpoint);
+        parameters.Add("ClientAddress", entity.ClientAddress);
         parameters.Add("ClientName", entity.ClientName);
         parameters.Add("ResolutionSource", entity.ResolutionSource);
         parameters.Add("Rcode", entity.Rcode);
@@ -92,7 +92,7 @@ public sealed partial class DapperDnsResponseEventRepository(
                    context_id AS ContextId,
                    question_name AS QuestionName,
                    question_type AS QuestionType,
-                   client_endpoint AS ClientEndpoint,
+                   client_ip AS ClientAddress,
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
                    rcode AS Rcode,
@@ -140,7 +140,7 @@ public sealed partial class DapperDnsResponseEventRepository(
                    context_id AS ContextId,
                    question_name AS QuestionName,
                    question_type AS QuestionType,
-                   client_endpoint AS ClientEndpoint,
+                   client_ip AS ClientAddress,
                    client_name AS ClientName,
                    resolution_source AS ResolutionSource,
                    rcode AS Rcode,

@@ -8,7 +8,7 @@ namespace Astrolabed.Data.Models;
 /// <param name="ContextId">The unique context tracking identifier string associated with the query request.</param>
 /// <param name="QuestionName">The queried domain name string (e.g., "example.com").</param>
 /// <param name="QuestionType">The queried DNS record type string (e.g., "A", "AAAA", "HTTPS").</param>
-/// <param name="ClientEndpoint">The client endpoint IP and port string representation (e.g., "192.168.1.100:54321").</param>
+/// <param name="ClientAddress">The client Address IP and port string representation (e.g., "192.168.1.100:54321").</param>
 /// <param name="ClientName">The resolved name or friendly display name of the client making the DNS request, if available.</param>
 /// <param name="ResolutionSource">The resolution outcome source description tag (e.g., "CACHE", "UPSTREAM", "BLOCKLIST").</param>
 /// <param name="Rcode">The standard DNS response code (e.g., "NOERROR", "NXDOMAIN", "REFUSED").</param>
@@ -24,7 +24,7 @@ public sealed record DnsResponseEventDto(
     string ContextId,
     string QuestionName,
     string QuestionType,
-    string ClientEndpoint,
+    string ClientAddress,
     string? ClientName,
     string ResolutionSource,
     string Rcode,
