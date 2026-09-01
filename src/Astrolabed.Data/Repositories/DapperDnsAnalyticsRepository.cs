@@ -55,7 +55,7 @@ public sealed partial class DapperDnsAnalyticsRepository : IDnsAnalyticsReposito
             SELECT 
                 COALESCE(
                     ROUND(
-                        (CAST(SUM(blocked) AS DECIMAL) / NULLIF(COUNT(*), 0)) * 100, 2
+                        (CAST((SUM(blocked) * 1.0) AS DECIMAL) / NULLIF(COUNT(*), 0)) * 100, 2
                     ), 0.0
                 )
             FROM dns_response_events
@@ -64,7 +64,7 @@ public sealed partial class DapperDnsAnalyticsRepository : IDnsAnalyticsReposito
 
         LogCalculatingBlockRate(_logger, startTimeUtc);
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-        
+
         var command = new CommandDefinition(sql, new { StartTimeUtc = startTimeUtc }, commandTimeout: _databaseOptions.CommandTimeoutSeconds, cancellationToken: cancellationToken);
         return await connection.ExecuteScalarAsync<double>(command).ConfigureAwait(false);
     }
