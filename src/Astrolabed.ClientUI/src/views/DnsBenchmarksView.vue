@@ -2,13 +2,13 @@
 <script setup lang="ts">
 import { Timer } from '@lucide/vue'
 import { ref, onMounted } from 'vue'
-import { type DnsBenchmark } from '../types/api'
+import { type DnsBenchmark, DnsBenchmarkResult } from '../types/api'
 import { useApi } from '../composables/useApi'
 
 // Access the getDnsBenchmarks method from the API composable
-const { getDnsBenchmarks } = useApi()
+const { getDnsBenchmarkRankings } = useApi()
 
-const benchmarks = ref<DnsBenchmark[]>([])
+const benchmarks = ref<DnsBenchmark[]>()
 const isLoading = ref<boolean>(false)
 const errorMessage = ref<string | null>(null)
 
@@ -20,7 +20,7 @@ const fetchBenchmarks = async (): Promise<void> => {
   errorMessage.value = null
 
   try {
-    const data = await getDnsBenchmarks()
+    const data = await getDnsBenchmarkRankings()
     benchmarks.value = data
   } catch (err) {
     errorMessage.value =
@@ -106,7 +106,7 @@ onMounted(() => {
 
     <!-- Empty State -->
     <div
-      v-else-if="benchmarks.length === 0"
+      v-else-if="benchmarks?.length === 0"
       class="p-12 text-center bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
     >
       <p class="text-slate-500 dark:text-slate-400">No DNS benchmark results available.</p>

@@ -189,3 +189,48 @@ export interface PagedResultOfDnsResponseEventEntity {
   hasPreviousPage?: boolean
   hasNextPage?: boolean
 }
+
+export interface DnsBenchmarkResult {
+  endpointMetrics: DnsEndpointMetrics[]
+  executedAt: string
+}
+
+export interface BlockRateResponse {
+  blockRatePercentage: number
+  startTimeUtc: number
+}
+
+export interface RetryStormResult {
+  clientIp?: string
+  clientName?: string
+  questionName?: string
+  queryCount?: number
+}
+
+export interface CnameCloakingResult {
+  questionName?: string
+  answerData?: string
+  hitCount?: number
+}
+
+export interface DnsServiceRanking {
+  rank: number
+  serverName: string
+  combinedAverageLatencyMs: number
+  minLatencyMs: number
+  maxLatencyMs: number
+  combinedPacketLossPercentage: number
+  endpointsCount: number
+}
+
+export interface DnsEndpointMetrics {
+  serverName: string
+  ipAddress: string
+  addressFamily: AddressFamily
+  isSuccessful: boolean
+  minimumLatencyMs: number
+  averageLatencyMs: number
+  maximumLatencyMs: number
+  packetLossPercentage: number
+  errorMessage?: string | null
+}

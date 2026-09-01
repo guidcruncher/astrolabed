@@ -2,72 +2,83 @@
   <div>
     <h2 class="text-2xl font-bold mb-6">System Overview</h2>
 
-    <div class="relative inline-block w-full">
-      <Panel title="Filters">
-        <DatePicker
-          v-model="startDate"
-          label="Start"
-          placeholder="YYYY-MM-DD"
-          input-id="start-date"
-          @date-selected="handleDateSelected"
-        />
+    <!-- Top Row: Panels layout using CSS Grid with stretched items -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-stretch">
+      <!-- Filters Panel -->
+      <div class="relative w-full flex flex-col h-full">
+        <Panel title="Filters" class="h-full flex flex-col">
+          <div class="flex flex-col sm:flex-row gap-4 flex-1 items-start">
+            <DatePicker
+              v-model="startDate"
+              label="Start"
+              placeholder="YYYY-MM-DD"
+              input-id="start-date"
+              class="w-full sm:w-auto flex-1"
+              @date-selected="handleDateSelected"
+            />
 
-        <DatePicker
-          v-model="endDate"
-          label="End"
-          placeholder="YYYY-MM-DD"
-          input-id="end-date"
-          @date-selected="handleDateSelected"
-        />
-      </Panel>
-    </div>
-
-    <div class="relative inline-block w-full">
-      <!-- Green LED Indicator (Top Right) -->
-      <span
-        v-if="loading"
-        class="absolute top-3 right-3 z-10 flex h-2.5 w-2.5"
-        title="Refreshing..."
-      >
-        <span
-          class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
-        ></span>
-        <span
-          class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
-        ></span>
-      </span>
-
-      <Panel v-if="currentTime" title="Current Time">
-        <div class="space-y-2.5 py-1">
-          <!-- UTC Time Row -->
-          <div
-            class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
-          >
-            <div class="flex items-center gap-2">
-              <Globe class="h-4 w-4 text-sky-400" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">UTC</span>
-            </div>
-            <span class="font-mono text-sm font-medium text-sky-300">
-              {{ currentTime.toUTCString() }}
-            </span>
+            <DatePicker
+              v-model="endDate"
+              label="End"
+              placeholder="YYYY-MM-DD"
+              input-id="end-date"
+              class="w-full sm:w-auto flex-1"
+              @date-selected="handleDateSelected"
+            />
           </div>
+        </Panel>
+      </div>
 
-          <!-- Local Time Row -->
-          <div
-            class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
-          >
-            <div class="flex items-center gap-2">
-              <Clock class="h-4 w-4 text-indigo-400" />
-              <span class="text-xs font-semibold uppercase tracking-wider text-slate-400"
-                >Local</span
-              >
+      <!-- Current Time Panel -->
+      <div class="relative w-full flex flex-col h-full">
+        <!-- Green LED Indicator (Top Right) -->
+        <span
+          v-if="loading"
+          class="absolute top-3 right-3 z-10 flex h-2.5 w-2.5"
+          title="Refreshing..."
+        >
+          <span
+            class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+          ></span>
+          <span
+            class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
+          ></span>
+        </span>
+
+        <Panel v-if="currentTime" title="Current Time" class="h-full">
+          <div class="space-y-2.5 py-1">
+            <!-- UTC Time Row -->
+            <div
+              class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
+            >
+              <div class="flex items-center gap-2">
+                <Globe class="h-4 w-4 text-sky-400" />
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >UTC</span
+                >
+              </div>
+              <span class="font-mono text-sm font-medium text-sky-300">
+                {{ currentTime.toUTCString() }}
+              </span>
             </div>
-            <span class="font-mono text-sm font-medium text-slate-200">
-              {{ currentTime.toLocaleString() }}
-            </span>
+
+            <!-- Local Time Row -->
+            <div
+              class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
+            >
+              <div class="flex items-center gap-2">
+                <Clock class="h-4 w-4 text-indigo-400" />
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-400"
+                  >Local</span
+                >
+              </div>
+              <span class="font-mono text-sm font-medium text-slate-200">
+                {{ formatUtcToLocalBrowserTime(currentTime) }}
+              </span>
+            </div>
           </div>
-        </div>
-      </Panel>
+        </Panel>
+      </div>
     </div>
 
     <div class="h-[380px]">
@@ -133,6 +144,8 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useDnsTypeColor } from '../composables/useDnsTypeColor'
 import { useApi } from '../composables/useApi'
+import { useDateUtils } from '../composables/useDateUtils'
+
 import type {
   DnsQuestionTypeSummary,
   AstrolabedStatusResponse,
@@ -141,6 +154,7 @@ import type {
 import type { PieChartItem, StackedBarItem, StackedBarSeries } from '../types/types'
 import { Globe, Clock } from '@lucide/vue'
 
+const { formatUtcToLocalBrowserTime } = useDateUtils()
 const { getDnsTypeColorConfig } = useDnsTypeColor()
 const { getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } = useApi()
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
