@@ -53,14 +53,15 @@ public sealed partial class DnsQueryProcessor(
     private readonly IClientNameResolver _clientResolver = clientResolver ?? throw new ArgumentNullException(nameof(clientResolver));
     private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-    private TimeSpan getTtl( IEnumerable<DnsResourceRecord>? answerData) {
-int ttlSeconds = 300;
-                if ((answerData != null) && (answerData.Count() > 0))
-                {
-                    ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
-                }
+    private TimeSpan getTtl(IEnumerable<DnsResourceRecord>? answerData)
+    {
+        int ttlSeconds = 300;
+        if ((answerData != null) && (answerData.Count() > 0))
+        {
+            ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
+        }
 
-     return TimeSpan.FromSeconds(ttlSeconds);
+        return TimeSpan.FromSeconds(ttlSeconds);
     }
 
     /// <inheritdoc />
@@ -249,7 +250,7 @@ int ttlSeconds = 300;
 
                     if (upstreamMessage is not null)
                     {
-    
+
                         upstreamSource = targetResolverIp.ToString();
                         upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
