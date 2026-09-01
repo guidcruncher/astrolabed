@@ -105,6 +105,7 @@ public sealed partial class DnsCache(
     /// <inheritdoc />
     public void Store(string domain, ushort qType, ReadOnlyMemory<byte> payload, TimeSpan ttl)
     {
+        // Guard against invalid domain inputs or items with a TTL of 0 seconds (or negative)
         if (string.IsNullOrWhiteSpace(domain) || ttl <= TimeSpan.Zero)
         {
             return;
