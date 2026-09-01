@@ -41,7 +41,7 @@ public sealed partial class DapperDnsResponseEventRepository(
             INSERT INTO dns_response_events (
                 id, start_time_utc, context_id, question_name, question_type,
                 client_ip, client_name, resolution_source, rcode, duration_ms,
-                blocked, upstream, answer_data_json, ttl_seconds, block_rule_id
+                blocked, upstream, answer_data, ttl_seconds, block_rule_id
             ) VALUES (
                 @Id, @StartTimeUtc, @ContextId, @QuestionName, @QuestionType,
                 @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
@@ -99,7 +99,7 @@ public sealed partial class DapperDnsResponseEventRepository(
                    duration_ms AS DurationMs,
                    blocked AS Blocked,
                    upstream AS Upstream,
-                   answer_data_json AS AnswerDataJson,
+                   answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
                    block_rule_id AS BlockRuleId
             FROM dns_response_events
@@ -147,7 +147,7 @@ public sealed partial class DapperDnsResponseEventRepository(
                    duration_ms AS DurationMs,
                    blocked AS Blocked,
                    upstream AS Upstream,
-                   answer_data_json AS AnswerDataJson,
+                   answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
                    block_rule_id AS BlockRuleId
             FROM dns_response_events
