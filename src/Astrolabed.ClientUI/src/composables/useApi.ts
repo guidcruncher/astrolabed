@@ -9,7 +9,12 @@ import type {
   PagedResultDtoOfDhcpLease,
   PagedResultOfDnsResponseEventEntity,
   PagedResultOfDiscoveredLanDeviceDto,
+  DnsBenchmarkResult,
   DnsBenchmark,
+  DnsServiceRanking,
+  BlockRateResponse,
+  RetryStormResult,
+  CnameCloakingResult,
   DhcpLease,
   AllocateOrUpdateDhcpLeaseRequest,
   ReleaseDhcpLeaseRequest,
@@ -86,6 +91,23 @@ export function useApi() {
       `/api/stats/dns/question-types?startepoch=${startEpoch}&endepoch=${endEpoch}`
     )
 
+  // --- DNS Analytics ---
+  const getBlockRate = (startTimeUtc?: number): Promise<BlockRateResponse> => {
+    const query = new URLSearchParams()
+    if (startTimeUtc !== undefined) query.append('startTimeUtc', startTimeUtc.toString())
+    return request<BlockRateResponse>(`/api/dns/analytics/block-rate?${query.toString()}`)
+  }
+
+  const getRetryStorms = (startTimeUtc?: number, limit = 50): Promise<RetryStormResult[]> => {
+    const query = new URLSearchParams()
+    if (startTimeUtc !== undefined) query.append('startTimeUtc', startTimeUtc.toString())
+    query.append('limit', limit.toString())
+    return request<RetryStormResult[]>(`/api/dns/analytics/retry-storms?${query.toString()}`)
+  }
+
+  const getCnameCloaking = (): Promise<CnameCloakingResult[]> =>
+    request<CnameCloakingResult[]>('/api/dns/analytics/cname-cloaking')
+
   // --- Cache ---
   const getCacheCount = (): Promise<CacheCountResponse> =>
     request<CacheCountResponse>('/api/Cache/count')
@@ -145,8 +167,14 @@ export function useApi() {
   const getDnsEventById = (id: string): Promise<DnsResponseEventEntity> =>
     request<DnsResponseEventEntity>(`/api/Dns/${encodeURIComponent(id)}`)
 
-  const getDnsBenchmarks = (): Promise<DnsBenchmark[]> =>
-    request<DnsBenchmark[]>(`/api/benchmarks/metrics`)
+  const getDnsBenchmarks = (): Promise<DnsBenchmarkResult> =>
+    request<DnsBenchmarkResult>('/api/benchmarks')
+
+  const getDnsBenchmarkByName = (serverName: string): Promise<DnsBenchmarkResult> =>
+    request<DnsBenchmarkResult>(`/api/benchmarks/${encodeURIComponent(serverName)}`)
+
+  const getDnsBenchmarkRankings = (): Promise<DnsServiceRanking[]> =>
+    request<DnsServiceRanking[]>(`/api/benchmarks/metrics`)
 
   const purgeDnsEvents = (): Promise<void> => request<void>('/api/Dns', { method: 'DELETE' })
 
@@ -205,6 +233,11 @@ export function useApi() {
     cleanupStaleDevices,
     getCurrentTime,
     getDnsBenchmarks,
+    getDnsBenchmarkByName,
+    getDnsBenchmarkRankings,
+    getBlockRate,
+    getRetryStorms,
+    getCnameCloaking,
     getDnsHourlyEventSummary,
     getDnsQuestionTypeSummary,
   }

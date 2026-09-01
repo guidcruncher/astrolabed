@@ -53,6 +53,17 @@ public sealed partial class DnsQueryProcessor(
     private readonly IClientNameResolver _clientResolver = clientResolver ?? throw new ArgumentNullException(nameof(clientResolver));
     private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    private TimeSpan getTtl(IEnumerable<DnsResourceRecord>? answerData)
+    {
+        int ttlSeconds = 300;
+        if ((answerData != null) && (answerData.Count() > 0))
+        {
+            ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
+        }
+
+        return TimeSpan.FromSeconds(ttlSeconds);
+    }
+
     /// <inheritdoc />
     public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
@@ -122,6 +133,11 @@ public sealed partial class DnsQueryProcessor(
 
                 switch (options.BlockedResponseMode)
                 {
+		    case BlockedResponseMode.NoData:
+                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, ede: filterEde);
+                        resolutionSource = "BLOCKED";
+                        rCode = "NODATA";
+                        break;
                     case BlockedResponseMode.NxDomain:
                         responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NXDomain, ede: filterEde);
                         resolutionSource = "BLOCKED";
@@ -239,13 +255,14 @@ public sealed partial class DnsQueryProcessor(
 
                     if (upstreamMessage is not null)
                     {
+
                         upstreamSource = targetResolverIp.ToString();
                         upstreamMessage.TransactionId = request.TransactionId;
                         responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                         answerData = upstreamMessage.Answers;
                         resolutionSource = "CONDITIONAL_PTR_UPSTREAM";
                         rCode = "NOERROR";
-                        _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
+                        _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, getTtl(answerData));
                         return responseBytes;
                     }
                 }
@@ -270,7 +287,7 @@ public sealed partial class DnsQueryProcessor(
                             responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                             resolutionSource = "UPSTREAM";
                             rCode = "NOERROR";
-                            _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, TimeSpan.FromMinutes(5));
+                            _cache.Store(request.QuestionName, (ushort)request.QuestionType, responseBytes, getTtl(answerData));
                             upstreamSource = upstream;
                             return responseBytes;
                         }
@@ -299,7 +316,7 @@ public sealed partial class DnsQueryProcessor(
             if (!isNestedQuery)
             {
                 int ttlSeconds = 300;
-                if ((answerData != null) && (answerData.Count() < 0))
+                if ((answerData != null) && (answerData.Count() > 0))
                 {
                     ttlSeconds = (int)(answerData.ToArray()[0].Ttl);
                 }

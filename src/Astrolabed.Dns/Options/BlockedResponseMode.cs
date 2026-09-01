@@ -12,6 +12,11 @@ public enum BlockedResponseMode
     Refused,
 
     /// <summary>
+    /// Responds with a NODATA response code
+    /// </summary>
+    NoData,
+
+    /// <summary>
     /// Responds with an NXDOMAIN (RCODE 3) response code indicating the requested domain name does not exist.
     /// </summary>
     NxDomain,

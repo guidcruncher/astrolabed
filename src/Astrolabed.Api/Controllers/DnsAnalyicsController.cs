@@ -13,7 +13,7 @@ namespace Astrolabed.Api.Controllers;
 /// <param name="analyticsRepository">The repository handling DNS analytics data access queries.</param>
 /// <param name="logger">The structured logger instance for controller diagnostics.</param>
 [ApiController]
-[Route("api/v1/dns/analytics")]
+[Route("api/dns/analytics")]
 [Produces("application/json")]
 public sealed partial class DnsAnalyticsController(
     IDnsAnalyticsRepository analyticsRepository,
