@@ -1,6 +1,11 @@
 // File: src/Astrolabed.Dns/Filtering/AdGuardListLoader.cs
-using Microsoft.Extensions.Logging;
+using Astrolabed.Data.Models;
+using Astrolabed.Data.Repositories#;
 
+
+using Astrolabed.Dns.Options;
+
+using Microsoft.Extensions.Logging;
 namespace Astrolabed.Dns.Filtering;
 
 /// <summary>
@@ -12,23 +17,33 @@ namespace Astrolabed.Dns.Filtering;
 public sealed partial class AdGuardListLoader(
     HttpClient httpClient,
     IDomainFilterRuleStore ruleStore,
+    IDnsListRepository listRepository,
     ILogger<AdGuardListLoader> logger) : IListLoader
 {
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
+    private readonly IDnsListRepository _listRepository = listRepository ?? throw new ArgumentNullException(nameof(listRepository));
     private readonly ILogger<AdGuardListLoader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
-    public async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(string uriOrPath, CancellationToken ct = default)
+    public async Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(ListSource source, CancellationToken ct = default)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(uriOrPath);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.Path);
 
-        if (uriOrPath.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-            uriOrPath.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        var adGuardList = new DnsListEntity
         {
-            LogDownloadingHttpList(_logger, uriOrPath);
+            Id = source.Id,
+            Name = source.Name ?? "",
+            Path = source.Path
+        };
+        await _listRepository.UpsertAsync(adGuardList, ct);
 
-            using HttpResponseMessage response = await _httpClient.GetAsync(uriOrPath, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        if (source.Path.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
+            source.Path.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            LogDownloadingHttpList(_logger, source.Path);
+
+            using HttpResponseMessage response = await _httpClient.GetAsync(source.Path, HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
             response.EnsureSuccessStatusCode();
 
             await using Stream stream = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -36,7 +51,7 @@ public sealed partial class AdGuardListLoader(
             return await ParseAdGuardRulesAsync(reader, ct).ConfigureAwait(false);
         }
 
-        string filePath = ResolveFilePath(uriOrPath);
+        string filePath = ResolveFilePath(source.Path);
         LogReadingFileContent(_logger, filePath);
 
         await using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true);
@@ -45,12 +60,12 @@ public sealed partial class AdGuardListLoader(
     }
 
     /// <inheritdoc />
-    public async Task LoadAndApplyListAsync(string uriOrPath, CancellationToken ct = default)
+    public async Task LoadAndApplyListAsync(ListSource source, CancellationToken ct = default)
     {
-        var (allowRules, blockRules) = await LoadRulesAsync(uriOrPath, ct).ConfigureAwait(false);
+        var (allowRules, blockRules) = await LoadRulesAsync(source, ct).ConfigureAwait(false);
         _ruleStore.UpdateRules(allowRules, blockRules);
 
-        LogUpdatedRuleStore(_logger, uriOrPath, allowRules.Count, blockRules.Count);
+        LogUpdatedRuleStore(_logger, source.Path, allowRules.Count, blockRules.Count);
     }
 
     private static string ResolveFilePath(string uriOrPath)

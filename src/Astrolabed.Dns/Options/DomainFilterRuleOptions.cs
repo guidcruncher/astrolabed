@@ -1,4 +1,4 @@
-// File: src/Astrolabed.Dns/Options/DomainFilterRuleOptions.cs
+#// File: src/Astrolabed.Dns/Options/DomainFilterRuleOptions.cs
 namespace Astrolabed.Dns.Options;
 
 /// <summary>
@@ -15,6 +15,11 @@ public sealed class ListSource
     /// The path to the list
     /// </summary>
     public string Path { get; set; } = "";
+
+    /// <summary>
+    /// The Name of the list
+    /// </summary>
+    public string Name { get; set; } = "";
 }
 
 

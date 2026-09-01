@@ -50,7 +50,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IDiscoveredLanDeviceRepository, DapperDiscoveredLanDeviceRepository>();
         services.AddScoped<IDnsResponseEventRepository, DapperDnsResponseEventRepository>();
         services.AddScoped<IStatsRepository, DapperStatsRepository>();
-
+        services.AddScoped<IDnsAnalyticsRepository, DapperDnsAnalyticsRepository>();
+        services.AddScoped<IDnsListRepository, DapperDnsListRepository>();
 
         // Scheduled Maintenance Jobs Infrastructure
         services.AddJobScheduler();
