@@ -1,8 +1,6 @@
-namespace Astrolabed.Data.Repositories;
-
+// File: src/Astrolabed.Data/Repositories/DapperDnsAnalyticsRepository.cs
 using System.Data.Common;
 
-using Astrolabed.Data;
 using Astrolabed.Data.Options;
 
 using Dapper;
@@ -10,11 +8,13 @@ using Dapper;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
+namespace Astrolabed.Data.Repositories;
+
 /// <summary>
 /// Provides a cross-compatible implementation of <see cref="IDnsAnalyticsRepository"/> using Dapper ADO.NET abstractions.
 /// Compatible with both PostgreSQL and SQLite (v3.38+) database backends.
 /// </summary>
-public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
+public sealed partial class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
 {
     /// <summary>
     /// The database connection factory used to acquire asynchronous connections.
@@ -62,9 +62,11 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
             WHERE start_time_utc >= @StartTimeUtc;
             """;
 
-        _logger.LogDebug("Calculating DNS block rate for queries since epoch {StartTimeUtc}.", startTimeUtc);
+        LogCalculatingBlockRate(_logger, startTimeUtc);
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
-        return await connection.ExecuteScalarAsync<double>(new CommandDefinition(sql, new { StartTimeUtc = startTimeUtc }, cancellationToken: cancellationToken));
+        
+        var command = new CommandDefinition(sql, new { StartTimeUtc = startTimeUtc }, commandTimeout: _databaseOptions.CommandTimeoutSeconds, cancellationToken: cancellationToken);
+        return await connection.ExecuteScalarAsync<double>(command).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -75,19 +77,20 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
                 client_ip AS ClientIp,
                 client_name AS ClientName,
                 question_name AS QuestionName,
-                COUNT(*) AS QueryCount
+                CAST(COUNT(*) AS BIGINT) AS QueryCount
             FROM dns_response_events
             WHERE blocked = 1
               AND start_time_utc >= @StartTimeUtc
             GROUP BY client_ip, client_name, question_name
-            HAVING COUNT(*) > @Limit
+            HAVING COUNT(*) >= @Limit
             ORDER BY QueryCount DESC;
             """;
 
-        _logger.LogDebug("Querying retry storms since epoch {StartTimeUtc} with limit threshold {Limit}.", startTimeUtc, limit);
+        LogQueryingRetryStorms(_logger, startTimeUtc, limit);
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        return await connection.QueryAsync<RetryStormResult>(new CommandDefinition(sql, new { StartTimeUtc = startTimeUtc, Limit = limit }, cancellationToken: cancellationToken));
+        var command = new CommandDefinition(sql, new { StartTimeUtc = startTimeUtc, Limit = limit }, commandTimeout: _databaseOptions.CommandTimeoutSeconds, cancellationToken: cancellationToken);
+        return await connection.QueryAsync<RetryStormResult>(command).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -97,7 +100,7 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
             SELECT 
                 d.question_name AS QuestionName,
                 d.answer_data AS AnswerData,
-                COUNT(*) AS HitCount
+                CAST(COUNT(*) AS BIGINT) AS HitCount
             FROM dns_response_events d
             JOIN json_each(d.answer_data) j ON 1=1
             WHERE d.blocked = 0
@@ -111,9 +114,28 @@ public sealed class DapperDnsAnalyticsRepository : IDnsAnalyticsRepository
             ORDER BY HitCount DESC;
             """;
 
-        _logger.LogDebug("Executing CNAME cloaking detection query against resolved JSON arrays.");
+        LogExecutingCnameCloakingQuery(_logger);
         await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
 
-        return await connection.QueryAsync<CnameCloakingResult>(new CommandDefinition(sql, cancellationToken: cancellationToken));
+        var command = new CommandDefinition(sql, commandTimeout: _databaseOptions.CommandTimeoutSeconds, cancellationToken: cancellationToken);
+        return await connection.QueryAsync<CnameCloakingResult>(command).ConfigureAwait(false);
     }
+
+    [LoggerMessage(
+        EventId = 201,
+        Level = LogLevel.Debug,
+        Message = "Calculating DNS block rate for queries since epoch {StartTimeUtc}.")]
+    private static partial void LogCalculatingBlockRate(ILogger logger, long startTimeUtc);
+
+    [LoggerMessage(
+        EventId = 202,
+        Level = LogLevel.Debug,
+        Message = "Querying retry storms since epoch {StartTimeUtc} with limit threshold {Limit}.")]
+    private static partial void LogQueryingRetryStorms(ILogger logger, long startTimeUtc, int limit);
+
+    [LoggerMessage(
+        EventId = 203,
+        Level = LogLevel.Debug,
+        Message = "Executing CNAME cloaking detection query against resolved JSON arrays.")]
+    private static partial void LogExecutingCnameCloakingQuery(ILogger logger);
 }
