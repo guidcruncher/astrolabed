@@ -18,6 +18,7 @@ namespace Astrolabed.Data.Models;
 /// <param name="AnswerData">The resolved DNS payload records represented as a list of strings (e.g., IPs, CNAMEs).</param>
 /// <param name="TtlSeconds">The Time-To-Live duration in seconds returned for the DNS answer record, if available.</param>
 /// <param name="BlockRuleId">The identifier or name of the filter rule/list that triggered a block action, if applicable.</param>
+/// <param name="BlockRulePattern">The Pattern that the domain matched</param>
 public sealed record DnsResponseEventDto(
     string Id,
     DateTimeOffset StartTimeUtc,
@@ -33,5 +34,6 @@ public sealed record DnsResponseEventDto(
     string? Upstream,
     IReadOnlyList<string>? AnswerData,
     int? TtlSeconds,
-    int? BlockRuleId
+    int? BlockRuleId,
+    string? BlockRulePattern
 );

@@ -129,12 +129,17 @@ export interface DnsResponseEventEntity {
   contextId?: string
   questionName?: string
   questionType?: string
-  clientEndpoint?: string
+  clientAddress?: string
   clientName?: string
   resolutionSource?: string
+  rcode?: string
   durationMs?: number
   blocked?: number
   upstream: string
+  answerDataJson: string | null
+  ttlSeconds: number
+  blockRuleId: number | null
+  blockRulePattern: string | null
 }
 
 export interface DiscoveredLanDeviceDto {

@@ -80,4 +80,9 @@ public sealed class DnsResponseEventEntity
     /// Gets or sets the name or identifier string of the specific block rule list that matched, if blocked.
     /// </summary>
     public int? BlockRuleId { get; set; }
+
+    /// <summary>
+    /// The block rule pattern match
+    /// </summary>
+    public string? BlockRulePattern { get; set; }
 }

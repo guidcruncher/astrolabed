@@ -41,11 +41,11 @@ public sealed partial class DapperDnsResponseEventRepository(
             INSERT INTO dns_response_events (
                 id, start_time_utc, start_time_hour, context_id, question_name, question_type,
                 client_ip, client_name, resolution_source, rcode, duration_ms,
-                blocked, upstream, answer_data, ttl_seconds, block_rule_id
+                blocked, upstream, answer_data, ttl_seconds, block_rule_id, block_rule_pattern
             ) VALUES (
                 @Id, @StartTimeUtc, @StartTimeHour, @ContextId, @QuestionName, @QuestionType,
                 @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
-                @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId
+                @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId, @BlockRulePattern
             );
             """;
 
@@ -70,6 +70,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         parameters.Add("AnswerDataJson", entity.AnswerDataJson);
         parameters.Add("TtlSeconds", entity.TtlSeconds);
         parameters.Add("BlockRuleId", entity.BlockRuleId);
+        parameters.Add("BlockRulePattern", entity.BlockRulePattern);
 
         var command = new CommandDefinition(
             sql,
@@ -102,7 +103,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    upstream AS Upstream,
                    answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
-                   block_rule_id AS BlockRuleId
+                   block_rule_id AS BlockRuleId,
+                   block_rule_pattern AS BlockRulePattern
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -150,7 +152,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    upstream AS Upstream,
                    answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
-                   block_rule_id AS BlockRuleId
+                   block_rule_id AS BlockRuleId,
+                   block_rule_pattern AS BlockRulePattern
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;
