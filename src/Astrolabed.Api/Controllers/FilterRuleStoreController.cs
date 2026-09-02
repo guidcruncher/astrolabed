@@ -28,33 +28,6 @@ public sealed class FilterRuleStoreControllerOptions
     public int MaxPageSize { get; set; } = 500;
 }
 
-/// <summary>
-/// Represents a query parameter model for requesting paged filter rules.
-/// </summary>
-public sealed class GetPagedRulesQueryParameters
-{
-    /// <summary>
-    /// Gets or sets the 1-based page number. Defaults to 1.
-    /// </summary>
-    [Range(1, int.MaxValue, ErrorMessage = "PageNumber must be greater than or equal to 1.")]
-    public int PageNumber { get; set; } = 1;
-
-    /// <summary>
-    /// Gets or sets the requested number of items per page.
-    /// </summary>
-    [Range(1, 1000, ErrorMessage = "PageSize must be between 1 and 1000.")]
-    public int? PageSize { get; set; }
-
-    /// <summary>
-    /// Gets or sets List to filter by
-    /// </summary>
-    public int ListId { get; set; } = 0;
-
-    /// <summary>
-    /// Gets or sets an optional filter scope: <c>true</c> for allowlist rules, <c>false</c> for blocklist rules, or <c>null</c> for all.
-    /// </summary>
-    public bool? IsAllow { get; set; }
-}
 
 /// <summary>
 /// Data transfer object representing a serialized filter rule for API responses.
@@ -105,9 +78,10 @@ public class FilterRuleStoreController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<FilterRuleDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
-    public IActionResult GetPagedRules([FromQuery] GetPagedRulesQueryParameters parameters)
+    public IActionResult GetPagedRules([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10,
+	[FromQuery] int listId = 0, [FromQuery] bool? IsAllow = null)
     {
-        int effectivePageSize = parameters.PageSize ?? _options.DefaultPageSize;
+        int effectivePageSize = pageSize;
 
         if (effectivePageSize > _options.MaxPageSize)
         {
@@ -119,17 +93,18 @@ public class FilterRuleStoreController : ControllerBase
             effectivePageSize = _options.MaxPageSize;
         }
 
-        _logger.LogDebug(
-            "Fetching paged rules. PageNumber: {PageNumber}, PageSize: {PageSize}, IsAllowFilter: {IsAllow}",
-            parameters.PageNumber,
-            effectivePageSize,
-            parameters.IsAllow);
+        _logger.LogInformation(
+            "Fetching paged rules. PageNumber: {PageNumber}, PageSize: {PageSize}, ListId: {ListId}, IsAllowFilter: {IsAllow}",
+            pageNumber,
+            pageSize,
+	    listId,
+            IsAllow);
 
         PagedResult<FilterRule> domainPagedResult = _ruleStore.GetPagedRules(
-            parameters.PageNumber,
+            pageNumber,
             effectivePageSize,
-            parameters.ListId,
-            parameters.IsAllow);
+            listId,
+            IsAllow);
 
         IReadOnlyList<FilterRuleDto> dtoItems = domainPagedResult.Items
             .Select(rule => new FilterRuleDto(

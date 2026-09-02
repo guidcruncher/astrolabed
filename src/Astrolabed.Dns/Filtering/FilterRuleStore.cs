@@ -10,13 +10,12 @@ namespace Astrolabed.Dns.Filtering;
 /// <summary>
 /// Provides high-performance, thread-safe deduplicated storage for domain filter rules.
 /// </summary>
-/// <param name="logger">Structured logger instance.</param>
-public sealed partial class FilterRuleStore(ILogger<FilterRuleStore> logger) : IFilterRuleStore
+public sealed partial class FilterRuleStore : IFilterRuleStore
 {
     /// <summary>
     /// Structured logger instance.
     /// </summary>
-    private readonly ILogger<FilterRuleStore> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly ILogger<FilterRuleStore> _logger;
 
     /// <summary>
     /// Synchronization object for state updates.
@@ -36,6 +35,15 @@ public sealed partial class FilterRuleStore(ILogger<FilterRuleStore> logger) : I
         Array.Empty<FilterRule>(),
         FrozenDictionary<string, FilterRule>.Empty,
         Array.Empty<FilterRule>());
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FilterRuleStore"/> class.
+    /// </summary>
+    /// <param name="logger">Structured logger instance.</param>
+    public FilterRuleStore(ILogger<FilterRuleStore> logger)
+    {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
 
     /// <inheritdoc />
     public void UpdateListRules(int listId, IEnumerable<FilterRule> rules)
@@ -96,26 +104,38 @@ public sealed partial class FilterRuleStore(ILogger<FilterRuleStore> logger) : I
     /// <inheritdoc />
     public PagedResult<FilterRule> GetPagedRules(int pageNumber, int pageSize, int listId, bool? isAllow = null)
     {
-        List<FilterRule> allRules;
-
         lock (_lock)
         {
-            allRules = _rulesByListId.Values
-                .SelectMany(r => r)
-                .Where(r => (!isAllow.HasValue || r.IsAllow == isAllow.Value) && (r.ListId == listId || listId == 0))
+            IEnumerable<FilterRule> ruleSource;
+
+            if (listId == 0)
+            {
+                ruleSource = _rulesByListId.Values.SelectMany(r => r);
+            }
+            else if (_rulesByListId.TryGetValue(listId, out List<FilterRule>? listRules))
+            {
+                ruleSource = listRules;
+            }
+            else
+            {
+                return PagedResult<FilterRule>.Create(Array.Empty<FilterRule>(), 0, pageNumber, pageSize);
+            }
+
+            List<FilterRule> filteredRules = ruleSource
+                .Where(r => !isAllow.HasValue || r.IsAllow == isAllow.Value)
                 .DistinctBy(r => $"{r.IsAllow}:{r.Pattern}")
                 .ToList();
+
+            int totalCount = filteredRules.Count;
+            int skip = (pageNumber - 1) * pageSize;
+
+            List<FilterRule> pagedItems = filteredRules
+                .Skip(skip)
+                .Take(pageSize)
+                .ToList();
+
+            return PagedResult<FilterRule>.Create(pagedItems, totalCount, pageNumber, pageSize);
         }
-
-        int totalCount = allRules.Count;
-        int skip = (pageNumber - 1) * pageSize;
-
-        List<FilterRule> pagedItems = allRules
-            .Skip(skip)
-            .Take(pageSize)
-            .ToList();
-
-        return PagedResult<FilterRule>.Create(pagedItems, totalCount, pageNumber, pageSize);
     }
 
     [LoggerMessage(EventId = 401, Level = LogLevel.Information, Message = "Filter rule store updated snapshot for ListId {ListId}.")]
