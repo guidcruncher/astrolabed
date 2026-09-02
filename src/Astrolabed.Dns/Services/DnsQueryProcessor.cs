@@ -53,6 +53,83 @@ public sealed partial class DnsQueryProcessor(
     private readonly IClientNameResolver _clientResolver = clientResolver ?? throw new ArgumentNullException(nameof(clientResolver));
     private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+    private async Task<BlockResponse> BuildBlockResponse(DnsWireMessage request, CancellationToken ct)
+    {
+        byte[]? responseBytes = null;
+        string code;
+        string resSource;
+
+        var filterEde = new ExtendedDnsError
+        {
+            InfoCode = ExtendedDnsErrorCode.Filtered,
+            ExtraText = "Blocked by policy filter"
+        };
+        DnsEngineOptions options = _optionsMonitor.CurrentValue;
+
+        switch (options.BlockedResponseMode)
+        {
+            case BlockedResponseMode.NoData:
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, ede: filterEde);
+                resSource = "BLOCKED";
+                code = "NODATA";
+                break;
+            case BlockedResponseMode.NxDomain:
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NXDomain, ede: filterEde);
+                resSource = "BLOCKED";
+                code = "NXDOMAIN";
+                break;
+            case BlockedResponseMode.ServFail:
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: filterEde);
+                resSource = "BLOCKED";
+                code = "SERVFAIL";
+                break;
+            case BlockedResponseMode.ZeroIp:
+                IPAddress zeroIp = request.QuestionType == DnsType.AAAA ? IPAddress.IPv6Any : IPAddress.Any;
+                var zeroRecord = new DnsResourceRecord
+                {
+                    Name = request.QuestionName,
+                    Type = request.QuestionType,
+                    Class = 1,
+                    Ttl = 60,
+                    ParsedIp = zeroIp
+                };
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [zeroRecord], filterEde);
+                resSource = "BLOCKED";
+                code = "NOERROR";
+                break;
+            case BlockedResponseMode.CustomIp:
+                if (IPAddress.TryParse(options.CustomBlockedIp, out IPAddress? customIp))
+                {
+                    var customRecord = new DnsResourceRecord
+                    {
+                        Name = request.QuestionName,
+                        Type = request.QuestionType,
+                        Class = 1,
+                        Ttl = 60,
+                        ParsedIp = customIp
+                    };
+                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [customRecord], filterEde);
+                    resSource = "BLOCKED";
+                    code = "NOERROR";
+                }
+                else
+                {
+                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
+                    resSource = "BLOCKED";
+                    code = "REFUSED_FALLBACK";
+                }
+                break;
+            case BlockedResponseMode.Refused:
+            default:
+                responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
+                resSource = "BLOCKED";
+                code = "REFUSED";
+                break;
+        }
+
+        return new BlockResponse(responseBytes, resSource, code);
+    }
+
     /// <inheritdoc />
     public async Task<byte[]?> ProcessRequestAsync(ReadOnlyMemory<byte> rawPacket, EndPoint clientEndpoint, CancellationToken ct)
     {
@@ -119,81 +196,10 @@ public sealed partial class DnsQueryProcessor(
                             blocked = true;
                             blockRuleId = matchResult.ListId;
 
-                            var filterEde = new ExtendedDnsError
-                            {
-                                InfoCode = ExtendedDnsErrorCode.Filtered,
-                                ExtraText = "Blocked by policy filter"
-                            };
-
-                            DnsEngineOptions options = _optionsMonitor.CurrentValue;
-
-                            switch (options.BlockedResponseMode)
-                            {
-                                case BlockedResponseMode.NoData:
-                                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, ede: filterEde);
-                                    resolutionSource = "BLOCKED";
-                                    rCode = "NODATA";
-                                    break;
-
-                                case BlockedResponseMode.NxDomain:
-                                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NXDomain, ede: filterEde);
-                                    resolutionSource = "BLOCKED";
-                                    rCode = "NXDOMAIN";
-                                    break;
-
-                                case BlockedResponseMode.ServFail:
-                                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.ServFail, ede: filterEde);
-                                    resolutionSource = "BLOCKED";
-                                    rCode = "SERVFAIL";
-                                    break;
-
-                                case BlockedResponseMode.ZeroIp:
-                                    IPAddress zeroIp = request.QuestionType == DnsType.AAAA ? IPAddress.IPv6Any : IPAddress.Any;
-                                    var zeroRecord = new DnsResourceRecord
-                                    {
-                                        Name = request.QuestionName,
-                                        Type = request.QuestionType,
-                                        Class = 1,
-                                        Ttl = 60,
-                                        ParsedIp = zeroIp
-                                    };
-                                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [zeroRecord], filterEde);
-                                    resolutionSource = "BLOCKED";
-                                    rCode = "NOERROR";
-                                    break;
-
-                                case BlockedResponseMode.CustomIp:
-                                    if (IPAddress.TryParse(options.CustomBlockedIp, out IPAddress? customIp))
-                                    {
-                                        var customRecord = new DnsResourceRecord
-                                        {
-                                            Name = request.QuestionName,
-                                            Type = request.QuestionType,
-                                            Class = 1,
-                                            Ttl = 60,
-                                            ParsedIp = customIp
-                                        };
-                                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.NoError, [customRecord], filterEde);
-                                        resolutionSource = "BLOCKED";
-                                        rCode = "NOERROR";
-                                    }
-                                    else
-                                    {
-                                        responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
-                                        resolutionSource = "BLOCKED";
-                                        rCode = "REFUSED_FALLBACK";
-                                    }
-                                    break;
-
-                                case BlockedResponseMode.Refused:
-                                default:
-                                    responseBytes = DnsWireBuilder.BuildResponse(request, DnsResponseCode.Refused, ede: filterEde);
-                                    resolutionSource = "BLOCKED";
-                                    rCode = "REFUSED";
-                                    break;
-                            }
-
-                            return responseBytes;
+                            var blockedResult = await BuildBlockResponse(request, ct);
+                            resolutionSource = blockedResult.resolutionSource;
+                            rCode = blockedResult.rCode;
+                            return blockedResult.response;
                         }
                     }
                 }
@@ -283,6 +289,40 @@ public sealed partial class DnsQueryProcessor(
                         {
                             upstreamMessage.TransactionId = request.TransactionId;
                             answerData = upstreamMessage.Answers;
+                            if (answerData is not null)
+                            {
+                                var parsedAnswer = answerData?.ToAnswerData();
+                                if (parsedAnswer is not null)
+                                {
+                                    var answerCount = parsedAnswer.Count();
+                                    if (answerCount > 0)
+                                    {
+                                        for (var i = 0; i < answerCount; i++)
+                                        {
+                                            if (!IPAddress.TryParse(parsedAnswer[i], out IPAddress? addr))
+                                            {
+                                                if (_domainMatchEngine.TryMatch(parsedAnswer[i], out FilterRule? matchResult))
+                                                {
+                                                    if (matchResult != null)
+                                                    {
+                                                        if (!matchResult.IsAllow)
+                                                        {
+                                                            blocked = true;
+                                                            blockRuleId = matchResult.ListId;
+                                                            var blockedResult = await BuildBlockResponse(request, ct);
+                                                            resolutionSource = blockedResult.resolutionSource;
+                                                            rCode = blockedResult.rCode;
+                                                            return blockedResult.response;
+                                                        }
+                                                    }
+                                                }
+
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             responseBytes = DnsWireBuilder.BuildResponse(upstreamMessage, upstreamMessage.ResponseCode, upstreamMessage.Answers);
                             resolutionSource = "UPSTREAM";
                             rCode = "NOERROR";
@@ -388,4 +428,14 @@ public sealed partial class DnsQueryProcessor(
         Level = LogLevel.Warning,
         Message = "[Context {ContextId}] Failed to resolve query via upstream {Upstream}")]
     private static partial void LogUpstreamResolutionFailed(ILogger logger, Exception exception, Guid contextId, string upstream);
+
+
+    private sealed record BlockResponse(
+    byte[] response,
+    string resolutionSource,
+    string rCode
+    );
 }
+
+
+

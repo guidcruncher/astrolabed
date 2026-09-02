@@ -9,14 +9,40 @@ namespace Astrolabed.Dns.Filtering;
 /// <param name="ruleStore">The filter rule storage instance.</param>
 public sealed class DomainMatchEngine(IFilterRuleStore ruleStore) : IDomainMatchEngine
 {
+
+    /// <inheritdoc />
+    public DateTimeOffset? DisableBlockingUntil { get; set; } = null;
+
     /// <summary>
     /// The rule store providing active rule snapshots.
     /// </summary>
     private readonly IFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
 
     /// <inheritdoc />
+    public void DisableBlocking(TimeSpan duration)
+    {
+        DisableBlockingUntil = DateTimeOffset.UtcNow.Add(duration);
+    }
+
+    /// <inheritdoc />
+    public void ResumeBlocking()
+    {
+        DisableBlockingUntil = null;
+    }
+
+    /// <inheritdoc />
     public bool TryMatch(string domain, [NotNullWhen(true)] out FilterRule? matchedRule)
     {
+        if (DisableBlockingUntil is not null)
+        {
+            if (DateTimeOffset.UtcNow <= DisableBlockingUntil)
+            {
+                matchedRule = null;
+                return false;
+            }
+            DisableBlockingUntil = null;
+        }
+
         matchedRule = null;
         if (string.IsNullOrWhiteSpace(domain))
         {

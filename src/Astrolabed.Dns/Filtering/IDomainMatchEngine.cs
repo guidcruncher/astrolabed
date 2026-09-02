@@ -6,6 +6,24 @@ namespace Astrolabed.Dns.Filtering;
 /// </summary>
 public interface IDomainMatchEngine
 {
+
+    /// <summary>
+    /// Suspend Blocking until the Date/time specified
+    /// </summary>
+    DateTimeOffset? DisableBlockingUntil { get; set; }
+
+    /// <summary>
+    /// Suspend Blocking for the given Timspan from UTC now
+    /// </summary>
+    /// <param name="duration">The TimeSpan duration to disable for</param>
+    /// <returns>The DateTimeOffset when Blocking will be re-enabled</returns>
+    void DisableBlocking(TimeSpan duration);
+
+    /// <summary>
+    /// Resume Blocking Immediately.
+    /// </summary>
+    void ResumeBlocking();
+
     /// <summary>
     /// Scans rule collections for the first match against a target domain.
     /// Allow matches take absolute priority over block matches.
