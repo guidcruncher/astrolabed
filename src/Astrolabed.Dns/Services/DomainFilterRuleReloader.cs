@@ -13,17 +13,14 @@ namespace Astrolabed.Dns.Services;
 /// </summary>
 /// <param name="optionsMonitor">Monitored domain filter options.</param>
 /// <param name="listLoader">List loading engine for remote/local sources.</param>
-/// <param name="ruleStore">In-memory rule storage component.</param>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class DomainFilterRuleReloader(
     IOptionsMonitor<DomainFilterRuleOptions> optionsMonitor,
     IListLoader listLoader,
-    IDomainFilterRuleStore ruleStore,
     ILogger<DomainFilterRuleReloader> logger) : IHostedService, IDisposable
 {
     private readonly IOptionsMonitor<DomainFilterRuleOptions> _optionsMonitor = optionsMonitor ?? throw new ArgumentNullException(nameof(optionsMonitor));
     private readonly IListLoader _listLoader = listLoader ?? throw new ArgumentNullException(nameof(listLoader));
-    private readonly IDomainFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
     private readonly ILogger<DomainFilterRuleReloader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     private IDisposable? _onChangeDisposable;
@@ -35,10 +32,10 @@ public sealed partial class DomainFilterRuleReloader(
 
         await LoadAllRulesAsync(cancellationToken).ConfigureAwait(false);
 
-        _onChangeDisposable = _optionsMonitor.OnChange((_, _) =>
+        _onChangeDisposable = _optionsMonitor.OnChange(async (_, _) =>
         {
             LogConfigChangeDetected(_logger);
-            _ = ReloadRulesOnConfigChangeAsync();
+            await ReloadRulesOnConfigChangeAsync().ConfigureAwait(false);
         });
     }
 
@@ -71,15 +68,8 @@ public sealed partial class DomainFilterRuleReloader(
             {
                 try
                 {
-                    (IReadOnlyList<string> allows, IReadOnlyList<string> blocks) = await _listLoader
-                        .LoadRulesAsync(source, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    // Standard entries in an explicit allow list default to allow rules
-                    var combinedAllows = allows.Concat(blocks);
-                    _ruleStore.UpdateRules(source.Id, combinedAllows, Enumerable.Empty<string>());
-
-                    LogRulesUpdatedSuccessfully(_logger, source.Id, allows.Count + blocks.Count, 0);
+                    await _listLoader.LoadAndApplyListAsync(source, cancellationToken).ConfigureAwait(false);
+                    LogRulesUpdatedSuccessfully(_logger, source.Id, source.Path);
                 }
                 catch (Exception ex)
                 {
@@ -95,14 +85,8 @@ public sealed partial class DomainFilterRuleReloader(
             {
                 try
                 {
-                    (IReadOnlyList<string> allows, IReadOnlyList<string> blocks) = await _listLoader
-                        .LoadRulesAsync(source, cancellationToken)
-                        .ConfigureAwait(false);
-
-                    // Explicit exception rules (@@) in blocklists remain allow rules
-                    _ruleStore.UpdateRules(source.Id, allows, blocks);
-
-                    LogRulesUpdatedSuccessfully(_logger, source.Id, allows.Count, blocks.Count);
+                    await _listLoader.LoadAndApplyListAsync(source, cancellationToken).ConfigureAwait(false);
+                    LogRulesUpdatedSuccessfully(_logger, source.Id, source.Path);
                 }
                 catch (Exception ex)
                 {
@@ -145,7 +129,6 @@ public sealed partial class DomainFilterRuleReloader(
     [LoggerMessage(
         EventId = 405,
         Level = LogLevel.Information,
-        Message = "Successfully updated IDomainFilterRuleStore for RuleListId {RuleListId}. Allow rules: {AllowCount}, block rules: {BlockCount}")]
-    private static partial void LogRulesUpdatedSuccessfully(ILogger logger, int ruleListId, int allowCount, int blockCount);
+        Message = "Successfully updated IFilterRuleStore for ListId {ListId} from {Source}")]
+    private static partial void LogRulesUpdatedSuccessfully(ILogger logger, int listId, string source);
 }
-
