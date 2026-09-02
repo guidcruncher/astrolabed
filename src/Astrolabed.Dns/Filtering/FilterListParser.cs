@@ -49,10 +49,15 @@ public sealed partial class FilterListParser(ILogger<FilterListParser> logger) :
                 span = span[2..];
             }
 
-            int modifierIdx = span.IndexOf('$');
-            if (modifierIdx >= 0)
+            // Do not strip '$' modifiers if the span is a bounded regex rule (/pattern/)
+            bool isRegexBounded = span.StartsWith('/') && span.EndsWith('/') && span.Length > 2;
+            if (!isRegexBounded)
             {
-                span = span[..modifierIdx];
+                int modifierIdx = span.IndexOf('$');
+                if (modifierIdx >= 0)
+                {
+                    span = span[..modifierIdx];
+                }
             }
 
             span = span.Trim();
@@ -100,12 +105,7 @@ public sealed partial class FilterListParser(ILogger<FilterListParser> logger) :
         IPAddress? ipAddress = null;
 
         // 2. Hosts Syntax: 127.0.0.1 domain.com or ::1 domain.com
-        int spaceIndex = span.IndexOf(' ');
-        if (spaceIndex < 0)
-        {
-            spaceIndex = span.IndexOf('\t');
-        }
-
+        int spaceIndex = span.IndexOfAny(' ', '\t');
         if (spaceIndex > 0)
         {
             ReadOnlySpan<char> ipSpan = span[..spaceIndex].Trim();
@@ -135,7 +135,9 @@ public sealed partial class FilterListParser(ILogger<FilterListParser> logger) :
         if (span.Contains('*') || span.Contains('?'))
         {
             string rawRule = span.ToString().Trim();
-            string regexPattern = "^" + Regex.Escape(rawRule).Replace(@"\*", ".*").Replace(@"\?", ".") + "$";
+            string escaped = Regex.Escape(rawRule).Replace(@"\*", ".*").Replace(@"\?", ".");
+            string regexPattern = $"^{escaped}$";
+
             try
             {
                 var regex = new Regex(
