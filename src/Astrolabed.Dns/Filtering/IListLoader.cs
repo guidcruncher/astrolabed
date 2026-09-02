@@ -1,25 +1,18 @@
-namespace Astrolabed.Dns.Filtering;
-
+// File: src/Astrolabed.Dns/Filtering/IListLoader.cs
 using Astrolabed.Dns.Options;
 
+namespace Astrolabed.Dns.Filtering;
+
 /// <summary>
-/// Defines asynchronous loading operations for fetching, parsing, and applying domain filter lists from HTTP endpoints or local file paths.
+/// Defines streaming fetching and parsing operations for remote and local DNS lists.
 /// </summary>
 public interface IListLoader
 {
     /// <summary>
-    /// Asynchronously fetches and parses domain filter rules from a specified URI or local filesystem path.
+    /// Asynchronously fetches, parses, and updates rules in the filter rule store.
     /// </summary>
-    /// <param name="source">The List Source.</param>
-    /// <param name="ct">A token to monitor for cancellation requests.</param>
-    /// <returns>A tuple containing read-only lists of parsed allow and block domain rules.</returns>
-    Task<(IReadOnlyList<string> AllowRules, IReadOnlyList<string> BlockRules)> LoadRulesAsync(ListSource source, CancellationToken ct = default);
-
-    /// <summary>
-    /// Asynchronously fetches, parses, and applies domain filter rules directly to the underlying <see cref="IDomainFilterRuleStore"/>.
-    /// </summary>
-    /// <param name="source">The List Source.</param>
-    /// <param name="ct">A token to monitor for cancellation requests.</param>
-    /// <returns>A <see cref="Task"/> representing the asynchronous operation.</returns>
-    Task LoadAndApplyListAsync(ListSource source, CancellationToken ct = default);
+    /// <param name="source">The list source specification.</param>
+    /// <param name="cancellationToken">A token to observe for cancellation requests.</param>
+    /// <returns>A task representing the asynchronous operation.</returns>
+    Task LoadAndApplyListAsync(ListSource source, CancellationToken cancellationToken = default);
 }
