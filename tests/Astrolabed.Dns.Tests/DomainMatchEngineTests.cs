@@ -65,7 +65,7 @@ public class DomainMatchEngineTests
         _ruleStore.UpdateListRules(2, rulesList2);
 
         // Act
-        var pagedResult = _ruleStore.GetPagedRules(pageNumber: 1, pageSize: 1);
+        var pagedResult = _ruleStore.GetPagedRules(pageNumber: 1, pageSize: 1, 0);
 
         // Assert
         Assert.Equal(2, pagedResult.TotalCount);

@@ -234,3 +234,71 @@ export interface DnsEndpointMetrics {
   packetLossPercentage: number
   errorMessage?: string | null
 }
+
+export interface BlockingStatusResponse {
+  isBlockingEnabled?: boolean
+  disableBlockingUntil?: string | null
+}
+
+export interface DisableBlockingRequest {
+  durationSeconds?: number
+}
+
+export interface DomainMatchResponse {
+  domain?: string
+  isMatched?: boolean
+  matchedRule?: FilterRule | null
+}
+
+export type RuleKind = number
+export type RegexOptions = number
+
+export interface Regex {
+  options?: RegexOptions
+  rightToLeft?: boolean
+  matchTimeout?: string
+}
+
+export interface FilterRule {
+  pattern: string
+  ruleKind: RuleKind
+  isAllow: boolean
+  listId: number
+  ipAddress?: IPAddress | null
+  compiledRegex?: Regex | null
+  hasIpAddress?: boolean
+}
+
+export interface FilterRuleDto {
+  pattern: string
+  ruleKind: RuleKind
+  isAllow: boolean
+  listId: number
+  ipAddress: string | null
+  hasIpAddress: boolean
+}
+
+export interface DnsListEntity {
+  id?: number
+  name?: string
+  path?: string
+}
+
+export interface ValidationProblemDetails {
+  type?: string | null
+  title?: string | null
+  status?: number | null
+  detail?: string | null
+  instance?: string | null
+  errors?: Record<string, string[]>
+}
+
+export interface PagedResultOfFilterRuleDto {
+  items: FilterRuleDto[]
+  totalCount: number
+  pageSize: number
+  totalPages?: number
+  currentPage?: number
+  hasPreviousPage?: boolean
+  hasNextPage?: boolean
+}

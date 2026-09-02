@@ -46,6 +46,11 @@ public sealed class GetPagedRulesQueryParameters
     public int? PageSize { get; set; }
 
     /// <summary>
+    /// Gets or sets List to filter by
+    /// </summary>
+    public int ListId { get; set; } = 0;
+
+    /// <summary>
     /// Gets or sets an optional filter scope: <c>true</c> for allowlist rules, <c>false</c> for blocklist rules, or <c>null</c> for all.
     /// </summary>
     public bool? IsAllow { get; set; }
@@ -123,6 +128,7 @@ public class FilterRuleStoreController : ControllerBase
         PagedResult<FilterRule> domainPagedResult = _ruleStore.GetPagedRules(
             parameters.PageNumber,
             effectivePageSize,
+            parameters.ListId,
             parameters.IsAllow);
 
         IReadOnlyList<FilterRuleDto> dtoItems = domainPagedResult.Items

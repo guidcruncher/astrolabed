@@ -94,7 +94,7 @@ public sealed partial class FilterRuleStore(ILogger<FilterRuleStore> logger) : I
     }
 
     /// <inheritdoc />
-    public PagedResult<FilterRule> GetPagedRules(int pageNumber, int pageSize, bool? isAllow = null)
+    public PagedResult<FilterRule> GetPagedRules(int pageNumber, int pageSize, int listId, bool? isAllow = null)
     {
         List<FilterRule> allRules;
 
@@ -102,7 +102,7 @@ public sealed partial class FilterRuleStore(ILogger<FilterRuleStore> logger) : I
         {
             allRules = _rulesByListId.Values
                 .SelectMany(r => r)
-                .Where(r => !isAllow.HasValue || r.IsAllow == isAllow.Value)
+                .Where(r => (!isAllow.HasValue || r.IsAllow == isAllow.Value) && (r.ListId == listId || listId == 0))
                 .DistinctBy(r => $"{r.IsAllow}:{r.Pattern}")
                 .ToList();
         }

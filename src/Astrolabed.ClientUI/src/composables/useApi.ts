@@ -23,6 +23,12 @@ import type {
   DnsWireMessage,
   DnsType,
   ProblemDetails,
+  BlockingStatusResponse,
+  DisableBlockingRequest,
+  DomainMatchResponse,
+  PagedResultOfFilterRuleDto,
+  FilterRuleDto,
+  DnsListEntity,
 } from '../types/api'
 
 const apiBaseUrl = ref<string>('')
@@ -207,6 +213,44 @@ export function useApi() {
   // --- Time ---
   const getCurrentTime = (): Promise<string> => request<string>('/api/Time')
 
+  // --- Blocking & Filtering ---
+  const getBlockingStatus = (): Promise<BlockingStatusResponse> =>
+    request<BlockingStatusResponse>('/api/Blocking/status')
+
+  const disableBlocking = (payload: DisableBlockingRequest): Promise<void> =>
+    request<void>('/api/Blocking/disable', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+  const enableBlocking = (): Promise<void> =>
+    request<void>('/api/Blocking/enable', { method: 'POST' })
+
+  const matchDomain = (domain: string): Promise<DomainMatchResponse> =>
+    request<DomainMatchResponse>(`/api/Filtering/match?domain=${encodeURIComponent(domain)}`)
+
+  const getFilterRules = (
+    listId = 0,
+    pageNumber = 1,
+    pageSize = 10
+  ): Promise<PagedResultOfFilterRuleDto> =>
+    request<PagedResultOfFilterRuleDto>(
+      `/api/Filtering/rules?pageNumber=${pageNumber}&pageSize=${pageSize}&listId=${listId}`
+    )
+
+  const addFilterRule = (payload: FilterRuleDto): Promise<void> =>
+    request<void>('/api/Filtering/rules', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    })
+
+  const deleteFilterRule = (pattern: string): Promise<void> =>
+    request<void>(`/api/Filtering/rules?pattern=${encodeURIComponent(pattern)}`, {
+      method: 'DELETE',
+    })
+
+  const getLists = (): Promise<DnsListEntity[]> => request<DnsListEntity[]>('/api/Lists')
+
   return {
     apiBaseUrl,
     loading,
@@ -240,5 +284,13 @@ export function useApi() {
     getCnameCloaking,
     getDnsHourlyEventSummary,
     getDnsQuestionTypeSummary,
+    getBlockingStatus,
+    disableBlocking,
+    enableBlocking,
+    matchDomain,
+    getFilterRules,
+    addFilterRule,
+    deleteFilterRule,
+    getLists,
   }
 }
