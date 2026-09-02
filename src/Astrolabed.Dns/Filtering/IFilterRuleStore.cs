@@ -26,7 +26,8 @@ public interface IFilterRuleStore
     /// </summary>
     /// <param name="pageNumber">The 1-based page number.</param>
     /// <param name="pageSize">The requested number of entries per page.</param>
+    /// <param name="listId">The list to retrieve (0 for all) </param>
     /// <param name="isAllow">Optional filter to scope rules to allowlist or blocklist only.</param>
     /// <returns>A paged result container of filter rules.</returns>
-    PagedResult<FilterRule> GetPagedRules(int pageNumber, int pageSize, bool? isAllow = null);
+    PagedResult<FilterRule> GetPagedRules(int pageNumber, int pageSize, int listId, bool? isAllow = null);
 }
