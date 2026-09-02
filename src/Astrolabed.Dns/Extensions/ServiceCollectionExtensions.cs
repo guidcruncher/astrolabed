@@ -52,18 +52,17 @@ public static class ServiceCollectionExtensions
 
         services.AddHttpClient();
 
-        // Core Caches & Filter Rule Stores
+        // Core Caches & Filtering Services
         services.AddSingleton<IDnsCache, DnsCache>();
 
-        services.AddSingleton<DomainFilterRuleStore>();
-        services.AddSingleton<IDomainFilterRuleStore>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
-        services.AddSingleton<IReadOnlyDomainFilterRules>(sp => sp.GetRequiredService<DomainFilterRuleStore>());
+        services.AddSingleton<IFilterListParser, FilterListParser>();
+        services.AddSingleton<IFilterRuleStore, FilterRuleStore>();
 
-        // Evaluation Engine
-        services.AddSingleton<IDomainFilter, DomainFilter>();
+        // Matching Engine
+        services.AddSingleton<IDomainMatchEngine, DomainMatchEngine>();
 
         // List Loaders
-        services.AddHttpClient<IListLoader, AdGuardListLoader>(client =>
+        services.AddHttpClient<IListLoader, ListLoader>(client =>
         {
             client.Timeout = TimeSpan.FromSeconds(30);
         });
@@ -100,9 +99,6 @@ public static class ServiceCollectionExtensions
         // Client Name Resolution & Network Scanning (Scoped for clean database access inside jobs/scopes)
         services.AddScoped<INetworkScannerService, NetworkScannerService>();
         services.AddSingleton<IClientNameResolver, ClientNameResolver>();
-
-        // Event Bus Listeners
-        // services.AddScoped<IEventListener<DnsResponseEvent>, DnsResponseListener>();
 
         // Core Query Processing & Transport Listeners Pattern
         services.AddSingleton<IDnsQueryProcessor, DnsQueryProcessor>();
@@ -142,4 +138,3 @@ public static class ServiceCollectionExtensions
         return services;
     }
 }
-

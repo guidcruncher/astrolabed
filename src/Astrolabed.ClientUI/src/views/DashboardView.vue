@@ -26,6 +26,7 @@
               @date-selected="handleDateSelected"
             />
           </div>
+          <div v-if="blockRate">Block Rate: {{ blockRate.blockRatePercentage }}%</div>
         </Panel>
       </div>
 
@@ -80,7 +81,6 @@
         </Panel>
       </div>
     </div>
-
     <div class="h-[380px]">
       <StackedBarChart
         :show-legend="false"
@@ -147,6 +147,7 @@ import { useApi } from '../composables/useApi'
 import { useDateUtils } from '../composables/useDateUtils'
 
 import type {
+  BlockRateResponse,
   DnsQuestionTypeSummary,
   AstrolabedStatusResponse,
   DnsHourlyEventSummary,
@@ -156,13 +157,14 @@ import { Globe, Clock } from '@lucide/vue'
 
 const { formatUtcToLocalBrowserTime } = useDateUtils()
 const { getDnsTypeColorConfig } = useDnsTypeColor()
-const { getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } = useApi()
+const { getBlockRate, getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } =
+  useApi()
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 const questionTypeData = ref<DnsQuestionTypeSummary[] | null>(null)
 const currentTime = ref<Date | null>(null)
 const startDate = ref<number>(0)
 const endDate = ref<number>(0)
-
+const blockRate = ref<BlockRateResponse>()
 const loading = ref<boolean>(false)
 const error = ref<string | null>(null)
 
@@ -223,6 +225,7 @@ const fetchData = async (): Promise<void> => {
     const startOfDate = startDate.value * 1000
     const now = await getCurrentTime()
     currentTime.value = new Date(now)
+    blockRate.value = await getBlockRate()
     hourDnsData.value = await getDnsHourlyEventSummary(startOfDate, endOfDate)
     questionTypeData.value = await getDnsQuestionTypeSummary(startOfDate, endOfDate)
   } catch (err) {
