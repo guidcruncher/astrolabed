@@ -1,5 +1,4 @@
 // File: src/Astrolabed.Dns.Api/Controllers/FilterRuleStoreController.cs
-using System.ComponentModel.DataAnnotations;
 using System.Net.Mime;
 
 using Astrolabed.Data.Pagination;
