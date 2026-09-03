@@ -78,6 +78,9 @@ public static class Program
 
         WebApplication app = builder.Build();
 
+        // Run database seeding during startup
+        await DatabaseSeeder.SeedInitialUserAsync(app.Services, app.Configuration);
+
         // Configure HTTP middleware pipeline
         app.UseSecurityHeaders();
 

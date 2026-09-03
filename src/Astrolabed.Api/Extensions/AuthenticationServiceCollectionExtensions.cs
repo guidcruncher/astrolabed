@@ -1,5 +1,6 @@
 using Astrolabed.Api.Options;
 using Astrolabed.Data.Models;
+using Astrolabed.Data.Repositories;
 
 using Microsoft.AspNetCore.Identity;
 
@@ -11,7 +12,7 @@ namespace Astrolabed.Api.Extensions;
 public static class AuthenticationServiceCollectionExtensions
 {
     /// <summary>
-    /// Adds application authentication, ASP.NET Core Identity, and cookie security configuration to the <see cref="IServiceCollection"/>.
+    /// Adds application authentication, ASP.NET Core Identity with Dapper user stores, and cookie security configuration to the <see cref="IServiceCollection"/>.
     /// </summary>
     /// <param name="services">The service collection to add authentication services to.</param>
     /// <param name="configuration">The configuration instance containing authentication settings.</param>
@@ -30,8 +31,11 @@ public static class AuthenticationServiceCollectionExtensions
         var authOptions = configuration.GetSection(AuthOptions.SectionName).Get<AuthOptions>()
                           ?? new AuthOptions();
 
-        // Configure ASP.NET Core Identity
-        services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+        // Register Dapper User Store
+        services.AddScoped<IUserStore<ApplicationUser>, DapperUserRepository>();
+
+        // Configure ASP.NET Core Identity Core using Dapper repository
+        services.AddIdentityCore<ApplicationUser>(options =>
         {
             options.Password.RequireDigit = true;
             options.Password.RequiredLength = 8;
@@ -40,10 +44,16 @@ public static class AuthenticationServiceCollectionExtensions
             options.Password.RequireLowercase = true;
             options.User.RequireUniqueEmail = true;
         })
+        .AddSignInManager<SignInManager<ApplicationUser>>()
         .AddDefaultTokenProviders();
 
-        // Configure HttpOnly Cookie Authentication
-        services.ConfigureApplicationCookie(options =>
+        // Configure Cookie Authentication
+        services.AddAuthentication(options =>
+        {
+            options.DefaultScheme = IdentityConstants.ApplicationScheme;
+            options.DefaultSignInScheme = IdentityConstants.ExternalScheme;
+        })
+        .AddCookie(IdentityConstants.ApplicationScheme, options =>
         {
             options.Cookie.Name = authOptions.CookieName;
             options.Cookie.HttpOnly = true; // Prevents XSS token access
