@@ -206,7 +206,7 @@ export function useApi() {
       method: 'DELETE',
     })
 
-  const getLists = (): Promise<DnsListEntity[]> => request<DnsListEntity[]>('/api/Lists')
+  const getLists = (): Promise<DnsListEntity[]> => request<DnsListEntity[]>('/api/DnsList')
 
   return {
     apiBaseUrl,

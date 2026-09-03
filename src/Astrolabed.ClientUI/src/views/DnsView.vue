@@ -55,15 +55,16 @@
 import { ref, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { useApi } from '../composables/useApi'
-import type { DnsResponseEventEntity } from '../types/api'
+import type { DnsListEntity, DnsResponseEventEntity } from '../types/api'
 import { Check, ShieldAlert, Trash2 } from '@lucide/vue'
 
-const { getDnsEvents, purgeDnsEvents } = useApi()
+const { getLists, getDnsEvents, purgeDnsEvents } = useApi()
 
 const events = ref<DnsResponseEventEntity[]>([])
 const currentPage = ref<number>(1)
 const pageSize = ref<number>(10)
 const totalCount = ref<number>(0)
+const dnsLists = ref<DnsListEntity[]>()
 
 const columns: Column[] = [
   { key: 'questionName', label: 'Domain Question' },
@@ -114,7 +115,8 @@ const formatResolution = (value: any) => {
   return ''
 }
 
-onMounted(() => {
+onMounted(async () => {
+  dnsLists.value = await getLists()
   loadLogs()
 })
 </script>
