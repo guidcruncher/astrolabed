@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory, RouteRecordRaw } from 'vue-router'
-import LandingLayout from './layouts/LandingLayut.vue'
+import LandingLayout from './layouts/LandingLayout.vue'
+import { useAuth } from './composables/useAuth'
 
 const routes: Array<RouteRecordRaw> = [
   {

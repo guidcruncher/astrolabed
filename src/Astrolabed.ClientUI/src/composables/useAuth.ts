@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { apiFetch } from '@/services/api'
+import { useFetchClient } from './useFetchClient'
 
 export interface User {
   id: string
@@ -7,11 +7,12 @@ export interface User {
   displayName?: string
 }
 
-// Shared reactive state
+// Shared reactive state across app instances
 const user = ref<User | null>(null)
 const isLoading = ref<boolean>(true)
 
 export function useAuth() {
+  const { request } = useFetchClient()
   const isAuthenticated = computed(() => user.value !== null)
 
   /**
@@ -20,7 +21,7 @@ export function useAuth() {
   async function fetchCurrentUser(): Promise<User | null> {
     isLoading.value = true
     try {
-      user.value = await apiFetch<User>('/api/auth/me')
+      user.value = await request<User>('/api/auth/me')
       return user.value
     } catch {
       user.value = null
@@ -31,10 +32,10 @@ export function useAuth() {
   }
 
   /**
-   * Authenticates user credentials via native fetch.
+   * Authenticates user credentials via native fetch client.
    */
   async function login(email: string, password: string, rememberMe = false): Promise<void> {
-    user.value = await apiFetch<User>('/api/auth/login', {
+    user.value = await request<User>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password, rememberMe }),
     })
@@ -45,7 +46,7 @@ export function useAuth() {
    */
   async function logout(): Promise<void> {
     try {
-      await apiFetch('/api/auth/logout', { method: 'POST' })
+      await request<void>('/api/auth/logout', { method: 'POST' })
     } finally {
       user.value = null
     }
