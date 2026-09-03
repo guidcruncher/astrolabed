@@ -21,17 +21,6 @@
       </button>
     </div>
 
-    <!-- API Base URL Input -->
-    <div v-if="!isCollapsed" class="mt-2 text-xs text-slate-400">
-      <label for="api-url" class="block">API:</label>
-      <input
-        id="api-url"
-        v-model="apiBaseUrl"
-        type="text"
-        class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs w-full mt-1 focus:outline-none focus:border-sky-500"
-      />
-    </div>
-
     <!-- Navigation -->
     <nav class="mt-6 flex md:flex-col space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto">
       <router-link

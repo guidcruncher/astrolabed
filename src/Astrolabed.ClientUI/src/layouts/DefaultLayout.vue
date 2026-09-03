@@ -1,5 +1,7 @@
 <template>
-  <div class="min-h-screen bg-slate-900 text-slate-100 flex flex-col md:flex-row">
+  <div
+    class="min-h-screen bg-gradient-to-br from-[#0b0f19] via-[#111827] to-[#070a10] text-slate-100 flex flex-col md:flex-row"
+  >
     <AppSidebar
       :items="navItems"
       @toggle-collapse="onSidebarCollapse"
@@ -7,15 +9,21 @@
     />
 
     <main class="flex-1 p-6 overflow-y-auto">
-      <AppButton @click="handleLogout">Logout</AppButton>
       <router-view />
     </main>
   </div>
 </template>
 
 <script setup lang="ts">
+import { LogOut } from '@lucide/vue'
 import { type NavItem } from '../types/types'
 import { useAuth } from '../composables/useAuth'
+import { computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
+
+const route = useRoute()
+
+const pageTitle = computed(() => route.meta.pageTitle || 'System Overview')
 
 const navItems: NavItem[] = [
   { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/app/dashboard', exact: true },

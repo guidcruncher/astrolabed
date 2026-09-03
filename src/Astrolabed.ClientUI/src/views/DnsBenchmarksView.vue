@@ -57,18 +57,8 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="max-w-6xl mx-auto p-6 space-y-6">
-    <!-- Header Section -->
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <div>
-        <h1 class="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
-          Public DNS Server Rankings
-        </h1>
-        <p class="text-sm text-slate-500 dark:text-slate-400">
-          Ranked DNS provider metrics based on average response latency and reliability.
-        </p>
-      </div>
-
+  <div>
+    <AppToolbar>
       <AppButton
         class="inline-flex items-center gap-2 whitespace-nowrap"
         @click="fetchBenchmarks"
@@ -76,7 +66,7 @@ onMounted(() => {
       >
         <Timer /> Fetch Rankings
       </AppButton>
-    </div>
+    </AppToolbar>
 
     <!-- Loading State -->
     <div

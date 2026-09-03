@@ -1,7 +1,6 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">DNS Cache Entries</h2>
+    <AppToolbar>
       <AppButton
         variant="danger"
         @click="handleClear"
@@ -9,7 +8,7 @@
       >
         <Trash2 /> Clear DNS Cache
       </AppButton>
-    </div>
+    </AppToolbar>
 
     <DataGrid
       v-model:page="currentPage"

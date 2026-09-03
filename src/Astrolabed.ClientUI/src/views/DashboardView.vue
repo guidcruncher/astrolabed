@@ -1,8 +1,7 @@
 <template>
   <div>
-    <h2 class="text-2xl font-bold mb-6">System Overview</h2>
+    <AppToolbar />
 
-    <!-- Top Row: Panels layout using CSS Grid with stretched items -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-stretch">
       <!-- Filters Panel -->
       <div class="relative w-full flex flex-col h-full">

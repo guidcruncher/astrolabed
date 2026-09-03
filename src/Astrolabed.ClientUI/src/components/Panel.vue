@@ -1,5 +1,5 @@
 <template>
-  <div class="bg-slate-800 p-6 rounded-lg border border-slate-700">
+  <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
     <h3 class="text-sm font-semibold text-slate-400 uppercase">{{ title }}</h3>
     <slot />
   </div>

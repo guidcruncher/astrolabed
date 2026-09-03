@@ -1,14 +1,13 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">DNS Event Logs</h2>
+    <AppToolbar>
       <AppButton
         variant="danger"
         @click="handlePurge"
         class="inline-flex items-center gap-2 whitespace-nowrap"
         ><Trash2 /> Purge Log History
       </AppButton>
-    </div>
+    </AppToolbar>
 
     <DataGrid
       v-model:page="currentPage"
