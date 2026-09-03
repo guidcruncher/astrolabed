@@ -1,10 +1,13 @@
 // File: src/Astrolabed.Data/Extensions/ServiceCollectionExtensions.cs
 using Astrolabed.Core.Scheduler;
+using Astrolabed.Data.Handlers;
 using Astrolabed.Data.Jobs;
 using Astrolabed.Data.Mappers;
 using Astrolabed.Data.Options;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Data.Services;
+
+using Dapper;
 
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,6 +47,9 @@ public static class ServiceCollectionExtensions
         // Connection Infrastructure & Mappers
         services.AddScoped<IDbConnectionFactory, DbConnectionFactory>();
         services.AddSingleton<IDnsResponseEventMapper, DnsResponseEventMapper>();
+
+        // Type Handlers
+        SqlMapper.AddTypeHandler(new DateTimeOffsetHandler());
 
         // Repositories
         services.AddScoped<IDhcpLeaseRepository, DapperDhcpLeaseRepository>();
