@@ -21,7 +21,7 @@ async function handleLogin() {
     await login(email.value, password.value, rememberMe.value)
 
     // Redirect to requested page or fallback to dashboard
-    const redirectPath = (route.query.redirect as string) || '/dashboard'
+    const redirectPath = (route.query.redirect as string) || '/app/dashboard'
     await router.push(redirectPath)
   } catch (err: unknown) {
     if (err instanceof Error) {
