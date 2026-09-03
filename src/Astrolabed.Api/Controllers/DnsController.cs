@@ -4,6 +4,7 @@ using Astrolabed.Data.Models;
 using Astrolabed.Data.Pagination;
 using Astrolabed.Data.Repositories;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Provides HTTP endpoints for inspecting, persisting, and managing DNS response event records.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

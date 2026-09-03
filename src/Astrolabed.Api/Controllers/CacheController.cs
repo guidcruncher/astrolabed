@@ -3,6 +3,8 @@ namespace Astrolabed.Api.Controllers;
 using Astrolabed.Data.Pagination;
 using Astrolabed.Dns.Cache;
 
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -17,6 +19,7 @@ public sealed record CacheCountResponse(int Count, DateTimeOffset Timestamp);
 /// <summary>
 /// Provides HTTP endpoints for managing and inspecting the in-memory DNS cache.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -87,8 +90,8 @@ public sealed class CacheController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status500InternalServerError)]
     public ActionResult<PagedResult<KeyValuePair<string, CacheEntryView>>> GetCachedRecords(
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
+        [FromQuery, Range(1, int.MaxValue)] int pageNumber = 1,
+        [FromQuery, Range(1, 100)] int pageSize = 10)
     {
         if (pageNumber < 1)
         {

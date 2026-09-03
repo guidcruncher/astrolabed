@@ -40,7 +40,7 @@
       </template>
 
       <template #cell-client="{ row }">
-        <span>{{ row.clientName || row.clientEndpoint }}</span>
+        <span>{{ row.clientName || row.clientAddress }}</span>
       </template>
 
       <template #cell-durationMs="{ value }">

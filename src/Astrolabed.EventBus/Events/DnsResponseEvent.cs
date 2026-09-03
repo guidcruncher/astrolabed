@@ -17,6 +17,7 @@ namespace Astrolabed.EventBus.Events;
 /// <param name="AnswerData">The collection of resolved answer payloads (e.g., IP addresses, CNAME records), if present.</param>
 /// <param name="TtlSeconds">The minimum or average Time-To-Live duration in seconds for the answer record, if available.</param>
 /// <param name="BlockRuleId">The identifier or tag of the specific filter rule/list that triggered a block action, if blocked.</param>
+/// <param name="BlockRulePattern">The matching pattern</param>
 public sealed record DnsResponseEvent(
     DateTimeOffset StartTimeUTC,
     string ContextId,
@@ -31,5 +32,6 @@ public sealed record DnsResponseEvent(
     string? Upstream = null,
     IReadOnlyList<string>? AnswerData = null,
     int? TtlSeconds = null,
-    int? BlockRuleId = null
+    int? BlockRuleId = null,
+    string? BlockRulePattern = null
 );

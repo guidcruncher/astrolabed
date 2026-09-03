@@ -4,6 +4,7 @@ using System.Net.Mime;
 
 using Astrolabed.Dns.Filtering;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -74,6 +75,7 @@ public sealed class DomainMatchResponse
 /// <summary>
 /// Controller providing API endpoints to manage DNS domain matching and temporary rule suspensions.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/dns/match-engine")]
 [Produces(MediaTypeNames.Application.Json)]

@@ -56,24 +56,30 @@ public static class Program
         builder.Services.AddAstrolabedData(builder.Configuration);
         builder.Services.AddMacVendorLookup(builder.Configuration);
 
-        // 2. Event Broker Setup
+        // 2. Authentication Setuo
+        builder.Services.AddAppAuthentication(builder.Configuration);
+
+        // 3. Event Broker Setup
         builder.Services.AddRootEventBroker(builder.Configuration);
 
-        // 3. Event Listeners
+        // 4. Event Listeners
         builder.Services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
-        // 4. Protocol Servers & Network Engines
+        // 5. Protocol Servers & Network Engines
         builder.Services.AddNtpServer(builder.Configuration);
         builder.Services.AddDhcpServer(builder.Configuration);
         builder.Services.AddDnsServer(builder.Configuration);
 
-        // 5. DNS Benchmarker
+        // 6. DNS Benchmarker
         builder.Services.AddDnsBenchmarker(builder.Configuration);
 
-        // 6. API Module Registration
+        // 7. API Module Registration
         builder.Services.AddApi(builder.Configuration);
 
         WebApplication app = builder.Build();
+
+        // Run database seeding during startup
+        await DatabaseSeeder.SeedInitialUserAsync(app.Services, app.Configuration);
 
         // Configure HTTP middleware pipeline
         app.UseSecurityHeaders();
@@ -82,6 +88,13 @@ public static class Program
 
         // Enable OpenAPI endpoints and Scalar UI in development
         app.UseAstrolabedOpenApi(app.Configuration);
+
+        // Enable CORS
+        // app.UseCors("ClientUIApp");
+
+        // Enable Authentication and Authorization
+        app.UseAuthentication();
+        app.UseAuthorization();
 
         app.MapControllers();
         app.UseSpaHosting();

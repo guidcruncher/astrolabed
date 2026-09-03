@@ -5,6 +5,7 @@ using System.Net.Mime;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ using Microsoft.Extensions.Logging;
 /// </summary>
 /// <param name="statsRepository">The repository instance for retrieving statistical data.</param>
 /// <param name="logger">Structured logger instance for diagnostic output.</param>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces(MediaTypeNames.Application.Json)]

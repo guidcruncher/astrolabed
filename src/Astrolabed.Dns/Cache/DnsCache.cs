@@ -39,6 +39,7 @@ public sealed partial class DnsCache(
 
         KeyValuePair<DnsCacheKey, CacheEntry>[] snapshot = _entries.ToArray();
         int totalCount = _entries.Count;
+  int normalizedPageSize = Math.Clamp(pageSize, 1, 100);
 
         int skip = (pageNumber - 1) * pageSize;
         if (skip >= totalCount)
@@ -46,7 +47,7 @@ public sealed partial class DnsCache(
             return new PagedResult<KeyValuePair<string, CacheEntryView>>(
                 Array.Empty<KeyValuePair<string, CacheEntryView>>(),
                 pageNumber,
-                pageSize,
+                normalizedPageSize,
                 totalCount);
         }
 

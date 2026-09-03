@@ -168,6 +168,7 @@ public sealed partial class DnsQueryProcessor(
         string resolutionSource = "UNKNOWN";
         string rCode = "NOERROR";
         int? blockRuleId = null;
+        string? blockRulePattern = null;
         IReadOnlyList<DnsResourceRecord>? answerData = null;
 
         try
@@ -195,6 +196,7 @@ public sealed partial class DnsQueryProcessor(
                         {
                             blocked = true;
                             blockRuleId = matchResult.ListId;
+                            blockRulePattern = matchResult.Pattern;
 
                             var blockedResult = await BuildBlockResponse(request, ct);
                             resolutionSource = blockedResult.resolutionSource;
@@ -309,6 +311,7 @@ public sealed partial class DnsQueryProcessor(
                                                         {
                                                             blocked = true;
                                                             blockRuleId = matchResult.ListId;
+                                                            blockRulePattern = matchResult.Pattern;
                                                             var blockedResult = await BuildBlockResponse(request, ct);
                                                             resolutionSource = blockedResult.resolutionSource;
                                                             rCode = blockedResult.rCode;
@@ -371,7 +374,8 @@ public sealed partial class DnsQueryProcessor(
                     upstreamSource,
                     answerData?.ToAnswerData(),
                     (int)calculatedTtl.TotalSeconds,
-                    blockRuleId
+                    blockRuleId,
+                    blockRulePattern
                 );
 
                 await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);

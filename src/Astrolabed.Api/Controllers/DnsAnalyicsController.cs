@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 using Astrolabed.Data.Repositories;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Astrolabed.Api.Controllers;
@@ -12,6 +13,7 @@ namespace Astrolabed.Api.Controllers;
 /// </summary>
 /// <param name="analyticsRepository">The repository handling DNS analytics data access queries.</param>
 /// <param name="logger">The structured logger instance for controller diagnostics.</param>
+[Authorize]
 [ApiController]
 [Route("api/dns/analytics")]
 [Produces("application/json")]

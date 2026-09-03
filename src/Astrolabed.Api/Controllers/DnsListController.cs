@@ -3,6 +3,7 @@ namespace Astrolabed.Api.Controllers;
 using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -10,6 +11,7 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Provides RESTful API endpoints for managing DNS list entities.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

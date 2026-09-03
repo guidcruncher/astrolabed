@@ -5,6 +5,7 @@ using System.Net;
 using Astrolabed.Dns.Models;
 using Astrolabed.Dns.Services;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Astrolabed.Dns.Api.Controllers;
@@ -14,6 +15,7 @@ namespace Astrolabed.Dns.Api.Controllers;
 /// </summary>
 /// <param name="dnsQueryProcessor">The DNS query processing service.</param>
 /// <param name="logger">Structured logger instance.</param>
+[Authorize]
 [ApiController]
 [Route("api/dns")]
 [Produces("application/json")]

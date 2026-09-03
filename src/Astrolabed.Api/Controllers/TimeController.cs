@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 using Astrolabed.Ntp.Services;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -13,6 +14,7 @@ using Microsoft.Extensions.Logging;
 /// <summary>
 /// Provides API endpoints for retrieving synchronized network time information.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

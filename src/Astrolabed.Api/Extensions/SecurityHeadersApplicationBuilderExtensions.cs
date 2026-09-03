@@ -1,5 +1,3 @@
-using Astrolabed.Api.Middleware;
-
 namespace Astrolabed.Api.Extensions;
 
 /// <summary>
@@ -15,6 +13,7 @@ public static class SecurityHeadersApplicationBuilderExtensions
     public static IApplicationBuilder UseSecurityHeaders(this IApplicationBuilder app)
     {
         ArgumentNullException.ThrowIfNull(app);
-        return app.UseMiddleware<SecurityHeadersMiddleware>();
+        //        app.UseMiddleware<SecurityHeadersMiddleware>();
+        return app;
     }
 }

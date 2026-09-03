@@ -1,3 +1,18 @@
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    user_name TEXT NOT NULL,
+    normalized_user_name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    normalized_email TEXT NOT NULL,
+    password_hash TEXT NULL,
+    display_name TEXT NULL,
+    created_at TEXT NOT NULL,
+    last_login_at TEXT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_normalized_user_name ON users(normalized_user_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_normalized_email ON users(normalized_email);
+
 CREATE TABLE IF NOT EXISTS dns_lists (
     id int NOT NULL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -22,7 +37,8 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     upstream VARCHAR(64) NULL,
     answer_data VARCHAR(255) NULL,
     ttl_seconds INT NULL,
-    block_rule_id INT NULL
+    block_rule_id INT NULL,
+    block_rule_pattern VARCHAR(255) NULL
 );
 
 -- Performance Indexes

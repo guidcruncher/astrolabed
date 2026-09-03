@@ -7,6 +7,7 @@
     />
 
     <main class="flex-1 p-6 overflow-y-auto">
+      <AppButton @click="handleLogout">Logout</AppButton>
       <router-view />
     </main>
   </div>
@@ -14,16 +15,24 @@
 
 <script setup lang="ts">
 import { type NavItem } from '../types/types'
+import { useAuth } from '../composables/useAuth'
 
 const navItems: NavItem[] = [
-  { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
-  { icon: 'HandHelping', label: 'DHCP Leases', shortLabel: 'DHCP', to: '/dhcp' },
-  { icon: 'Timer', label: 'DNS Bench', shortLabel: 'BNH', to: '/benchmark' },
-  { icon: 'Logs', label: 'DNS Events', shortLabel: 'DNS', to: '/dns' },
-  { icon: 'DatabaseZap', label: 'DNS Cache', shortLabel: 'CAC', to: '/cache' },
-  { icon: 'Binoculars', label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },
-  { icon: 'Network', label: 'Network Devices', shortLabel: 'NET', to: '/network' },
+  { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/app/dashboard', exact: true },
+  { icon: 'HandHelping', label: 'DHCP Leases', shortLabel: 'DHCP', to: '/app/dhcp' },
+  { icon: 'Timer', label: 'DNS Bench', shortLabel: 'BNH', to: '/app/benchmark' },
+  { icon: 'Logs', label: 'DNS Events', shortLabel: 'DNS', to: '/app/dns' },
+  { icon: 'DatabaseZap', label: 'DNS Cache', shortLabel: 'CAC', to: '/app/cache' },
+  { icon: 'Binoculars', label: 'DNS Query', shortLabel: 'QRY', to: '/app/dnsquery' },
+  { icon: 'Network', label: 'Network Devices', shortLabel: 'NET', to: '/app/network' },
 ]
+
+const { user, logout, isAuthenticated } = useAuth()
+
+async function handleLogout() {
+  await logout()
+  window.location.href = '/login'
+}
 
 function onSidebarCollapse(isCollapsed: boolean): void {}
 
