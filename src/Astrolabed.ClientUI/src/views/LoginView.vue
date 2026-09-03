@@ -60,7 +60,7 @@ async function handleLogin() {
         </svg>
       </div>
       <h2 class="mt-6 text-3xl font-bold tracking-tight text-slate-100">Astrolabed</h2>
-      <p class="mt-2 text-sm text-slate-400">Sign in to access DNS & Network Management</p>
+      <p class="mt-2 text-sm text-slate-400">Sign in to access</p>
     </div>
 
     <!-- Login Card -->
