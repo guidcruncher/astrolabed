@@ -68,8 +68,8 @@ public static class AuthenticationServiceCollectionExtensions
         {
             options.Cookie.Name = authOptions.CookieName;
             options.Cookie.HttpOnly = true; // Prevents XSS token access
-            options.Cookie.SameSite = SameSiteMode.Strict; // Prevents CSRF
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Requires HTTPS
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
             options.ExpireTimeSpan = TimeSpan.FromDays(authOptions.ExpireDays);
             options.SlidingExpiration = authOptions.SlidingExpiration;
 

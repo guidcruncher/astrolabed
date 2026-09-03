@@ -18,7 +18,7 @@ import { type NavItem } from '../types/types'
 import { useAuth } from '../composables/useAuth'
 
 const navItems: NavItem[] = [
-  { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/app/', exact: true },
+  { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/app/dashboard', exact: true },
   { icon: 'HandHelping', label: 'DHCP Leases', shortLabel: 'DHCP', to: '/app/dhcp' },
   { icon: 'Timer', label: 'DNS Bench', shortLabel: 'BNH', to: '/app/benchmark' },
   { icon: 'Logs', label: 'DNS Events', shortLabel: 'DNS', to: '/app/dns' },
