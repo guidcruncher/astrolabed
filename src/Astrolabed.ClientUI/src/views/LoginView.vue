@@ -1,39 +1,24 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useAuth } from '../composables/useAuth'
 
 const email = ref('')
 const password = ref('')
 const rememberMe = ref(false)
-const isLoading = ref(false)
 const errorMessage = ref<string | null>(null)
+const isSubmitting = ref(false)
 
 const router = useRouter()
 const route = useRoute()
+const { login } = useAuth()
 
 async function handleLogin() {
-  isLoading.value = true
+  isSubmitting.value = true
   errorMessage.value = null
 
   try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      body: JSON.stringify({
-        email: email.value,
-        password: password.value,
-        rememberMe: rememberMe.value,
-      }),
-    })
-
-    if (!response.ok) {
-      const problem = await response.json().catch(() => null)
-      throw new Error(problem?.detail || problem?.title || 'Invalid email or password.')
-    }
+    await login(email.value, password.value, rememberMe.value)
 
     // Redirect to requested page or fallback to dashboard
     const redirectPath = (route.query.redirect as string) || '/dashboard'
@@ -45,7 +30,7 @@ async function handleLogin() {
       errorMessage.value = 'An unexpected error occurred. Please try again.'
     }
   } finally {
-    isLoading.value = false
+    isSubmitting.value = false
   }
 }
 </script>
@@ -162,11 +147,11 @@ async function handleLogin() {
           <div>
             <button
               type="submit"
-              :disabled="isLoading"
+              :disabled="isSubmitting"
               class="flex w-full justify-center rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <svg
-                v-if="isLoading"
+                v-if="isSubmitting"
                 class="animate-spin -ml-1 mr-2 h-4 w-4 text-slate-900"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -185,7 +170,7 @@ async function handleLogin() {
                   d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                 />
               </svg>
-              <span>{{ isLoading ? 'Signing in...' : 'Sign in' }}</span>
+              <span>{{ isSubmitting ? 'Signing in...' : 'Sign in' }}</span>
             </button>
           </div>
         </form>

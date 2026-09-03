@@ -34,6 +34,17 @@ public static class AuthenticationServiceCollectionExtensions
         // Register Dapper User Store
         services.AddScoped<IUserStore<ApplicationUser>, DapperUserRepository>();
 
+        services.AddCors(options =>
+        {
+            options.AddPolicy("ClientUIApp", policy =>
+            {
+                policy.WithOrigins(authOptions.BaseUrl)
+                      .AllowAnyHeader()
+                      .AllowAnyMethod()
+                      .AllowCredentials();
+            });
+        });
+
         // Configure ASP.NET Core Identity Core using Dapper repository
         services.AddIdentityCore<ApplicationUser>(options =>
         {

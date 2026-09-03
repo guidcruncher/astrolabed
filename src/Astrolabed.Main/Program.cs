@@ -89,6 +89,9 @@ public static class Program
         // Enable OpenAPI endpoints and Scalar UI in development
         app.UseAstrolabedOpenApi(app.Configuration);
 
+        // Enable CORS
+        // app.UseCors("ClientUIApp");
+
         // Enable Authentication and Authorization
         app.UseAuthentication();
         app.UseAuthorization();

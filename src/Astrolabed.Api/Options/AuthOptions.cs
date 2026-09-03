@@ -25,4 +25,10 @@ public sealed class AuthOptions
     /// should be issued dynamically with each request.
     /// </summary>
     public bool SlidingExpiration { get; set; } = true;
+
+    /// <summary>
+    /// Client UI base url
+    /// </summary>
+    public string BaseUrl { get; set; } = "http://localhost:8001";
+
 }

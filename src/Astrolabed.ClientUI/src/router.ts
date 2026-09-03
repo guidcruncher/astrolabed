@@ -21,7 +21,6 @@ const routes: Array<RouteRecordRaw> = [
   // Authenticated Dashboard Routes (Uses DefaultLayout via meta or nested view)
   {
     path: '/app',
-    component: DefaultLayout,
     meta: { requiresAuth: true },
     children: [
       {
@@ -73,22 +72,19 @@ const router = createRouter({
   routes,
 })
 
+// router/index.ts
 router.beforeEach(async (to, from, next) => {
-  const { isAuthenticated, fetchCurrentUser, isLoading } = useAuth()
+  const { isAuthenticated, fetchCurrentUser, isLoading, user } = useAuth()
 
-  if (isLoading.value) {
+  // Wait for the initial session check if loading
+  if (user.value === null && isLoading.value) {
     await fetchCurrentUser()
   }
 
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
-  const guestOnly = to.matched.some((record) => record.meta.guestOnly)
 
   if (requiresAuth && !isAuthenticated.value) {
     return next({ name: 'login', query: { redirect: to.fullPath } })
-  }
-
-  if (guestOnly && isAuthenticated.value) {
-    return next({ name: 'Dashboard' })
   }
 
   next()

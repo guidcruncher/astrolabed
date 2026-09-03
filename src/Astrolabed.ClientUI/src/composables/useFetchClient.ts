@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import type { ProblemDetails } from '../types/api'
+import { useAuth } from './useAuth'
 
 const apiBaseUrl = ref<string>('')
 
@@ -29,8 +30,6 @@ export function useFetchClient() {
       })
 
       if (response.status === 401) {
-        // Dispatch event for global auth handling (e.g., redirecting to login via router)
-        window.dispatchEvent(new CustomEvent('auth:unauthorized'))
       }
 
       if (!response.ok) {
