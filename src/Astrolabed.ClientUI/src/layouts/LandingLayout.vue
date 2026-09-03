@@ -7,7 +7,6 @@
     />
 
     <main class="flex-1 p-6 overflow-y-auto">
-      <AppButton @click="handleLogout">Logout</AppButton>
       <router-view />
     </main>
   </div>
@@ -15,7 +14,6 @@
 
 <script setup lang="ts">
 import { type NavItem } from '../types/types'
-import { useAuth } from '../composables/useAuth'
 
 const navItems: NavItem[] = [
   { icon: 'Gauge', label: 'Dashboard', shortLabel: 'DB', to: '/', exact: true },
@@ -26,13 +24,6 @@ const navItems: NavItem[] = [
   { icon: 'Binoculars', label: 'DNS Query', shortLabel: 'QRY', to: '/dnsquery' },
   { icon: 'Network', label: 'Network Devices', shortLabel: 'NET', to: '/network' },
 ]
-
-const { user, logout, isAuthenticated } = useAuth()
-
-async function handleLogout() {
-  await logout()
-  window.location.href = '/login'
-}
 
 function onSidebarCollapse(isCollapsed: boolean): void {}
 

@@ -48,12 +48,20 @@ export function useApi() {
       const url = `${baseUrl}${path}`
 
       const response = await fetch(url, {
+        // CRITICAL: Send and process HttpOnly cookies across origins/requests
+        credentials: 'include',
+        ...options,
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json',
           ...options.headers,
         },
-        ...options,
       })
+
+      if (response.status === 401) {
+        // Dispatch event for global auth handling (e.g., redirecting to login via router)
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'))
+      }
 
       if (!response.ok) {
         const problem: ProblemDetails | null = await response.json().catch(() => null)
