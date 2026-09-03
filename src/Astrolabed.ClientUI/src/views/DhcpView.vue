@@ -1,8 +1,6 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">DHCP Leases</h2>
-    </div>
+    <AppToolbar />
 
     <DataGrid
       v-model:page="currentPage"

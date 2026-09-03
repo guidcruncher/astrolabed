@@ -1,14 +1,13 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">Discovered LAN Devices</h2>
+    <AppToolbar>
       <AppButton
         variant="warn"
         @click="handleCleanup"
         class="inline-flex items-center gap-2 whitespace-nowrap"
         ><Trash2 /> Purge Stale Devices
       </AppButton>
-    </div>
+    </AppToolbar>
 
     <DataGrid
       v-model:page="currentPage"

@@ -1,8 +1,6 @@
 <template>
   <div>
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-2xl font-bold">DNS Query</h2>
-    </div>
+    <AppToolbar />
 
     <!-- Query Form -->
     <div class="bg-slate-800 p-4 rounded-lg mb-6 flex flex-col md:flex-row gap-4 items-end">
