@@ -99,7 +99,7 @@ public class AuthController : ControllerBase
     {
         await _signInManager.SignOutAsync();
         _logger.LogInformation("User logged out successfully.");
-        return Ok({success:true});
+        return Ok(true);
     }
 
     /// <summary>
