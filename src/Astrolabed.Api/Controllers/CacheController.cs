@@ -3,6 +3,7 @@ namespace Astrolabed.Api.Controllers;
 using Astrolabed.Data.Pagination;
 using Astrolabed.Dns.Cache;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,7 @@ public sealed record CacheCountResponse(int Count, DateTimeOffset Timestamp);
 /// <summary>
 /// Provides HTTP endpoints for managing and inspecting the in-memory DNS cache.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

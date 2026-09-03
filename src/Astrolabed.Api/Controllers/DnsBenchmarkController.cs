@@ -7,12 +7,14 @@ using System.Threading.Tasks;
 
 using Astrolabed.Dns.Benchmarking;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 /// <summary>
 /// Exposes API endpoints for initiating and retrieving DNS benchmark diagnostics.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/benchmarks")]
 [Produces("application/json")]

@@ -4,6 +4,7 @@ using System.Net.Mime;
 using Astrolabed.Data.Pagination;
 using Astrolabed.Dns.Filtering;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 
@@ -47,6 +48,7 @@ public sealed record FilterRuleDto(
 /// <summary>
 /// Controller providing API access to stored DNS filter rules.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/dns/rules")]
 [Produces(MediaTypeNames.Application.Json)]

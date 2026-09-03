@@ -2,6 +2,7 @@ namespace Astrolabed.Api.Controllers;
 
 using Astrolabed.Api.Services;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -16,6 +17,7 @@ public sealed record AstrolabedStatusResponse(string Status, DateTimeOffset Time
 /// <summary>
 /// Handles HTTP requests for Astrolabed API operations and module diagnostics.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]

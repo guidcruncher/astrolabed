@@ -6,6 +6,7 @@ using Astrolabed.Data.Models;
 using Astrolabed.Data.Pagination;
 using Astrolabed.Data.Repositories;
 
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -34,6 +35,7 @@ public sealed record DiscoveredLanDeviceDto(
 /// Provides REST API endpoints for LAN device discovery operations, network sweeps,
 /// and device lifecycle management.
 /// </summary>
+[Authorize]
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
