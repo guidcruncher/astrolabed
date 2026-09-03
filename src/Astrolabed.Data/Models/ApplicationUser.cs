@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 
-namespace Astrolabed.Api.Data;
+namespace Astrolabed.Data.Models;
 
 /// <summary>
 /// Represents an application user within the Identity framework.

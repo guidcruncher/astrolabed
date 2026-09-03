@@ -1,5 +1,5 @@
-using Astrolabed.Api.Data;
 using Astrolabed.Api.Options;
+using Astrolabed.Data.Models;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
