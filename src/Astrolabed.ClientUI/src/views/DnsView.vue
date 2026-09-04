@@ -26,7 +26,10 @@
             class="text-emerald-600"
             v-else
           />
-          <span class="font-medium text-white">{{ value }}</span></span
+          <span class="font-medium text-white"
+            >{{ value }}
+            <span v-if="row.heuristicScore">h{{ row.heuristicScore?.toFixed(2) }}</span>
+          </span></span
         >
       </template>
 
@@ -60,6 +63,7 @@
           <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">Question</td>
           <td class="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">
             {{ dnsRow.questionName ?? 'N/A' }}
+            <span v-if="dnsRow.heuristicScore">h{{ dnsRow.heuristicScore?.toFixed(2) }}</span>
           </td>
         </tr>
         <tr class="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600">

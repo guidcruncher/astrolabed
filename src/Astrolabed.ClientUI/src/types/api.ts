@@ -140,6 +140,7 @@ export interface DnsResponseEventEntity {
   ttlSeconds: number
   blockRuleId: number | null
   blockRulePattern: string | null
+  heuristicScore: number
 }
 
 export interface DiscoveredLanDeviceDto {
