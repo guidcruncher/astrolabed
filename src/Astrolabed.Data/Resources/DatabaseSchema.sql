@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS dns_response_events (
     answer_data VARCHAR(255) NULL,
     ttl_seconds INT NULL,
     block_rule_id INT NULL,
-    block_rule_pattern VARCHAR(255) NULL
+    block_rule_pattern VARCHAR(255) NULL,
+    heuristic_score REAL NULL
 );
 
 -- Performance Indexes

@@ -85,4 +85,9 @@ public sealed class DnsResponseEventEntity
     /// The block rule pattern match
     /// </summary>
     public string? BlockRulePattern { get; set; }
+
+    /// <summary>
+    /// Heuristic Score
+    /// </summary>
+    public double HeuristicScore { get; set; }
 }
