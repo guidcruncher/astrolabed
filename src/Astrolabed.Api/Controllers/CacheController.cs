@@ -1,9 +1,10 @@
 namespace Astrolabed.Api.Controllers;
 
+using System.ComponentModel.DataAnnotations;
+
 using Astrolabed.Data.Pagination;
 using Astrolabed.Dns.Cache;
 
-using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

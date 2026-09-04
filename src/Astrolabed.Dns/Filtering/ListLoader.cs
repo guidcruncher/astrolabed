@@ -1,9 +1,9 @@
 // File: src/Astrolabed.Dns/Filtering/ListLoader.cs
 using System.Text;
 
-using Astrolabed.Dns.Options;
-using Astrolabed.Data.Repositories;
 using Astrolabed.Data.Models;
+using Astrolabed.Data.Repositories;
+using Astrolabed.Dns.Options;
 
 using Microsoft.Extensions.Logging;
 
@@ -36,13 +36,14 @@ public sealed partial class ListLoader(
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(source.Path);
 
-        DnsListEntity et = new DnsListEntity(){
-Id = source.Id,
-Name = source.Name,
-Path = source.Path 
+        DnsListEntity et = new DnsListEntity()
+        {
+            Id = source.Id,
+            Name = source.Name,
+            Path = source.Path
         };
 
-	await _dnsList.UpsertAsync(et, cancellationToken);
+        await _dnsList.UpsertAsync(et, cancellationToken);
 
         IReadOnlyList<FilterRule> parsedRules;
 
