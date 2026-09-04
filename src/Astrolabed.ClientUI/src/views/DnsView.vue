@@ -68,7 +68,9 @@
         </tr>
         <tr class="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600">
           <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">Client</td>
-          <td class="px-3 py-2 font-mono text-xs">{{ dnsRow.clientAddress ?? 'N/A' }} {{ dnsRow.clientName ?? 'N/A' }}</td>
+          <td class="px-3 py-2 font-mono text-xs">
+            {{ dnsRow.clientAddress ?? 'N/A' }} {{ dnsRow.clientName ?? 'N/A' }}
+          </td>
         </tr>
         <tr class="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600">
           <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">Response</td>
