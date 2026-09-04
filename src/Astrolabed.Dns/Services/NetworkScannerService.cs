@@ -23,12 +23,14 @@ namespace Astrolabed.Dns.Services;
 /// <param name="macVendor">The Mac Address Vendor database lookup service.</param>
 /// <param name="deviceClassifier">Service used to classify network device types from probe signatures.</param>
 /// <param name="probeService">Service used to actively probe hosts for network telemetry.</param>
+/// <param name="pingService">Service used to ping hosts</param>>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class NetworkScannerService(
     IOptions<NetworkScannerOptions> options,
     IMacVendorLookupService macVendor,
     INetworkDeviceClassifier deviceClassifier,
     INetworkDeviceProbeService probeService,
+    IPingService pingService,
     ILogger<NetworkScannerService> logger) : INetworkScannerService
 {
     private readonly NetworkScannerOptions _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
@@ -36,6 +38,7 @@ public sealed partial class NetworkScannerService(
     private readonly IMacVendorLookupService _macVendor = macVendor ?? throw new ArgumentNullException(nameof(macVendor));
     private readonly INetworkDeviceClassifier _deviceClassifier = deviceClassifier ?? throw new ArgumentNullException(nameof(deviceClassifier));
     private readonly INetworkDeviceProbeService _probeService = probeService ?? throw new ArgumentNullException(nameof(probeService));
+    private readonly IPingService _pingService = pingService ?? throw new ArgumentNullException(nameof(pingService));
 
     [GeneratedRegex(@"(?<ip>\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+(?<mac>([0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2})")]
     private static partial Regex WindowsArpRegex();
@@ -110,8 +113,9 @@ public sealed partial class NetworkScannerService(
 
                 DeviceType determinedType = _deviceClassifier.ClassifyDevice(probeResult);
                 string deviceType = determinedType.ToString();
+                bool alive = await _pingService.PingAsync(targetIp.ToString(), cancellationToken);
 
-                var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now, vendor, deviceType);
+                var device = new DiscoveredLanDevice(targetIp, macAddress, hostName, now, now, vendor, deviceType, alive);
                 results.Add(device);
 
                 LogDiscoveredHost(_logger, targetIp, macAddress, hostName ?? "Unknown");
@@ -124,6 +128,7 @@ public sealed partial class NetworkScannerService(
 
     private async Task WarmArpCacheAsync(IEnumerable<IPAddress> addresses, CancellationToken cancellationToken)
     {
+
         var parallelOptions = new ParallelOptions
         {
             MaxDegreeOfParallelism = _options.MaxDegreeOfParallelism,

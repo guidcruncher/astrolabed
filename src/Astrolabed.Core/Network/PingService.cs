@@ -1,7 +1,9 @@
 using System.Net.NetworkInformation;
+
+using Astrolabed.Core.Options;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Astrolabed.Core.Options;
 
 namespace Astrolabed.Core.Network;
 

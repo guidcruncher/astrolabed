@@ -1,7 +1,8 @@
+using Astrolabed.Core.Network;
+using Astrolabed.Core.Options;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Astrolabed.Core.Options;
-using Astrolabed.Core.Network;
 
 namespace Astrolabed.Core.Extensions;
 
@@ -20,7 +21,7 @@ public static class ServiceCollectionExtensions
     /// <exception cref="ArgumentNullException">
     /// Thrown when <paramref name="services"/> or <paramref name="configuration"/> is <see langword="null"/>.
     /// </exception>
-    public static IServiceCollection AddMetworkServices(
+    public static IServiceCollection AddNetworkServices(
         this IServiceCollection services,
         IConfiguration configuration)
     {

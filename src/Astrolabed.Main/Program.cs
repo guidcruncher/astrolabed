@@ -66,6 +66,7 @@ public static class Program
         builder.Services.AddEventListener<DnsResponseEvent, DnsResponseListener>();
 
         // 5. Protocol Servers & Network Engines
+        builder.Services.AddNetworkServices(builder.Configuration);
         builder.Services.AddNtpServer(builder.Configuration);
         builder.Services.AddDhcpServer(builder.Configuration);
         builder.Services.AddDnsServer(builder.Configuration);
