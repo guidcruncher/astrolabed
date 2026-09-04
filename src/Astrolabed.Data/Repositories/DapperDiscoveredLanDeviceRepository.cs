@@ -147,6 +147,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             param.Add("Vendor", entity.Vendor);
             param.Add("DeviceType", entity.DeviceType);
             parameterBatch[i] = param;
+            await UpdateLastSeenAsync(deviceArray[i], cancellationToken);
         }
 
         const string sql = """
@@ -159,7 +160,6 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                 ip_address = EXCLUDED.ip_address,
                 ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
-                last_seen = EXCLUDED.last_seen,
                 vendor = EXCLUDED.vendor,
                 device_type = EXCLUDED.device_type;
             """;

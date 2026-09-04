@@ -5,6 +5,7 @@ using Astrolabed.Data.Models;
 using Astrolabed.Data.Repositories;
 using Astrolabed.Dns.Options;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Astrolabed.Dns.Filtering;
@@ -15,19 +16,19 @@ namespace Astrolabed.Dns.Filtering;
 /// <param name="httpClient">HTTP client instance.</param>
 /// <param name="parser">Filter list parser instance.</param>
 /// <param name="ruleStore">Target filter rule store instance.</param>
-/// <param name="dnsList">List repository.</param>
+/// <param name="scopeFactory">Service container.</param>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class ListLoader(
     HttpClient httpClient,
     IFilterListParser parser,
     IFilterRuleStore ruleStore,
-    IDnsListRepository dnsList,
+    IServiceScopeFactory scopeFactory,
     ILogger<ListLoader> logger) : IListLoader
 {
     private readonly HttpClient _httpClient = httpClient ?? throw new ArgumentNullException(nameof(httpClient));
     private readonly IFilterListParser _parser = parser ?? throw new ArgumentNullException(nameof(parser));
     private readonly IFilterRuleStore _ruleStore = ruleStore ?? throw new ArgumentNullException(nameof(ruleStore));
-    private readonly IDnsListRepository _dnsList = dnsList ?? throw new ArgumentNullException(nameof(dnsList));
+    private readonly IServiceScopeFactory _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
     private readonly ILogger<ListLoader> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
     /// <inheritdoc />
@@ -43,7 +44,11 @@ public sealed partial class ListLoader(
             Path = source.Path
         };
 
-        await _dnsList.UpsertAsync(et, cancellationToken);
+        using (IServiceScope scope = _scopeFactory.CreateScope())
+        {
+            IDnsListRepository repository = scope.ServiceProvider.GetRequiredService<IDnsListRepository>();
+            await repository.UpsertAsync(et, cancellationToken);
+        }
 
         IReadOnlyList<FilterRule> parsedRules;
 

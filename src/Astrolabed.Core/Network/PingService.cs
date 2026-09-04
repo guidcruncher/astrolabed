@@ -56,9 +56,7 @@ public class PingService : IPingService
 
             PingReply reply = await ping.SendPingAsync(
                 host,
-                _options.TimeoutMilliseconds,
-                buffer,
-                pingOptions);
+                _options.TimeoutMilliseconds);
 
             if (reply.Status == IPStatus.Success)
             {
