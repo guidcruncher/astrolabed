@@ -40,7 +40,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             AnswerDataJson = dto.AnswerData is not null ? JsonSerializer.Serialize(dto.AnswerData, JsonOptions) : null,
             TtlSeconds = dto.TtlSeconds,
             BlockRuleId = dto.BlockRuleId,
-            BlockRulePattern = dto.BlockRulePattern
+            BlockRulePattern = dto.BlockRulePattern,
+            HeuristicScore = dto.HeuristicScore
         };
     }
 
@@ -71,7 +72,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             AnswerDataJson = domainEvent.AnswerData is not null ? JsonSerializer.Serialize(domainEvent.AnswerData, JsonOptions) : null,
             TtlSeconds = domainEvent.TtlSeconds,
             BlockRuleId = domainEvent.BlockRuleId,
-            BlockRulePattern = domainEvent.BlockRulePattern
+            BlockRulePattern = domainEvent.BlockRulePattern,
+            HeuristicScore = domainEvent.HeuristicScore
         };
     }
 
@@ -114,7 +116,8 @@ public sealed class DnsResponseEventMapper : IDnsResponseEventMapper
             answerData,
             entity.TtlSeconds,
             entity.BlockRuleId,
-            entity.BlockRulePattern
+            entity.BlockRulePattern,
+            entity.HeuristicScore
         );
     }
 

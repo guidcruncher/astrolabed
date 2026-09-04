@@ -50,6 +50,13 @@ public static class ServiceCollectionExtensions
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
+        services.AddOptions<HeuristicOptions>()
+        .Bind(configuration.GetSection(HeuristicOptions.SectionName))
+            .ValidateDataAnnotations()
+            .ValidateOnStart();
+
+        services.AddSingleton<IDomainHeuristicScanner, DomainHeuristicScanner>();
+
         services.AddHttpClient();
 
         // Core Caches & Filtering Services

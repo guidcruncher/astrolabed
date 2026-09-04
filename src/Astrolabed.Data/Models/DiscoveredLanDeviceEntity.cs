@@ -52,6 +52,11 @@ public sealed class DiscoveredLanDeviceEntity
     public required string DeviceType { get; set; }
 
     /// <summary>
+    /// Is Device currently alive
+    /// </summary>
+    public bool Alive { get; set; }
+
+    /// <summary>
     /// Creates a persistence entity instance from a domain record.
     /// </summary>
     /// <param name="domain">The domain record to convert.</param>
@@ -70,7 +75,8 @@ public sealed class DiscoveredLanDeviceEntity
             LastSeen = domain.LastSeen.ToUnixTimeSeconds(),
             FirstSeen = domain.FirstSeen.ToUnixTimeSeconds(),
             Vendor = domain.Vendor,
-            DeviceType = domain.DeviceType
+            DeviceType = domain.DeviceType,
+            Alive = domain.Alive
         };
     }
 
@@ -87,8 +93,9 @@ public sealed class DiscoveredLanDeviceEntity
             HostName,
             DateTimeOffset.FromUnixTimeSeconds(LastSeen),
             DateTimeOffset.FromUnixTimeSeconds(FirstSeen),
-        Vendor,
-        DeviceType
+            Vendor,
+            DeviceType,
+            true
         );
     }
 }

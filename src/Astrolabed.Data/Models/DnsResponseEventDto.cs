@@ -19,6 +19,7 @@ namespace Astrolabed.Data.Models;
 /// <param name="TtlSeconds">The Time-To-Live duration in seconds returned for the DNS answer record, if available.</param>
 /// <param name="BlockRuleId">The identifier or name of the filter rule/list that triggered a block action, if applicable.</param>
 /// <param name="BlockRulePattern">The Pattern that the domain matched</param>
+/// <param name="HeuristicScore">Heuristtic Score </param>
 public sealed record DnsResponseEventDto(
     string Id,
     DateTimeOffset StartTimeUtc,
@@ -35,5 +36,6 @@ public sealed record DnsResponseEventDto(
     IReadOnlyList<string>? AnswerData,
     int? TtlSeconds,
     int? BlockRuleId,
-    string? BlockRulePattern
+    string? BlockRulePattern,
+    double HeuristicScore
 );

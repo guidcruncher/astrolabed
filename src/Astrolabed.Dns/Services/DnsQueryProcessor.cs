@@ -29,6 +29,7 @@ namespace Astrolabed.Dns.Services;
 /// <param name="upstreamClientFactory">Upstream DNS resolution client factory.</param>
 /// <param name="eventBus">In-process event bus for publishing DNS telemetry metrics.</param>
 /// <param name="clientResolver">Client IP reverse name lookup resolver.</param>
+/// <param name="heuristics">Heuristics service.</param>
 /// <param name="logger">Structured logger instance.</param>
 public sealed partial class DnsQueryProcessor(
     IOptionsMonitor<DnsEngineOptions> optionsMonitor,
@@ -39,6 +40,7 @@ public sealed partial class DnsQueryProcessor(
     IUpstreamClientFactory upstreamClientFactory,
     IInProcEventBroker eventBus,
     IClientNameResolver clientResolver,
+    IDomainHeuristicScanner heuristics,
     ILogger<DnsQueryProcessor> logger) : IDnsQueryProcessor
 {
     private static readonly AsyncLocal<bool> IsInternalLookup = new();
@@ -52,6 +54,7 @@ public sealed partial class DnsQueryProcessor(
     private readonly IInProcEventBroker _eventBus = eventBus ?? throw new ArgumentNullException(nameof(eventBus));
     private readonly IClientNameResolver _clientResolver = clientResolver ?? throw new ArgumentNullException(nameof(clientResolver));
     private readonly ILogger<DnsQueryProcessor> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IDomainHeuristicScanner _heuristics = heuristics ?? throw new ArgumentNullException(nameof(heuristics));
 
     private async Task<BlockResponse> BuildBlockResponse(DnsWireMessage request, CancellationToken ct)
     {
@@ -359,6 +362,7 @@ public sealed partial class DnsQueryProcessor(
             {
                 TimeSpan calculatedTtl = GetTtl(answerData);
                 double elapsedMs = (DateTimeOffset.UtcNow - startTime).TotalMilliseconds;
+                DomainAssessmentResult domainAnalysis = _heuristics.AnalyzeDomain(request.QuestionName);
 
                 var dnsEvent = new DnsResponseEvent(
                     startTime,
@@ -375,7 +379,8 @@ public sealed partial class DnsQueryProcessor(
                     answerData?.ToAnswerData(),
                     (int)calculatedTtl.TotalSeconds,
                     blockRuleId,
-                    blockRulePattern
+                    blockRulePattern,
+            domainAnalysis.TotalScore
                 );
 
                 await _eventBus.PublishAsync(dnsEvent).ConfigureAwait(false);

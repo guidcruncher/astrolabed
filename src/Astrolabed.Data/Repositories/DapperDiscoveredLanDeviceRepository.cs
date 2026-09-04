@@ -33,6 +33,38 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
     private readonly DatabaseOptions _databaseOptions = databaseOptions?.Value ?? throw new ArgumentNullException(nameof(databaseOptions));
     private readonly ILogger<DapperDiscoveredLanDeviceRepository> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
+
+    private async Task UpdateLastSeenAsync(DiscoveredLanDevice device, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(device);
+
+        if (!device.Alive) { return; }
+
+        const string sql = """
+            UPDATE discovered_lan_devices
+                SET last_seen = @LastSeen
+            WHERE mac_address = @MacAddress;
+            """;
+
+        DiscoveredLanDeviceEntity entity = DiscoveredLanDeviceEntity.FromDomain(device);
+
+        await using DbConnection connection = await _connectionFactory.CreateConnectionAsync(cancellationToken).ConfigureAwait(false);
+
+        LogUpsertingLanDevice(_logger, device.MacAddress);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("MacAddress", entity.MacAddress);
+        parameters.Add("LastSeen", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+
+        var command = new CommandDefinition(
+            sql,
+            parameters,
+            commandTimeout: _databaseOptions.CommandTimeoutSeconds,
+            cancellationToken: cancellationToken);
+
+        await connection.ExecuteAsync(command).ConfigureAwait(false);
+    }
+
     /// <inheritdoc />
     public async Task UpsertAsync(DiscoveredLanDevice device, CancellationToken cancellationToken = default)
     {
@@ -48,7 +80,6 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                 ip_address = EXCLUDED.ip_address,
                 ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
-                last_seen = EXCLUDED.last_seen,
                 vendor = EXCLUDED.vendor,
                 device_type = EXCLUDED.device_type;
             """;
@@ -77,6 +108,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             cancellationToken: cancellationToken);
 
         await connection.ExecuteAsync(command).ConfigureAwait(false);
+        await UpdateLastSeenAsync(device, cancellationToken);
 
         LogUpsertedLanDeviceSuccessfully(_logger, device.MacAddress);
     }
@@ -115,6 +147,7 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
             param.Add("Vendor", entity.Vendor);
             param.Add("DeviceType", entity.DeviceType);
             parameterBatch[i] = param;
+            await UpdateLastSeenAsync(deviceArray[i], cancellationToken);
         }
 
         const string sql = """
@@ -127,7 +160,6 @@ public sealed partial class DapperDiscoveredLanDeviceRepository(
                 ip_address = EXCLUDED.ip_address,
                 ptr_address = EXCLUDED.ptr_address,
                 host_name = EXCLUDED.host_name,
-                last_seen = EXCLUDED.last_seen,
                 vendor = EXCLUDED.vendor,
                 device_type = EXCLUDED.device_type;
             """;

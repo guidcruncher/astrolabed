@@ -41,11 +41,11 @@ public sealed partial class DapperDnsResponseEventRepository(
             INSERT INTO dns_response_events (
                 id, start_time_utc, start_time_hour, context_id, question_name, question_type,
                 client_ip, client_name, resolution_source, rcode, duration_ms,
-                blocked, upstream, answer_data, ttl_seconds, block_rule_id, block_rule_pattern
+                blocked, upstream, answer_data, ttl_seconds, block_rule_id, block_rule_pattern, heuristic_score
             ) VALUES (
                 @Id, @StartTimeUtc, @StartTimeHour, @ContextId, @QuestionName, @QuestionType,
                 @ClientAddress, @ClientName, @ResolutionSource, @Rcode, @DurationMs,
-                @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId, @BlockRulePattern
+                @Blocked, @Upstream, @AnswerDataJson, @TtlSeconds, @BlockRuleId, @BlockRulePattern, @HeuristicScore
             );
             """;
 
@@ -71,6 +71,7 @@ public sealed partial class DapperDnsResponseEventRepository(
         parameters.Add("TtlSeconds", entity.TtlSeconds);
         parameters.Add("BlockRuleId", entity.BlockRuleId);
         parameters.Add("BlockRulePattern", entity.BlockRulePattern);
+        parameters.Add("HeuristicScore", entity.HeuristicScore);
 
         var command = new CommandDefinition(
             sql,
@@ -104,7 +105,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
                    block_rule_id AS BlockRuleId,
-                   block_rule_pattern AS BlockRulePattern
+                   block_rule_pattern AS BlockRulePattern,
+                   heuristic_score AS HeuristicScore
             FROM dns_response_events
             WHERE id = @Id;
             """;
@@ -153,7 +155,8 @@ public sealed partial class DapperDnsResponseEventRepository(
                    answer_data AS AnswerDataJson,
                    ttl_seconds AS TtlSeconds,
                    block_rule_id AS BlockRuleId,
-                   block_rule_pattern AS BlockRulePattern
+                   block_rule_pattern AS BlockRulePattern,
+                   heuristic_score AS HeuristicScore
             FROM dns_response_events
             ORDER BY start_time_utc DESC
             LIMIT @PageSize OFFSET @Offset;

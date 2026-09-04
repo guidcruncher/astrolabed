@@ -22,7 +22,7 @@ restore:
 	dotnet restore $(SOLUTION)
 
 build-client:
-	cd ./src/Astrolabed.ClientUI && npm install && npm run build
+	cd ./src/Astrolabed.ClientUI && npm run build
 
 build-app: restore
 	dotnet build $(SOLUTION) -c $(CONFIG) --no-restore

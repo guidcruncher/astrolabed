@@ -12,6 +12,7 @@ namespace Astrolabed.Data.Models;
 /// <param name="FirstSeen">The UTC timestamp indicating when the device was initially observed on the network.</param>
 /// <param name="Vendor">The device Vendor</param>
 /// <param name="DeviceType">The device Type</param>
+/// <param name="Alive">Is device alive?</param>
 public record DiscoveredLanDevice(
     IPAddress IpAddress,
     string MacAddress,
@@ -19,5 +20,6 @@ public record DiscoveredLanDevice(
     DateTimeOffset LastSeen,
     DateTimeOffset FirstSeen,
     string Vendor,
-    string DeviceType
+    string DeviceType,
+    bool Alive
 );
