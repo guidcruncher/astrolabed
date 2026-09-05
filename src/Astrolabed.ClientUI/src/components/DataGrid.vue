@@ -15,6 +15,7 @@
             :key="item.id ?? index"
             @click="handleRowClick(item)"
             class="border-t border-slate-700 hover:bg-slate-750/50 transition-colors cursor-pointer"
+            :class="getRowClass(item)"
           >
             <td v-for="col in columns" :key="col.key" class="p-4" :class="col.cellClass">
               <slot :name="getSlotName(col.key)" :row="item" :value="getNestedValue(item, col.key)">
@@ -95,6 +96,8 @@ import { computed, watch, onMounted } from 'vue'
 import { type Column } from '../types/types'
 import { ChevronLeft, ChevronRight, ChevronFirst, ChevronLast } from '@lucide/vue'
 
+type DynamicRowClass = string | string[] | Record<string, boolean>
+
 const props = withDefaults(
   defineProps<{
     data: T[]
@@ -103,6 +106,7 @@ const props = withDefaults(
     pageSize?: number
     totalCount: number
     pageSizeOptions?: number[]
+    rowClass?: DynamicRowClass | ((row: T) => DynamicRowClass)
   }>(),
   {
     page: 1,
@@ -121,6 +125,14 @@ const emit = defineEmits<{
 }>()
 
 const totalPages = computed(() => Math.ceil(props.totalCount / props.pageSize) || 1)
+
+const getRowClass = (row: T) => {
+  if (!props.rowClass) return ''
+  if (typeof props.rowClass === 'function') {
+    return props.rowClass(row)
+  }
+  return props.rowClass
+}
 
 // Resolve deep property paths (e.g., 'f.g' -> item.f.g)
 const getNestedValue = (obj: Record<string, any>, path: string) => {

@@ -15,6 +15,7 @@
       :data="events"
       :columns="columns"
       :total-count="totalCount"
+      :row-class="evaluateRowClass"
       @page-change="handlePageChange"
       @page-size-change="handlePageSizeChange"
       @row-select="handleRowSelect"
@@ -28,7 +29,6 @@
           />
           <span class="font-medium text-white"
             >{{ value }}
-            <span v-if="row.heuristicScore">h{{ row.heuristicScore?.toFixed(2) }}</span>
           </span></span
         >
       </template>
@@ -63,7 +63,7 @@
           <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">Question</td>
           <td class="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">
             {{ dnsRow.questionName ?? 'N/A' }}
-            <span v-if="dnsRow.heuristicScore">h{{ dnsRow.heuristicScore?.toFixed(2) }}</span>
+            <span v-if="dnsRow.heuristicScore"><i>(h{{ dnsRow.heuristicScore?.toFixed(2) }})</i></span>
           </td>
         </tr>
         <tr class="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600">
@@ -158,6 +158,14 @@ const columns: Column[] = [
   { key: 'upstream', label: 'Upstream' },
   { key: 'durationMs', label: 'Latency' },
 ]
+
+const evaluateRowClass = (row: any) => {
+if (row.blocked) {return ""}
+if (!row.heuristicsScore || row.heuristicsScore == 0) {return ""}
+if (row.heuristicsScore <= 39) return "!bg-amber-50"
+if (row.heuristicsScore <= 69) return "!bg-orange-50"
+return "!bg-red-50"
+}
 
 const loadLogs = async (): Promise<void> => {
   const data = await getDnsEvents(currentPage.value, pageSize.value)
