@@ -27,9 +27,7 @@
             class="text-emerald-600"
             v-else
           />
-          <span class="font-medium text-white"
-            >{{ value }}
-          </span></span
+          <span class="font-medium text-white">{{ value }} </span></span
         >
       </template>
 
@@ -63,7 +61,9 @@
           <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">Question</td>
           <td class="px-3 py-2 font-mono text-blue-600 dark:text-blue-400">
             {{ dnsRow.questionName ?? 'N/A' }}
-            <span v-if="dnsRow.heuristicScore"><i>(h{{ dnsRow.heuristicScore?.toFixed(2) }})</i></span>
+            <span v-if="dnsRow.heuristicScore"
+              ><i>(h{{ dnsRow.heuristicScore?.toFixed(2) }})</i></span
+            >
           </td>
         </tr>
         <tr class="bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-600">
@@ -160,11 +160,20 @@ const columns: Column[] = [
 ]
 
 const evaluateRowClass = (row: any) => {
-if (row.blocked) {return ""}
-if (!row.heuristicsScore || row.heuristicsScore == 0) {return ""}
-if (row.heuristicsScore <= 39) return "!bg-amber-50"
-if (row.heuristicsScore <= 69) return "!bg-orange-50"
-return "!bg-red-50"
+  if (row.blocked || row.questionType == 'PTR') {
+    return ''
+  }
+
+  const score = row.heuristicScore
+
+  if (!score || score === 0) {
+    return ''
+  }
+
+  // When heuristicScore is 40, it falls into this bucket
+  if (score <= 39) return '!bg-amber-50 dark:!bg-amber-950/40'
+  if (score <= 69) return '!bg-orange-50 dark:!bg-orange-950/40'
+  return '!bg-red-50 dark:!bg-red-950/40'
 }
 
 const loadLogs = async (): Promise<void> => {

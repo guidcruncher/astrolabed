@@ -91,12 +91,17 @@
           <template #tooltip="{ active }">
             <div v-if="active" class="flex flex-col gap-0.5 p-0.5">
               <span class="font-bold text-white flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full" :style="{ backgroundColor: active.color }"></span>
+                <span
+                  class="w-2 h-2 rounded-full"
+                  :style="{ backgroundColor: active.color }"
+                ></span>
                 {{ active.barLabel }} - {{ active.seriesLabel }}
               </span>
               <span class="text-slate-300 text-[11px]">
                 Value:
-                <span class="text-emerald-400 font-medium">{{ active.value.toLocaleString() }}</span>
+                <span class="text-emerald-400 font-medium">{{
+                  active.value.toLocaleString()
+                }}</span>
               </span>
               <span class="text-slate-400 text-[10px] italic">
                 Share of Requests: {{ active.percentage.toFixed(2) }}%
@@ -163,7 +168,7 @@ import { Globe, Clock } from '@lucide/vue'
 const activeTab = ref<string>('dashboard')
 const tabs: TabOption[] = [
   { id: 'dashboard', label: 'Dashboard' },
-  { id: 'details', label: 'Details' }
+  { id: 'details', label: 'Details' },
 ]
 
 const { formatUtcToLocalBrowserTime } = useDateUtils()

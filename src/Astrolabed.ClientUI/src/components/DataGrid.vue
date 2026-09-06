@@ -177,3 +177,9 @@ onMounted(() => {
   emit('loaded')
 })
 </script>
+
+<style scoped>
+:deep(.data-grid tr td) {
+  background-color: inherit;
+}
+</style>

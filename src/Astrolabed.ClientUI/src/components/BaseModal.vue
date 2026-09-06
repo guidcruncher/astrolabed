@@ -3,9 +3,12 @@
     v-if="modelValue"
     class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50"
   >
-    <div class="bg-slate-800 rounded-lg p-6 max-w-md w-full border border-slate-700 shadow-xl">
-      <!-- Title Slot with fallback prop -->
-      <div class="mb-4 flex items-center justify-between">
+    <!-- Modal Card with viewport max-height constraint -->
+    <div
+      class="bg-slate-800 rounded-lg p-6 max-w-md w-full border border-slate-700 shadow-xl max-h-[calc(100vh-2rem)] flex flex-col"
+    >
+      <!-- Title Slot (fixed header) -->
+      <div class="mb-4 flex items-center justify-between shrink-0">
         <h3 class="text-lg font-bold text-white">
           <slot name="title">{{ title }}</slot>
         </h3>
@@ -18,13 +21,13 @@
         </button>
       </div>
 
-      <!-- Body Slot -->
-      <div class="mb-6">
+      <!-- Body Slot (scrollable area when content exceeds modal height) -->
+      <div class="mb-6 overflow-y-auto min-h-0 flex-1 pr-1">
         <slot></slot>
       </div>
 
-      <!-- Footer / Actions Slot with default button setup -->
-      <div class="flex justify-end space-x-2">
+      <!-- Footer / Actions Slot (fixed footer) -->
+      <div class="flex justify-end space-x-2 shrink-0 pt-2">
         <slot name="actions" :handle-click="handleButtonClick">
           <button
             type="button"

@@ -7,14 +7,13 @@ const props = defineProps<{
   modelValue?: string | number
 }>()
 
-
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string | number): void
   (e: 'click', tab: TabOption): void
 }>()
- 
+
 const handleTabClick = (tab: TabOption) => {
-  if (tab.disabled) return 
+  if (tab.disabled) return
 
   emit('update:modelValue', tab.id)
   emit('click', tab)
@@ -23,10 +22,7 @@ const handleTabClick = (tab: TabOption) => {
 
 <template>
   <div class="w-full border-b border-gray-200 dark:border-gray-700">
-    <nav
-      class="-mb-px flex w-full overflow-x-auto no-scrollbar"
-      aria-label="Tabs"
-    >
+    <nav class="-mb-px flex w-full overflow-x-auto no-scrollbar" aria-label="Tabs">
       <button
         v-for="tab in tabs"
         :key="tab.id"
@@ -37,7 +33,7 @@ const handleTabClick = (tab: TabOption) => {
           modelValue === tab.id
             ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600',
-          tab.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+          tab.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer',
         ]"
         :aria-current="modelValue === tab.id ? 'page' : undefined"
         @click="handleTabClick(tab)"
