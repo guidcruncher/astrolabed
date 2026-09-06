@@ -1,3 +1,10 @@
+export interface TabOption {
+  id: string | number
+  label: string
+  disabled?: boolean
+  [key: string]: unknown
+}
+
 export interface LineChartItem {
   label: string
   value: number
