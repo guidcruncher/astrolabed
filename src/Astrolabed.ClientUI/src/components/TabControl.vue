@@ -16,7 +16,7 @@ const emit = defineEmits<{
 const handleTabClick = (tab: TabOption) => {
   if (tab.disabled) return 
 
-  emit('update:modelValue', tsb.id)
+  emit('update:modelValue', tab.id)
   emit('click', tab)
 }
 </script>
@@ -34,15 +34,15 @@ const handleTabClick = (tab: TabOption) => {
         :disabled="tab.disabled"
         :class="[
           'flex-1 min-w-[120px] py-4 px-1 text-center border-b-2 font-medium text-sm transition-colors duration-150 ease-in-out whitespace-nowrap focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2',
-          activeTabId === tab.id
+          modelValue === tab.id
             ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
             : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300 dark:hover:border-gray-600',
           tab.disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
         ]"
-        :aria-current="activeTabId === tab.id ? 'page' : undefined"
-        @click="handleTabClick(tab, $event)"
+        :aria-current="modelValue === tab.id ? 'page' : undefined"
+        @click="handleTabClick(tab)"
       >
-        <slot name="tab" :tab="tab" :is-active="activeTabId === tab.id">
+        <slot name="tab" :tab="tab" :is-active="modelValue === tab.id">
           {{ tab.label }}
         </slot>
       </button>

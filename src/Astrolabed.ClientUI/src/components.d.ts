@@ -37,5 +37,6 @@ declare module 'vue' {
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     StackedBarChart: typeof import('./components/StackedBarChart.vue')['default']
+    TabControl: typeof import('./components/TabControl.vue')['default']
   }
 }
