@@ -29,6 +29,7 @@ declare module 'vue' {
     DnsBenchmarksView: typeof import('./views/DnsBenchmarksView.vue')['default']
     DnsQueryView: typeof import('./views/DnsQueryView.vue')['default']
     DnsView: typeof import('./views/DnsView.vue')['default']
+    HeuristicScore: typeof import('./components/HeuristicScore.vue')['default']
     HomeView: typeof import('./views/HomeView.vue')['default']
     LandingLayout: typeof import('./layouts/LandingLayout.vue')['default']
     LineChart: typeof import('./components/LineChart.vue')['default']
