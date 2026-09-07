@@ -4,165 +4,28 @@
 
     <TabControl v-model="activeTab" :tabs="tabs" class="mb-6" />
 
-    <div v-if="activeTab === 'dashboard'">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 items-stretch">
-        <div class="relative w-full flex flex-col h-full">
-          <Panel title="Filters" class="h-full flex flex-col">
-            <div class="flex flex-col sm:flex-row gap-4 flex-1 items-start">
-              <DatePicker
-                v-model="startDate"
-                label="Start"
-                placeholder="YYYY-MM-DD"
-                input-id="start-date"
-                class="w-full sm:w-auto flex-1"
-                @date-selected="handleDateSelected"
-              />
+    <DashboardTab
+      v-if="activeTab === 'dashboard'"
+      v-model:start-date="startDate"
+      v-model:end-date="endDate"
+      :block-rate="blockRate"
+      :current-time="currentTime"
+      :loading="loading"
+      :hour-dns-data="hourDnsData"
+      :question-type-data="questionTypeData"
+      @date-selected="handleDateSelected"
+    />
 
-              <DatePicker
-                v-model="endDate"
-                label="End"
-                placeholder="YYYY-MM-DD"
-                input-id="end-date"
-                class="w-full sm:w-auto flex-1"
-                @date-selected="handleDateSelected"
-              />
-            </div>
-            <div v-if="blockRate">Block Rate: {{ blockRate.blockRatePercentage }}%</div>
-          </Panel>
-        </div>
-
-        <div class="relative w-full flex flex-col h-full">
-          <span
-            v-if="loading"
-            class="absolute top-3 right-3 z-10 flex h-2.5 w-2.5"
-            title="Refreshing..."
-          >
-            <span
-              class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
-            ></span>
-            <span
-              class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]"
-            ></span>
-          </span>
-
-          <Panel v-if="currentTime" title="Current Time" class="h-full">
-            <div class="space-y-2.5 py-1">
-              <div
-                class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
-              >
-                <div class="flex items-center gap-2">
-                  <Globe class="h-4 w-4 text-sky-400" />
-                  <span class="text-xs font-semibold uppercase tracking-wider text-slate-400"
-                    >UTC</span
-                  >
-                </div>
-                <span class="font-mono text-sm font-medium text-sky-300">
-                  {{ currentTime.toUTCString() }}
-                </span>
-              </div>
-
-              <div
-                class="flex items-center justify-between rounded-lg bg-slate-900/60 border border-slate-700/60 px-3.5 py-2.5 transition-colors hover:border-slate-600"
-              >
-                <div class="flex items-center gap-2">
-                  <Clock class="h-4 w-4 text-indigo-400" />
-                  <span class="text-xs font-semibold uppercase tracking-wider text-slate-400"
-                    >Local</span
-                  >
-                </div>
-                <span class="font-mono text-sm font-medium text-slate-200">
-                  {{ formatUtcToLocalBrowserTime(currentTime) }}
-                </span>
-              </div>
-            </div>
-          </Panel>
-        </div>
-      </div>
-
-      <div class="h-[380px]">
-        <StackedBarChart
-          :show-legend="false"
-          :show-title="true"
-          v-model="hourlyDnsChartData"
-          legend-position="bottom"
-          :series-list="dnsBarSeries"
-          title="DNS Forwarder Activity"
-        >
-          <template #tooltip="{ active }">
-            <div v-if="active" class="flex flex-col gap-0.5 p-0.5">
-              <span class="font-bold text-white flex items-center gap-1.5">
-                <span
-                  class="w-2 h-2 rounded-full"
-                  :style="{ backgroundColor: active.color }"
-                ></span>
-                {{ active.barLabel }} - {{ active.seriesLabel }}
-              </span>
-              <span class="text-slate-300 text-[11px]">
-                Value:
-                <span class="text-emerald-400 font-medium">{{
-                  active.value.toLocaleString()
-                }}</span>
-              </span>
-              <span class="text-slate-400 text-[10px] italic">
-                Share of Requests: {{ active.percentage.toFixed(2) }}%
-              </span>
-            </div>
-          </template>
-        </StackedBarChart>
-      </div>
-
-      <div class="h-[380px]">
-        <PieChart
-          :show-legend="true"
-          :show-title="true"
-          v-model="questionTypeChartData"
-          title="DNS Question Types"
-        >
-          <template #tooltip="{ activeSlice }">
-            <div v-if="activeSlice" class="flex flex-col gap-0.5 p-0.5">
-              <span class="font-bold text-white flex items-center gap-1.5">
-                <span
-                  class="w-2 h-2 rounded-full"
-                  :style="{ backgroundColor: activeSlice.color }"
-                ></span>
-                {{ activeSlice.label }}
-              </span>
-              <span class="text-slate-300 text-[11px]">
-                Value:
-                <span class="text-emerald-400 font-medium">{{
-                  activeSlice.value.toLocaleString()
-                }}</span>
-              </span>
-              <span class="text-slate-400 text-[10px] italic">
-                Share: {{ activeSlice.percentage.toFixed(2) }}% of total
-              </span>
-            </div>
-          </template>
-        </PieChart>
-      </div>
-    </div>
-
-    <div v-else-if="activeTab === 'details'" class="p-6 text-slate-300">
-      <p>Details tab content goes here...</p>
-    </div>
+    <DetailsTab v-else-if="activeTab === 'details'" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { type TabOption } from '../types/types'
-import { useDnsTypeColor } from '../composables/useDnsTypeColor'
 import { useApi } from '../composables/useApi'
-import { useDateUtils } from '../composables/useDateUtils'
 
-import type {
-  BlockRateResponse,
-  DnsQuestionTypeSummary,
-  AstrolabedStatusResponse,
-  DnsHourlyEventSummary,
-} from '../types/api'
-import type { PieChartItem, StackedBarItem, StackedBarSeries } from '../types/types'
-import { Globe, Clock } from '@lucide/vue'
+import type { BlockRateResponse, DnsQuestionTypeSummary, DnsHourlyEventSummary } from '../types/api'
 
 // Tab Control Setup
 const activeTab = ref<string>('dashboard')
@@ -171,10 +34,9 @@ const tabs: TabOption[] = [
   { id: 'details', label: 'Details' },
 ]
 
-const { formatUtcToLocalBrowserTime } = useDateUtils()
-const { getDnsTypeColorConfig } = useDnsTypeColor()
 const { getBlockRate, getCurrentTime, getDnsQuestionTypeSummary, getDnsHourlyEventSummary } =
   useApi()
+
 const hourDnsData = ref<DnsHourlyEventSummary[] | null>(null)
 const questionTypeData = ref<DnsQuestionTypeSummary[] | null>(null)
 const currentTime = ref<Date | null>(null)
@@ -186,53 +48,12 @@ const error = ref<string | null>(null)
 
 let timerId: ReturnType<typeof setInterval> | null = null
 
-const dnsBarSeries: StackedBarSeries[] = [
-  { id: 'blocked', label: 'Blocked', color: '#3b82f6' },
-  { id: 'allowed', label: 'Allowed', color: '#10b981' },
-]
-
-const questionTypeChartData = computed<PieChartItem[]>(() => {
-  if (questionTypeData.value == null) return []
-  const res: PieChartItem[] = []
-  const records: DnsQuestionTypeSummary[] = questionTypeData.value
-  const count = records.length
-
-  for (let i = 0; i < count; i++) {
-    const color = getDnsTypeColorConfig(records[i].questionType)
-    res.push({
-      id: records[i].questionType,
-      label: records[i].questionType,
-      value: records[i].total,
-      color: color.fill,
-    })
-  }
-
-  return res
-})
-
-const hourlyDnsChartData = computed<StackedBarItem[]>(() => {
-  if (hourDnsData.value == null) return []
-  const res: StackedBarItem[] = []
-  const records: DnsHourlyEventSummary[] = hourDnsData.value || []
-  const count = records.length
-
-  for (let i = 0; i < count; i++) {
-    res.push({
-      id: `hour${i}`,
-      label: `${records[i].eventHour}`,
-      values: { blocked: records[i].blocked, allowed: records[i].allowed },
-    })
-  }
-
-  return res
-})
-
-const handleDateSelected = async (epochSeconds: number): Promise<void> => {
+const handleDateSelected = async (_epochSeconds: number): Promise<void> => {
   await fetchData()
 }
 
 const fetchData = async (): Promise<void> => {
-  if (loading.value) return
+  if (loading.value || activeTab.value !== 'dashboard') return
 
   try {
     loading.value = true
@@ -251,13 +72,11 @@ const fetchData = async (): Promise<void> => {
   }
 }
 
-const calculateDateFromNow = (days: number) => {
+const calculateDateFromNow = (days: number): number => {
   const now = new Date()
-  const epochSecondsUTC = Math.floor(
+  return Math.floor(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + days, 0, 0, 0, 0) / 1000
   )
-
-  return epochSecondsUTC
 }
 
 onMounted(() => {
